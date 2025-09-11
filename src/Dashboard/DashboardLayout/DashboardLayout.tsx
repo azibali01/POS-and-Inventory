@@ -6,8 +6,6 @@ import {
   IconLayoutDashboard,
   IconShoppingCart,
   IconBox,
-  IconTruck,
-  IconDatabase,
   IconSettings,
 } from "@tabler/icons-react";
 import { Link, Outlet, useLocation } from "react-router-dom";
@@ -44,17 +42,17 @@ const menuItems: MenuItem[] = [
   //     icon: <IconUsers size={18} />,
   //     path: "/dashboard/customers",
   //   },
-  {
-    label: "Suppliers",
-    icon: <IconTruck size={18} />,
-    path: "/dashboard/customers",
-  },
+  // {
+  //   label: "Suppliers",
+  //   icon: <IconTruck size={18} />,
+  //   path: "/dashboard/customers",
+  // },
 
-  {
-    label: "Data",
-    icon: <IconDatabase size={18} />,
-    path: "/dashboard/tax",
-  },
+  // {
+  //   label: "Data",
+  //   icon: <IconDatabase size={18} />,
+  //   path: "/dashboard/tax",
+  // },
   {
     label: "Settings",
     icon: <IconSettings size={18} />,
