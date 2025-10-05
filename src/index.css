@@ -1,0 +1,32 @@
+/* Hide everything except .print-area when printing */
+@media print {
+  body.print-active * {
+    visibility: hidden !important;
+    display: none !important;
+  }
+  body.print-active .print-area,
+  body.print-active .print-area * {
+    visibility: visible !important;
+    display: block !important;
+  }
+  body.print-active .print-area {
+    position: absolute !important;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    min-width: 100vw;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    z-index: 9999 !important;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 16mm 8mm 16mm 8mm;
+  }
+  input,
+  button {
+    display: none !important;
+  }
+}

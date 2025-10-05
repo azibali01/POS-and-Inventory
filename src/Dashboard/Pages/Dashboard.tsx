@@ -6,6 +6,7 @@ import {
   Badge,
   SimpleGrid,
   Box,
+  Button,
 } from "@mantine/core";
 import {
   IconShoppingCart,
@@ -13,50 +14,74 @@ import {
   IconChartBar,
   IconCalendarWeek,
   IconCalendar,
+  IconPlus,
+  IconDownload,
 } from "@tabler/icons-react";
-
-type Stat = {
-  title: string;
-  value: string;
-  description: string;
-  // icon removed
-  trend: string;
-};
-
-const stats: Stat[] = [
-  {
-    title: "Total Sales",
-    value: "2,45,680",
-    description: "Today",
-    trend: "+12.5%",
-  },
-  {
-    title: "Inventory Items",
-    value: "1,247",
-    description: "Active products",
-    trend: "+3.2%",
-  },
-  {
-    title: "Monthly Revenue",
-    value: "8,45,230",
-    description: "This month",
-    trend: "+15.3%",
-  },
-  {
-    title: "Weekly Revenue",
-    value: "1,95,000",
-    description: "This week",
-    trend: "+7.8%",
-  },
-  {
-    title: "Daily Revenue",
-    value: "28,500",
-    description: "Today",
-    trend: "+2.1%",
-  },
-];
-
+import { useDataContext } from "../Context/DataContext";
+import dayjs from "dayjs";
 export default function Dashboard() {
+  const { inventory, sales } = useDataContext();
+
+  // Stats calculations
+  const totalSales = sales.reduce((sum, s) => sum + (s.total || 0), 0);
+  const inventoryCount = inventory.length;
+  const today = dayjs().format("YYYY-MM-DD");
+  const todaySales = sales.filter((s) => s.date === today);
+  const todayRevenue = todaySales.reduce((sum, s) => sum + (s.total || 0), 0);
+  const monthlySales = sales.filter((s) =>
+    dayjs(s.date).isSame(dayjs(), "month")
+  );
+  const monthlyRevenue = monthlySales.reduce(
+    (sum, s) => sum + (s.total || 0),
+    0
+  );
+  const weeklySales = sales.filter((s) =>
+    dayjs(s.date).isSame(dayjs(), "week")
+  );
+  const weeklyRevenue = weeklySales.reduce((sum, s) => sum + (s.total || 0), 0);
+
+  // Recent sales (last 5)
+  const recentSales = [...sales]
+    .sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf())
+    .slice(0, 5);
+
+  // Low stock alerts
+  const lowStock = inventory.filter((item) => item.stock <= 15);
+
+  // Stats array for cards
+  const stats = [
+    {
+      title: "Total Sales",
+      value: totalSales.toLocaleString(),
+      description: "All time",
+      trend: "",
+    },
+    {
+      title: "Inventory Items",
+      value: inventoryCount.toLocaleString(),
+      description: "Active products",
+      trend: "",
+    },
+    {
+      title: "Monthly Revenue",
+      value: monthlyRevenue.toLocaleString(),
+      description: "This month",
+      trend: "",
+    },
+    {
+      title: "Weekly Revenue",
+      value: weeklyRevenue.toLocaleString(),
+      description: "This week",
+      trend: "",
+    },
+    {
+      title: "Today's Revenue",
+      value: todayRevenue.toLocaleString(),
+      description: "Today",
+      trend: "",
+    },
+  ];
+
   return (
     <div>
       <Box mb="lg">
@@ -66,6 +91,31 @@ export default function Dashboard() {
           inventory system.
         </Text>
       </Box>
+
+      {/* Quick Actions */}
+      <Group mb="xl" gap={16}>
+        <Button
+          leftSection={<IconPlus size={18} />}
+          color="indigo"
+          variant="filled"
+        >
+          Add Sale
+        </Button>
+        <Button
+          leftSection={<IconPlus size={18} />}
+          color="teal"
+          variant="filled"
+        >
+          Add Inventory
+        </Button>
+        <Button
+          leftSection={<IconDownload size={18} />}
+          color="gray"
+          variant="outline"
+        >
+          Export Data
+        </Button>
+      </Group>
 
       <SimpleGrid cols={{ base: 1, md: 3, lg: 5 }} spacing="lg" mb="xl">
         {stats.map((stat, idx) => (
@@ -92,9 +142,6 @@ export default function Dashboard() {
             <Text size="xs" c="dimmed">
               {stat.description}
             </Text>
-            <Text size="xs" c="blue" fw={500} mt={4}>
-              {stat.trend} from last period
-            </Text>
           </Card>
         ))}
       </SimpleGrid>
@@ -103,36 +150,24 @@ export default function Dashboard() {
         <Card shadow="sm" padding="lg" radius="md" withBorder>
           <Title order={4}>Recent Sales</Title>
           <Text c="dimmed" size="sm" mb="md">
-            Latest transactions from today
+            Latest transactions
           </Text>
           <Box>
-            {[
-              {
-                customer: "ABC Construction",
-                amount: "12,450",
-                time: "2 hours ago",
-              },
-              {
-                customer: "XYZ Builders",
-                amount: "8,750",
-                time: "4 hours ago",
-              },
-              {
-                customer: "PQR Industries",
-                amount: "15,200",
-                time: "6 hours ago",
-              },
-            ].map((sale, index) => (
-              <Group key={index} justify="space-between" mb="sm">
-                <Box>
-                  <Text fw={500}>{sale.customer}</Text>
-                  <Text size="xs" c="dimmed">
-                    {sale.time}
-                  </Text>
-                </Box>
-                <Text fw={600}>{sale.amount}</Text>
-              </Group>
-            ))}
+            {recentSales.length === 0 ? (
+              <Text c="dimmed">No sales yet.</Text>
+            ) : (
+              recentSales.map((sale, index) => (
+                <Group key={index} justify="space-between" mb="sm">
+                  <Box>
+                    <Text fw={500}>{sale.customer}</Text>
+                    <Text size="xs" c="dimmed">
+                      {dayjs(sale.date).format("MMM DD, YYYY")}
+                    </Text>
+                  </Box>
+                  <Text fw={600}>{sale.total?.toLocaleString()}</Text>
+                </Group>
+              ))
+            )}
           </Box>
         </Card>
 
@@ -142,38 +177,36 @@ export default function Dashboard() {
             Items running low in inventory
           </Text>
           <Box>
-            {[
-              { item: "Aluminium Sheet 4mm", stock: "12 units", status: "Low" },
-              {
-                item: "Aluminium Pipe 2 inch",
-                stock: "8 units",
-                status: "Critical",
-              },
-              {
-                item: "Aluminium Angle 25mm",
-                stock: "15 units",
-                status: "Low",
-              },
-            ].map((item, index) => (
-              <Group key={index} justify="space-between" mb="sm">
-                <Box>
-                  <Text fw={500}>{item.item}</Text>
-                  <Text size="xs" c="dimmed">
-                    {item.stock}
-                  </Text>
-                </Box>
-                <Badge
-                  color={item.status === "Critical" ? "yellow" : "red"}
-                  variant={item.status === "Critical" ? "filled" : "filled"}
-                  size="sm"
-                >
-                  {item.status}
-                </Badge>
-              </Group>
-            ))}
+            {lowStock.length === 0 ? (
+              <Text c="dimmed">No low stock items.</Text>
+            ) : (
+              lowStock.map((item, index) => (
+                <Group key={index} justify="space-between" mb="sm">
+                  <Box>
+                    <Text fw={500}>{item.name}</Text>
+                    <Text size="xs" c="dimmed">
+                      {item.stock} units
+                    </Text>
+                  </Box>
+                  <Badge
+                    color={item.stock <= 8 ? "yellow" : "red"}
+                    variant="filled"
+                    size="sm"
+                  >
+                    {item.stock <= 8 ? "Critical" : "Low"}
+                  </Badge>
+                </Group>
+              ))
+            )}
           </Box>
         </Card>
       </SimpleGrid>
+
+      {/* Analytics placeholder (add charts here if needed) */}
+      {/* <Card shadow="sm" padding="lg" radius="md" withBorder mt="xl">
+          <Title order={4}>Sales Analytics</Title>
+          <Text c="dimmed" size="sm" mb="md">Charts and trends coming soon.</Text>
+        </Card> */}
     </div>
   );
 }

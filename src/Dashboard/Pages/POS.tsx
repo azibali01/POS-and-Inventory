@@ -1,715 +1,557 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
-  Card,
-  Group,
-  Text,
-  TextInput,
-  SimpleGrid,
-  Badge,
   Button,
-  Textarea,
-  NumberInput,
-  Divider,
+  Table,
+  TextInput,
+  Group,
   Stack,
-  ScrollArea,
-  Modal,
-  Tabs,
+  Notification,
+  Paper,
+  Title,
+  Divider,
+  Card,
 } from "@mantine/core";
 import {
-  IconSearch,
-  IconShoppingCart,
-  IconPlus,
-  IconMinus,
   IconTrash,
-  IconCalculator,
-  IconCreditCard,
-  IconCash,
+  IconCheck,
+  IconPlus,
   IconPrinter,
-  IconGavel,
+  IconDeviceFloppy,
+  IconCopy,
 } from "@tabler/icons-react";
+import { POSPrint } from "./POSPrint";
+import { GatePassPrint } from "./GatePassPrint";
+import React from "react";
 
-type Product = {
-  id: number;
-  name: string;
-  code: string;
-  price: number;
-  unit: string;
-  category: string;
-  stock: number;
-};
-
-type CartItem = {
-  id: number;
-  name: string;
-  code: string;
-  price: number;
-  quantity: number;
-  unit: string;
-  total: number;
-};
-
-const products: Product[] = [
-  {
-    id: 1,
-    name: "Aluminium Sheet 4mm",
-    code: "AS4",
-    price: 450,
-    unit: "sq ft",
-    category: "Sheets",
-    stock: 120,
-  },
-  {
-    id: 2,
-    name: "Aluminium Pipe 2 inch",
-    code: "AP2",
-    price: 280,
-    unit: "ft",
-    category: "Pipes",
-    stock: 85,
-  },
-  {
-    id: 3,
-    name: "Aluminium Angle 25mm",
-    code: "AA25",
-    price: 180,
-    unit: "ft",
-    category: "Angles",
-    stock: 200,
-  },
-  {
-    id: 4,
-    name: "Aluminium Channel 50mm",
-    code: "AC50",
-    price: 320,
-    unit: "ft",
-    category: "Channels",
-    stock: 150,
-  },
-  {
-    id: 5,
-    name: "Aluminium Rod 10mm",
-    code: "AR10",
-    price: 95,
-    unit: "ft",
-    category: "Rods",
-    stock: 300,
-  },
-  {
-    id: 6,
-    name: "Aluminium Wire 2.5mm",
-    code: "AW25",
-    price: 65,
-    unit: "kg",
-    category: "Wires",
-    stock: 75,
-  },
+const columns = [
+  "Sr.#",
+  "Section",
+  "Color",
+  "Thick",
+  "Size ft",
+  "No. of Lengths",
+  "Total Feet",
+  "Rate",
+  "Gross Amount",
+  "Discount",
+  "Amount",
+  "Action",
 ];
 
+type Row = {
+  section: string;
+  color: string;
+  thick: string;
+  size: string;
+  lengths: string;
+  totalFeet: string;
+  rate: string;
+  grossAmount: string;
+  discount: string;
+  amount: string;
+};
+
+function calculateRow(row: Row): Row {
+  // Auto-calculate grossAmount, amount
+  const totalFeet = parseFloat(row.totalFeet) || 0;
+  const rate = parseFloat(row.rate) || 0;
+  const grossAmount = totalFeet * rate;
+  const discount = parseFloat(row.discount) || 0;
+  const amount = grossAmount - discount;
+  return {
+    ...row,
+    grossAmount: grossAmount ? grossAmount.toFixed(2) : "",
+    amount: amount ? amount.toFixed(2) : "",
+  };
+}
+
 export default function POS() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [customerName, setCustomerName] = useState<string>("");
-  const [discount, setDiscount] = useState<number>(0);
-  const [tax, setTax] = useState<number>(18);
-  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
-  const [notes, setNotes] = useState<string>("");
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [amountReceived, setAmountReceived] = useState<number | undefined>(
-    undefined
-  );
-  const [bankRef, setBankRef] = useState<string>("");
-  const [onlineTxn, setOnlineTxn] = useState<string>("");
-  const [showInvoice, setShowInvoice] = useState(false);
-  const [showGatePass, setShowGatePass] = useState(false);
-  const [invoiceNumber, setInvoiceNumber] = useState<string>(() => {
-    // Generate invoice number starting from 01 and increment for each invoice
-    const storedNum = localStorage.getItem("haq_invoice_num");
-    const num = storedNum ? parseInt(storedNum, 10) : 1;
-    localStorage.setItem("haq_invoice_num", (num + 1).toString());
-    return `INV-${num.toString().padStart(2, "0")}`;
+  const [rows, setRows] = useState<Row[]>([
+    {
+      section: "",
+      color: "",
+      thick: "",
+      size: "",
+      lengths: "",
+      totalFeet: "",
+      rate: "",
+      grossAmount: "",
+      discount: "",
+      amount: "",
+    },
+  ]);
+  const [showNotification, setShowNotification] = useState(false);
+
+  // Invoice fields
+  const [invoiceNo, setInvoiceNo] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [gpNo, setGpNo] = useState("");
+  const [ms, setMs] = useState("");
+  const [date, setDate] = useState(() => {
+    const d = new Date();
+    return d.toISOString().slice(0, 10);
   });
+  const [receivedAmount, setReceivedAmount] = useState("");
 
-  const filteredProducts = products.filter(
-    (product) =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.code.toLowerCase().includes(searchTerm.toLowerCase())
+  // Auto-generate invoice number on mount, but only increment on save
+  React.useEffect(() => {
+    const lastInvoice = localStorage.getItem("lastInvoiceNo");
+    let nextNumber = 1;
+    if (lastInvoice && lastInvoice.startsWith("INV-")) {
+      nextNumber = parseInt(lastInvoice.replace("INV-", ""));
+    }
+    const nextInvoice = `INV-${nextNumber.toString().padStart(3, "0")}`;
+    setInvoiceNo(nextInvoice);
+  }, []);
+
+  // Print dialog state
+  const [printMode, setPrintMode] = useState(false);
+  const [gatePassPrintMode, setGatePassPrintMode] = useState(false);
+
+  // Calculate total amount
+  const totalAmount = useMemo(
+    () =>
+      rows.reduce((sum, row) => {
+        const amt = parseFloat(row.amount) || 0;
+        return sum + amt;
+      }, 0),
+    [rows]
   );
 
-  const addToCart = (product: Product) => {
-    const existingItem = cart.find((item) => item.id === product.id);
-    if (existingItem) {
-      setCart(
-        cart.map((item) =>
-          item.id === product.id
-            ? {
-                ...item,
-                quantity: item.quantity + 1,
-                total: (item.quantity + 1) * item.price,
-              }
-            : item
-        )
-      );
-    } else {
-      setCart([
-        ...cart,
-        {
-          id: product.id,
-          name: product.name,
-          code: product.code,
-          price: product.price,
-          quantity: 1,
-          unit: product.unit,
-          total: product.price,
-        },
-      ]);
-    }
+  const changeAmount = useMemo(() => {
+    const received = parseFloat(receivedAmount) || 0;
+    return received > totalAmount
+      ? (received - totalAmount).toFixed(2)
+      : "0.00";
+  }, [receivedAmount, totalAmount]);
+
+  const handleAddRow = () => {
+    setRows([
+      ...rows,
+      {
+        section: "",
+        color: "",
+        thick: "",
+        size: "",
+        lengths: "",
+        totalFeet: "",
+        rate: "",
+        grossAmount: "",
+        discount: "",
+        amount: "",
+      },
+    ]);
   };
 
-  const updateQuantity = (id: number, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      removeFromCart(id);
+  const handleDeleteRow = (index: number) => {
+    setRows(rows.filter((_, i) => i !== index));
+  };
+
+  const handleDuplicateRow = (index: number) => {
+    setRows([
+      ...rows.slice(0, index + 1),
+      { ...rows[index] },
+      ...rows.slice(index + 1),
+    ]);
+  };
+
+  const handleChange = (index: number, field: keyof Row, value: string) => {
+    const updatedRows = [...rows];
+    updatedRows[index][field] = value;
+    updatedRows[index] = calculateRow(updatedRows[index]);
+    setRows(updatedRows);
+  };
+
+  const handleSaveInvoice = () => {
+    // Validation: at least one filled row
+    if (!rows.some((row) => row.section || row.amount)) {
+      setShowNotification(false);
+      alert("Please add at least one item to the invoice.");
       return;
     }
-    setCart(
-      cart.map((item) =>
-        item.id === id
-          ? { ...item, quantity: newQuantity, total: newQuantity * item.price }
-          : item
-      )
-    );
-  };
-
-  const removeFromCart = (id: number) => {
-    setCart(cart.filter((item) => item.id !== id));
-  };
-
-  const clearCart = () => {
-    setCart([]);
-    setDiscount(0);
-    setNotes("");
-    setCustomerName("");
-  };
-
-  const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
-  const discountAmount = (subtotal * discount) / 100;
-  const taxableAmount = subtotal - discountAmount;
-  const taxAmount = (taxableAmount * tax) / 100;
-  const grandTotal = taxableAmount + taxAmount;
-
-  const handleGatePass = () => {
-    setShowGatePass(true);
-    setTimeout(() => {
-      window.print();
-      setShowGatePass(false);
-      clearCart();
-    }, 100);
+    // Increment invoice number and save to localStorage
+    const lastInvoice = localStorage.getItem("lastInvoiceNo");
+    let nextNumber = 1;
+    if (lastInvoice && lastInvoice.startsWith("INV-")) {
+      nextNumber = parseInt(lastInvoice.replace("INV-", "")) + 1;
+    }
+    const nextInvoice = `INV-${nextNumber.toString().padStart(3, "0")}`;
+    setInvoiceNo(nextInvoice);
+    localStorage.setItem("lastInvoiceNo", nextInvoice);
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 2500);
   };
 
   const handlePrintInvoice = () => {
-    setShowInvoice(true);
+    document.body.classList.add("print-active");
+    setPrintMode(true);
     setTimeout(() => {
       window.print();
-      setShowInvoice(false);
+      setPrintMode(false);
+      document.body.classList.remove("print-active");
     }, 100);
   };
 
-  const handleCompleteSale = () => {
-    // Complete sale logic
-    setIsPaymentModalOpen(false);
-    clearCart();
+  const handlePrintGatePass = () => {
+    document.body.classList.add("print-active");
+    setGatePassPrintMode(true);
+    setTimeout(() => {
+      window.print();
+      setGatePassPrintMode(false);
+      document.body.classList.remove("print-active");
+    }, 100);
   };
 
+  // Only show header/footer in print mode
+  if (printMode) {
+    return (
+      <div className="print-area">
+        <POSPrint
+          invoiceNo={invoiceNo}
+          customerName={customerName}
+          customerPhone={customerPhone}
+          gpNo={gpNo}
+          ms={ms}
+          date={date}
+          rows={rows}
+          totalAmount={totalAmount}
+          receivedAmount={receivedAmount}
+        />
+      </div>
+    );
+  }
+  if (gatePassPrintMode) {
+    return (
+      <div className="print-area">
+        <GatePassPrint
+          invoiceNo={invoiceNo}
+          customerName={customerName}
+          customerPhone={customerPhone}
+          gpNo={gpNo}
+          ms={ms}
+          date={date}
+          rows={rows.map((row) => ({
+            section: row.section,
+            color: row.color,
+            thick: row.thick,
+            size: row.size,
+            lengths: row.lengths,
+            totalFeet: row.totalFeet,
+          }))}
+        />
+      </div>
+    );
+  }
+
+  // POS Display Page (no header/footer)
   return (
-    <div>
-      <Text fw={700} fz="xl" mb="md">
-        POS
-      </Text>
-      <SimpleGrid cols={1} spacing="md">
-        <div>
-          <Group align="flex-start" gap="md">
-            {/* Product Selection */}
-            <Card
-              withBorder
-              radius="md"
-              p="md"
-              bg="#F5F5F5"
-              style={{ flex: 2 }}
-            >
-              <Group mb="sm">
-                <IconSearch size={18} />
-                <Text fw={500}>Product Search</Text>
-              </Group>
-              <TextInput
-                placeholder="Search products by name or code..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.currentTarget.value)}
-                mb="md"
-              />
-              <SimpleGrid cols={3} spacing="md">
-                {filteredProducts.map((product) => (
-                  <Card key={product.id} withBorder radius="md" p="md">
-                    <Text fw={600}>{product.name}</Text>
-                    <Text c="dimmed" fz="sm">
-                      Code: {product.code}
-                    </Text>
-                    <Text fw={600} mt="sm">
-                      {product.price}/{product.unit}
-                    </Text>
-                    <Text fz="sm" c="dimmed">
-                      Stock: {product.stock}
-                    </Text>
-                    <Group justify="space-between" mt="sm">
-                      <Badge color="gray">{product.category}</Badge>
-                      <Button
-                        size="xs"
-                        color="#5E78D9"
-                        onClick={() => addToCart(product)}
-                      >
-                        <IconPlus size={16} />
-                      </Button>
-                    </Group>
-                  </Card>
-                ))}
-              </SimpleGrid>
-            </Card>
-            <Stack gap="md" style={{ flex: 1, minWidth: 320, maxWidth: 380 }}>
-              {/* Cart */}
-              <Card withBorder radius="md" p="md">
-                <Group mb="sm">
-                  <IconShoppingCart size={18} />
-                  <Text fw={500}>Cart ({cart.length} items)</Text>
-                </Group>
-                <ScrollArea h={180}>
-                  {cart.length === 0 ? (
-                    <Text c="dimmed" ta="center" py="md">
-                      Cart is empty
-                    </Text>
-                  ) : (
-                    cart.map((item) => (
-                      <Group key={item.id} align="center" mb="xs">
-                        <Stack gap={0} style={{ flex: 1 }}>
-                          <Text fw={500} fz="sm">
-                            {item.name}
-                          </Text>
-                          <Text fz="xs" c="dimmed">
-                            {item.price}/{item.unit}
-                          </Text>
-                        </Stack>
-                        <Group>
-                          <Button
-                            size="xs"
-                            variant="default"
-                            onClick={() =>
-                              updateQuantity(item.id, item.quantity - 1)
-                            }
-                          >
-                            <IconMinus size={14} />
-                          </Button>
-                          <Text
-                            fz="sm"
-                            style={{ width: 24, textAlign: "center" }}
-                          >
-                            {item.quantity}
-                          </Text>
-                          <Button
-                            size="xs"
-                            variant="default"
-                            onClick={() =>
-                              updateQuantity(item.id, item.quantity + 1)
-                            }
-                          >
-                            <IconPlus size={14} />
-                          </Button>
-                          <Button
-                            size="xs"
-                            color="red"
-                            variant="light"
-                            onClick={() => removeFromCart(item.id)}
-                          >
-                            <IconTrash size={14} />
-                          </Button>
-                        </Group>
-                        <Text
-                          fw={600}
-                          fz="sm"
-                          style={{ width: 60, textAlign: "right" }}
-                        >
-                          {item.total}
-                        </Text>
-                      </Group>
-                    ))
-                  )}
-                </ScrollArea>
-                {cart.length > 0 && (
-                  <Button
-                    variant="light"
-                    color="red"
-                    onClick={clearCart}
-                    fullWidth
-                    mt="md"
-                  >
-                    Clear Cart
-                  </Button>
-                )}
-              </Card>
-
-              {/* Billing Details */}
-              <Card withBorder radius="md" p="md" bg="#F5F5F5">
-                <Group mb="sm">
-                  <IconCalculator size={18} />
-                  <Text fw={500}>Billing Details</Text>
-                </Group>
-                <TextInput
-                  label="Invoice No."
-                  value={invoiceNumber}
-                  onChange={(e) => setInvoiceNumber(e.currentTarget.value)}
-                  mb="sm"
-                />
-                <TextInput
-                  label="Customer Name"
-                  placeholder="Enter customer name"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.currentTarget.value)}
-                  mb="sm"
-                />
-                <Group grow mb="sm">
-                  <NumberInput
-                    label="Discount (%)"
-                    value={discount}
-                    min={0}
-                    max={100}
-                    onChange={(value) =>
-                      setDiscount(
-                        typeof value === "number" ? value : Number(value)
-                      )
-                    }
-                  />
-                  <NumberInput
-                    label="Tax (%)"
-                    value={tax}
-                    min={0}
-                    max={100}
-                    onChange={(value) =>
-                      setTax(typeof value === "number" ? value : Number(value))
-                    }
-                  />
-                </Group>
-                <Textarea
-                  label="Notes"
-                  placeholder="Additional notes..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.currentTarget.value)}
-                  mb="md"
-                />
-                <Divider mb="sm" />
-                <Stack gap={4}>
-                  <Group justify="space-between">
-                    <Text fz="sm">Subtotal:</Text>
-                    <Text fz="sm">{subtotal.toFixed(2)}</Text>
-                  </Group>
-                  <Group justify="space-between">
-                    <Text fz="sm">Discount ({discount}%):</Text>
-                    <Text fz="sm">-{discountAmount.toFixed(2)}</Text>
-                  </Group>
-                  <Group justify="space-between">
-                    <Text fz="sm">Tax ({tax}%):</Text>
-                    <Text fz="sm">{taxAmount.toFixed(2)}</Text>
-                  </Group>
-                  <Divider />
-                  <Group justify="space-between">
-                    <Text fw={600} fz="lg">
-                      Total:
-                    </Text>
-                    <Text fw={600} fz="lg">
-                      {grandTotal.toFixed(2)}
-                    </Text>
-                  </Group>
-                </Stack>
-                <Group grow mt="md">
-                  <Button
-                    variant="default"
-                    onClick={handleGatePass}
-                    disabled={cart.length === 0}
-                  >
-                    Gate Pass
-                  </Button>
-                  <Button
-                    color="#5E78D9"
-                    onClick={() => setIsPaymentModalOpen(true)}
-                    disabled={cart.length === 0}
-                  >
-                    Payment
-                  </Button>
-                </Group>
-              </Card>
-            </Stack>
+    <Paper shadow="md" p="xl" radius="lg" withBorder>
+      <Stack gap="md">
+        <Card
+          withBorder
+          radius="md"
+          mb="md"
+          shadow="xs"
+          style={{ background: "#f8faff" }}
+        >
+          <Group grow>
+            <TextInput
+              label="Invoice No"
+              value={invoiceNo}
+              readOnly
+              size="sm"
+            />
+            <TextInput
+              label="Customer Name"
+              placeholder="Enter Customer Name"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.currentTarget.value)}
+              size="sm"
+            />
+            <TextInput
+              label="Customer Phone No."
+              placeholder="Enter Customer Phone No."
+              value={customerPhone}
+              onChange={(e) =>
+                setCustomerPhone(e.currentTarget.value.replace(/[^0-9]/g, ""))
+              }
+              size="sm"
+              type="tel"
+            />
+            <TextInput
+              label="G.P No"
+              placeholder="Enter G.P No"
+              value={gpNo}
+              onChange={(e) => setGpNo(e.currentTarget.value)}
+              size="sm"
+            />
+            <TextInput
+              label="M/S"
+              placeholder="Enter M/S"
+              value={ms}
+              onChange={(e) => setMs(e.currentTarget.value)}
+              size="sm"
+            />
+            <TextInput
+              label="Date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.currentTarget.value)}
+              size="sm"
+            />
           </Group>
-        </div>
-      </SimpleGrid>
+        </Card>
 
-      {/* Payment Modal */}
-      <Modal
-        opened={isPaymentModalOpen}
-        onClose={() => setIsPaymentModalOpen(false)}
-        title={
-          <Text fw={600} fz={20}>
-            Process Payment
-          </Text>
-        }
-        centered
-        size="lg"
-      >
-        <Stack>
-          <Text fz={16} fw={500} mb={8}>
-            Total Amount: {grandTotal.toFixed(2)}
-          </Text>
-          <Tabs
-            value={paymentMethod}
-            onChange={(value) => {
-              if (value !== null) setPaymentMethod(value);
-            }}
-            variant="outline"
-            radius="md"
-          >
-            <Tabs.List grow mb="md">
-              <Tabs.Tab value="cash">Cash</Tabs.Tab>
-              <Tabs.Tab value="bank">Bank</Tabs.Tab>
-              <Tabs.Tab value="online">Online</Tabs.Tab>
-            </Tabs.List>
-            <Tabs.Panel value="cash">
-              <Group mb={8}>
-                <IconCash size={20} />
-                <Text fw={500}>Cash Payment</Text>
-              </Group>
-              <NumberInput
-                label="Amount received"
-                value={amountReceived}
-                onChange={(value) =>
-                  setAmountReceived(
-                    typeof value === "number" ? value : Number(value)
-                  )
-                }
-                min={0}
-                mb="md"
-              />
-            </Tabs.Panel>
-            <Tabs.Panel value="bank">
-              <Group mb={8}>
-                <IconCreditCard size={20} />
-                <Text fw={500}>Bank Payment</Text>
-              </Group>
-              <TextInput
-                label="Bank Reference No."
-                value={bankRef}
-                onChange={(e) => setBankRef(e.currentTarget.value)}
-                mb="md"
-              />
-            </Tabs.Panel>
-            <Tabs.Panel value="online">
-              <Group mb={8}>
-                <IconPrinter size={20} />
-                <Text fw={500}>Online Payment</Text>
-              </Group>
-              <TextInput
-                label="Transaction ID"
-                value={onlineTxn}
-                onChange={(e) => setOnlineTxn(e.currentTarget.value)}
-                mb="md"
-              />
-            </Tabs.Panel>
-          </Tabs>
-          <Group grow mt={16}>
+        <Group justify="space-between" mb={0}>
+          <Title order={3} fw={700} c="blue">
+            Invoice Items
+          </Title>
+          <Group gap="xs">
             <Button
-              variant="default"
-              leftSection={<IconPrinter size={18} />}
+              leftSection={<IconPlus size={16} />}
+              onClick={handleAddRow}
+              variant="light"
+            >
+              Add Item
+            </Button>
+            <Button
+              leftSection={<IconPrinter size={16} />}
+              color="blue"
+              variant="filled"
               onClick={handlePrintInvoice}
             >
               Print Invoice
             </Button>
             <Button
-              color="#5E78D9"
-              leftSection={<IconGavel size={18} />}
-              onClick={handleCompleteSale}
+              color="orange"
+              variant="filled"
+              style={{ fontWeight: 600 }}
+              onClick={handlePrintGatePass}
             >
-              Complete Sale
+              Gate Pass
+            </Button>
+            <Button
+              leftSection={<IconDeviceFloppy size={16} />}
+              color="green"
+              variant="filled"
+              onClick={handleSaveInvoice}
+            >
+              Save Invoice
             </Button>
           </Group>
-        </Stack>
-      </Modal>
+        </Group>
+        <Divider />
 
-      {showInvoice && (
-        <div
-          id="invoice-print"
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            background: "white",
-            zIndex: 9999,
-            padding: 32,
-          }}
-        >
-          <Card
-            withBorder
-            radius="md"
-            p="xl"
-            style={{ maxWidth: 600, margin: "40px auto" }}
-          >
-            {/* Header */}
-            <Stack align="center" mb={16}>
-              <Text fw={900} fz={28} c="#5E78D9">
-                Haq Aluminum
-              </Text>
-              <Text fw={700} fz={20} mb={8}>
-                INVOICE
-              </Text>
-            </Stack>
-            <Divider mb={16} />
-            <Text fz={16} mb={4}>
-              Invoice No.: {invoiceNumber}
-            </Text>
-            <Text fz={16} mb={4}>
-              Customer: {customerName || "Walk-in Customer"}
-            </Text>
-            <Text fz={16} mb={4}>
-              Date: {new Date().toLocaleDateString()}
-            </Text>
-            <Divider mb={16} />
-            <Stack gap={4}>
-              {cart.map((item) => (
-                <Group key={item.id} justify="space-between">
-                  <Text>
-                    {item.name} ({item.unit}) x {item.quantity}
-                  </Text>
-                  <Text>{item.total.toFixed(2)}</Text>
-                </Group>
+        <Table withColumnBorders highlightOnHover striped>
+          <Table.Thead>
+            <Table.Tr>
+              {columns.map((col) => (
+                <Table.Th key={col}>{col}</Table.Th>
               ))}
-            </Stack>
-            <Divider mb={16} />
-            <Group justify="space-between">
-              <Text>Subtotal:</Text>
-              <Text>{subtotal.toFixed(2)}</Text>
-            </Group>
-            <Group justify="space-between">
-              <Text>Discount:</Text>
-              <Text>-{discountAmount.toFixed(2)}</Text>
-            </Group>
-            <Group justify="space-between">
-              <Text>Tax:</Text>
-              <Text>{taxAmount.toFixed(2)}</Text>
-            </Group>
-            <Divider mb={16} />
-            <Group justify="space-between">
-              <Text fw={600} fz={18}>
-                Total:
-              </Text>
-              <Text fw={600} fz={18}>
-                {grandTotal.toFixed(2)}
-              </Text>
-            </Group>
-            <Divider mb={16} />
-            <Text fz={14} mb={4}>
-              Payment Method:{" "}
-              {paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)}
-            </Text>
-            <Text fz={14} mb={4}>
-              Amount Received: {amountReceived || 0}
-            </Text>
-            {paymentMethod === "bank" && (
-              <Text fz={14} mb={4}>
-                Bank Reference No.: {bankRef || "-"}
-              </Text>
-            )}
-            {paymentMethod === "online" && (
-              <Text fz={14} mb={4}>
-                Transaction ID: {onlineTxn || "-"}
-              </Text>
-            )}
-            <Text fz={14} mb={4}>
-              Notes: {notes}
-            </Text>
-            {/* Footer */}
-            <Divider mt={24} mb={8} />
-            <Stack align="center" gap={0}>
-              <Text fz={14} color="#888">
-                Thank you for your business!
-              </Text>
-              <Text fz={12} color="#aaa">
-                Haq Aluminum, All rights reserved.
-              </Text>
-            </Stack>
-          </Card>
-        </div>
-      )}
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {rows.map((row, idx) => (
+              <Table.Tr key={idx}>
+                <Table.Td>{idx + 1}</Table.Td>
+                <Table.Td style={{ minWidth: 180 }}>
+                  <TextInput
+                    value={row.section}
+                    onChange={(e) =>
+                      handleChange(idx, "section", e.currentTarget.value)
+                    }
+                    placeholder="Section"
+                    size="xs"
+                    style={{ width: 230 }}
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <TextInput
+                    value={row.color}
+                    onChange={(e) =>
+                      handleChange(idx, "color", e.currentTarget.value)
+                    }
+                    placeholder="Color"
+                    size="xs"
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <TextInput
+                    value={row.thick}
+                    onChange={(e) =>
+                      handleChange(idx, "thick", e.currentTarget.value)
+                    }
+                    placeholder="Thick"
+                    size="xs"
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <TextInput
+                    value={row.size}
+                    onChange={(e) =>
+                      handleChange(idx, "size", e.currentTarget.value)
+                    }
+                    placeholder="Size ft"
+                    size="xs"
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <TextInput
+                    value={row.lengths}
+                    onChange={(e) =>
+                      handleChange(idx, "lengths", e.currentTarget.value)
+                    }
+                    placeholder="No. of Lengths"
+                    size="xs"
+                    type="number"
+                    min={0}
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <TextInput
+                    value={row.totalFeet}
+                    onChange={(e) =>
+                      handleChange(idx, "totalFeet", e.currentTarget.value)
+                    }
+                    placeholder="Total Feet"
+                    size="xs"
+                    type="number"
+                    min={0}
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <TextInput
+                    value={row.rate}
+                    onChange={(e) =>
+                      handleChange(idx, "rate", e.currentTarget.value)
+                    }
+                    placeholder="Rate"
+                    size="xs"
+                    type="number"
+                    min={0}
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <TextInput
+                    value={row.grossAmount}
+                    onChange={(e) =>
+                      handleChange(idx, "grossAmount", e.currentTarget.value)
+                    }
+                    placeholder="Gross Amount"
+                    size="xs"
+                    type="number"
+                    min={0}
+                    disabled
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <TextInput
+                    value={row.discount}
+                    onChange={(e) =>
+                      handleChange(
+                        idx,
+                        "discount",
+                        e.currentTarget.value.replace(/[^0-9.]/g, "")
+                      )
+                    }
+                    placeholder="Discount"
+                    size="xs"
+                    type="number"
+                    min={0}
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <TextInput
+                    value={row.amount}
+                    onChange={(e) =>
+                      handleChange(idx, "amount", e.currentTarget.value)
+                    }
+                    placeholder="Amount"
+                    size="xs"
+                    type="number"
+                    min={0}
+                    disabled
+                  />
+                </Table.Td>
+                <Table.Td>
+                  <Group gap={4}>
+                    <Button
+                      color="red"
+                      size="xs"
+                      variant="light"
+                      onClick={() => handleDeleteRow(idx)}
+                      disabled={rows.length === 1}
+                    >
+                      <IconTrash size={16} />
+                    </Button>
+                    <Button
+                      color="gray"
+                      size="xs"
+                      variant="light"
+                      onClick={() => handleDuplicateRow(idx)}
+                    >
+                      <IconCopy size={16} />
+                    </Button>
+                  </Group>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
 
-      {showGatePass && (
-        <div
-          id="gatepass-print"
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            background: "white",
-            zIndex: 9999,
-            padding: 32,
-          }}
+        {/* Totals and Received Amount below table */}
+        <Group mt="md" align="center" justify="end" gap="xl">
+          <Group align="center">
+            <Title order={5} fw={700} mb={0}>
+              Total Amount:
+            </Title>
+            <Title order={5} fw={700} mb={0} c="blue">
+              {totalAmount.toFixed(2)}
+            </Title>
+          </Group>
+          <Group align="center">
+            <Title order={5} fw={700} mb={0}>
+              Received Amount:
+            </Title>
+            <TextInput
+              placeholder="Enter Received Amount"
+              value={receivedAmount}
+              onChange={(e) =>
+                setReceivedAmount(e.currentTarget.value.replace(/[^0-9.]/g, ""))
+              }
+              style={{ maxWidth: 200 }}
+              size="md"
+              type="number"
+              min={0}
+            />
+          </Group>
+          <Group align="center">
+            <Title order={5} fw={700} mb={0}>
+              Change:
+            </Title>
+            <Title
+              order={5}
+              fw={700}
+              mb={0}
+              c={parseFloat(receivedAmount) >= totalAmount ? "green" : "red"}
+            >
+              {changeAmount}
+            </Title>
+          </Group>
+        </Group>
+      </Stack>
+      {showNotification && (
+        <Notification
+          icon={<IconCheck size={18} />}
+          color="green"
+          title="Invoice Saved"
+          withCloseButton={false}
+          mt="md"
         >
-          <Card
-            withBorder
-            radius="md"
-            p="xl"
-            style={{ maxWidth: 600, margin: "40px auto" }}
-          >
-            {/* Header */}
-            <Stack align="center" mb={16}>
-              <Text fw={900} fz={28} color="#5E78D9">
-                Haq Aluminum
-              </Text>
-              <Text fw={700} fz={20} mb={8}>
-                GATE PASS
-              </Text>
-            </Stack>
-            <Divider mb={16} />
-            <Text fz={16} mb={4}>
-              Invoice No.: {invoiceNumber}
-            </Text>
-            <Text fz={16} mb={4}>
-              Customer: {customerName || "Walk-in Customer"}
-            </Text>
-            <Text fz={16} mb={4}>
-              Date: {new Date().toLocaleDateString()}
-            </Text>
-            <Divider mb={16} />
-            <Stack gap={4}>
-              {cart.map((item) => (
-                <Group key={item.id} justify="space-between">
-                  <Text>
-                    {item.name} ({item.unit}) x {item.quantity}
-                  </Text>
-                </Group>
-              ))}
-            </Stack>
-            <Divider mb={16} />
-            <Text fz={14} mb={4}>
-              Notes: {notes}
-            </Text>
-            {/* Footer */}
-            <Divider mt={24} mb={8} />
-            <Stack align="center" gap={0}>
-              <Text fz={14} color="#888">
-                Goods issued as per above details.
-              </Text>
-              <Text fz={12} color="#aaa">
-                Haq Aluminum, All rights reserved.
-              </Text>
-            </Stack>
-          </Card>
-        </div>
+          Your invoice has been saved successfully!
+        </Notification>
       )}
-    </div>
+    </Paper>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Notification } from "@mantine/core";
 import {
   Card,
   Group,
@@ -122,6 +123,10 @@ export default function Inventory() {
   const [stockQuantity, setStockQuantity] = useState<string>("");
   const [stockReason, setStockReason] = useState<string>("");
   const [stockReference, setStockReference] = useState<string>("");
+  const [showNotification, setShowNotification] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [newItem, setNewItem] = useState<Partial<InventoryItem>>({
     name: "",
     code: "",
@@ -163,7 +168,21 @@ export default function Inventory() {
 
   // Handlers
   const handleAddItem = () => {
-    const id = Math.max(...inventory.map((item) => item.id)) + 1;
+    // Basic validation
+    if (
+      !newItem.name ||
+      !newItem.code ||
+      !newItem.category ||
+      !newItem.supplier ||
+      !newItem.unit
+    ) {
+      setShowNotification({
+        type: "error",
+        message: "Please fill all required fields.",
+      });
+      return;
+    }
+    const id = Math.max(0, ...inventory.map((item) => item.id)) + 1;
     const item: InventoryItem = {
       ...newItem,
       id,
@@ -188,10 +207,27 @@ export default function Inventory() {
       status: "active",
     });
     setModal(null);
+    setShowNotification({
+      type: "success",
+      message: "Item added successfully.",
+    });
   };
 
   const handleEditItem = () => {
     if (!selectedItem) return;
+    if (
+      !selectedItem.name ||
+      !selectedItem.code ||
+      !selectedItem.category ||
+      !selectedItem.supplier ||
+      !selectedItem.unit
+    ) {
+      setShowNotification({
+        type: "error",
+        message: "Please fill all required fields.",
+      });
+      return;
+    }
     setInventory(
       inventory.map((item) =>
         item.id === selectedItem.id
@@ -204,10 +240,15 @@ export default function Inventory() {
     );
     setModal(null);
     setSelectedItem(null);
+    setShowNotification({
+      type: "success",
+      message: "Item updated successfully.",
+    });
   };
 
   const handleDeleteItem = (id: number) => {
     setInventory(inventory.filter((item) => item.id !== id));
+    setShowNotification({ type: "success", message: "Item deleted." });
   };
 
   const handleStockUpdate = () => {
@@ -249,15 +290,33 @@ export default function Inventory() {
     );
   };
 
+  // PDF/Print export only (CSV removed)
   const exportInventory = () => {
-    // Placeholder for export logic
-    alert("Exporting inventory data");
+    window.print();
+    setShowNotification({
+      type: "success",
+      message: "Inventory ready for print/export as PDF.",
+    });
   };
+
+  // CSV import removed
 
   return (
     <Stack gap={32} p={24} bg="#F8F9FB">
+      {showNotification && (
+        <Notification
+          color={showNotification.type === "success" ? "green" : "red"}
+          title={showNotification.type === "success" ? "Success" : "Error"}
+          onClose={() => setShowNotification(null)}
+          withCloseButton
+          mt="md"
+        >
+          {showNotification.message}
+        </Notification>
+      )}
       {/* Stats Cards */}
       <Group grow mb="md">
+        {/* CSV import removed */}
         <Card
           withBorder
           radius="md"
@@ -274,6 +333,16 @@ export default function Inventory() {
           <Text size="xs" c="dimmed" mt={2}>
             Active products
           </Text>
+          <Group mt={8} gap={8}>
+            <Button
+              size="xs"
+              color="blue"
+              onClick={exportInventory}
+              leftSection={<IconDownload size={14} />}
+            >
+              Print / Export PDF
+            </Button>
+          </Group>
         </Card>
         <Card
           withBorder

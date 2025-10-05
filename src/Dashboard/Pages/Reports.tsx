@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDataContext } from "../Context/DataContext";
 import {
   Card,
   Group,
@@ -48,91 +49,12 @@ import {
 import { PieChart, Pie, Cell } from "recharts";
 import { TextInput } from "@mantine/core";
 // Type definitions
-interface ProductData {
-  name: string;
-  sales: number;
-  quantity: number;
-  profit: number;
-}
-interface InvoiceData {
-  id: string;
-  customer: string;
-  date: string;
-  amount: number;
-  status: string;
-  dueDate: string;
-}
-interface StockValuation {
-  category: string;
-  quantity: number;
-  value: number;
-  percentage: number;
-}
+// Removed unused interfaces
 
-// Mock data
-const topProducts: ProductData[] = [
-  { name: "Aluminium Sheet 4mm", sales: 125000, quantity: 280, profit: 35000 },
-  { name: "Aluminium Pipe 2 inch", sales: 98000, quantity: 350, profit: 28000 },
-  { name: "Aluminium Angle 25mm", sales: 76000, quantity: 420, profit: 22000 },
-  {
-    name: "Aluminium Channel 50mm",
-    sales: 64000,
-    quantity: 200,
-    profit: 18000,
-  },
-  { name: "Aluminium Rod 10mm", sales: 45000, quantity: 475, profit: 12000 },
-];
-const invoiceData: InvoiceData[] = [
-  {
-    id: "INV-001",
-    customer: "ABC Construction",
-    date: "2024-01-15",
-    amount: 12450,
-    status: "paid",
-    dueDate: "2024-01-30",
-  },
-  {
-    id: "INV-002",
-    customer: "XYZ Builders",
-    date: "2024-01-14",
-    amount: 8750,
-    status: "pending",
-    dueDate: "2024-01-29",
-  },
-  {
-    id: "INV-003",
-    customer: "PQR Industries",
-    date: "2024-01-13",
-    amount: 15200,
-    status: "overdue",
-    dueDate: "2024-01-28",
-  },
-];
-const stockValuation: StockValuation[] = [
-  { category: "Sheets", quantity: 450, value: 180000, percentage: 35 },
-  { category: "Pipes", quantity: 320, value: 128000, percentage: 25 },
-  { category: "Angles", quantity: 280, value: 102400, percentage: 20 },
-  { category: "Channels", quantity: 150, value: 61440, percentage: 12 },
-  { category: "Others", quantity: 100, value: 40960, percentage: 8 },
-];
-const salesData = [
-  { date: "2024-01-01", sales: 45000, profit: 12000, orders: 25 },
-  { date: "2024-01-02", sales: 52000, profit: 15000, orders: 30 },
-  { date: "2024-01-03", sales: 38000, profit: 9000, orders: 20 },
-  { date: "2024-01-04", sales: 61000, profit: 18000, orders: 35 },
-  { date: "2024-01-05", sales: 48000, profit: 13000, orders: 28 },
-  { date: "2024-01-06", sales: 55000, profit: 16000, orders: 32 },
-  { date: "2024-01-07", sales: 42000, profit: 11000, orders: 24 },
-];
-const categoryData = [
-  { name: "Sheets", value: 35, color: "#8b5cf6" },
-  { name: "Pipes", value: 25, color: "#06b6d4" },
-  { name: "Angles", value: 20, color: "#10b981" },
-  { name: "Channels", value: 12, color: "#f59e0b" },
-  { name: "Others", value: 8, color: "#ef4444" },
-];
+// Use real data from context
 
 export default function ReportsPage() {
+  const { inventory, sales } = useDataContext();
   const [ledgerPage, setLedgerPage] = useState(1);
   const [ledgerPageSize, setLedgerPageSize] = useState(10);
   const [ledgerSearch, setLedgerSearch] = useState("");
@@ -150,14 +72,53 @@ export default function ReportsPage() {
     );
   }
 
-  // Filtered sales data
-  const filteredSalesData = salesData.filter((row) => isWithinRange(row.date));
+  // Transform sales data for charts
+  const filteredSalesData = sales.filter((row) => isWithinRange(row.date));
 
-  // Filtered stock valuation (simulate by showing all)
-  const filteredStockValuation = stockValuation;
+  // Stock valuation from inventory
+  // (Duplicate declaration removed)
 
-  // Filtered invoices for ledger
-  const filteredInvoiceData = invoiceData
+  // Stock valuation from inventory
+  const categoryTotals: { [cat: string]: { quantity: number; value: number } } =
+    {};
+  inventory.forEach((item) => {
+    if (!categoryTotals[item.category]) {
+      categoryTotals[item.category] = { quantity: 0, value: 0 };
+    }
+    categoryTotals[item.category].quantity += item.stock;
+    categoryTotals[item.category].value += item.stock * item.costPrice;
+  });
+  const totalValue = Object.values(categoryTotals).reduce(
+    (sum, cat) => sum + cat.value,
+    0
+  );
+  const filteredStockValuation = Object.entries(categoryTotals).map(
+    ([category, { quantity, value }]) => ({
+      category,
+      quantity,
+      value,
+      percentage: totalValue ? Math.round((value / totalValue) * 100) : 0,
+    })
+  );
+
+  // Prepare category data for Products tab (PieChart)
+  const pieColors = [
+    "#6366f1",
+    "#10b981",
+    "#f59e42",
+    "#ef4444",
+    "#3b82f6",
+    "#a855f7",
+    "#f43f5e",
+  ];
+  const categoryData = filteredStockValuation.map((row, idx) => ({
+    name: row.category,
+    value: row.percentage,
+    color: pieColors[idx % pieColors.length],
+  }));
+
+  // Invoice ledger from sales
+  const filteredInvoiceData = sales
     .filter((row) => isWithinRange(row.date))
     .filter((row) => {
       if (!ledgerSearch.trim()) return true;
@@ -168,7 +129,6 @@ export default function ReportsPage() {
         row.status.toLowerCase().includes(search)
       );
     });
-
   const paginatedInvoiceData = filteredInvoiceData.slice(
     (ledgerPage - 1) * ledgerPageSize,
     ledgerPage * ledgerPageSize
@@ -184,19 +144,18 @@ export default function ReportsPage() {
     doc.save("report.pdf");
   }
 
-  const totalSales = topProducts.reduce(
-    (sum, product) => sum + product.sales,
+  // Key metrics from sales
+  const totalSales = sales.reduce((sum, s) => sum + s.total, 0);
+  // For profit, you may need to add profit field to SaleRecord or calculate from items
+  const totalProfit = sales.reduce(
+    (sum, s) =>
+      sum + (s.items?.reduce((p, i) => p + i.price * i.quantity * 0.2, 0) || 0),
     0
-  );
-  const totalProfit = topProducts.reduce(
-    (sum, product) => sum + product.profit,
-    0
-  );
-  const totalOrders = topProducts.reduce(
-    (sum, product) => sum + product.quantity,
-    0
-  );
-  const profitMargin = ((totalProfit / totalSales) * 100).toFixed(1);
+  ); // Example: 20% margin
+  const totalOrders = sales.length;
+  const profitMargin = totalSales
+    ? ((totalProfit / totalSales) * 100).toFixed(1)
+    : "0";
 
   return (
     <Stack gap={24}>
@@ -407,14 +366,20 @@ export default function ReportsPage() {
                   cy="50%"
                   outerRadius={100}
                   dataKey="value"
-                  label={({ name, value }) => `${name}: ${value}%`}
+                  label={(props) => {
+                    const name = props.name ?? "";
+                    const value = props.value ?? 0;
+                    return `${name}: ${value}%`;
+                  }}
                   labelLine={true}
                 >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
+                  {categoryData.map(
+                    (entry: { color: string }, index: number) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    )
+                  )}
                 </Pie>
-                <Tooltip formatter={(value) => `${value}%`} />
+                <Tooltip formatter={(value: number) => `${value}%`} />
               </PieChart>
             </ResponsiveContainer>
           </Card>
@@ -522,7 +487,7 @@ export default function ReportsPage() {
                     <Table.Td>
                       {dayjs(row.date).format("MMM DD, YYYY")}
                     </Table.Td>
-                    <Table.Td>{row.amount.toLocaleString()}</Table.Td>
+                    <Table.Td>{row.total?.toLocaleString()}</Table.Td>
                     <Table.Td>
                       {row.status === "paid" && (
                         <Badge
