@@ -125,11 +125,6 @@ const navigation: MenuItem[] = [
     icon: <Wallet size={16} />,
     children: [
       {
-        label: "Chart of Accounts",
-        icon: <Wallet size={14} />,
-        path: "/accounts/chart-of-accounts",
-      },
-      {
         label: "Receipt Voucher",
         icon: <Wallet size={14} />,
         path: "/accounts/receipts",
@@ -151,16 +146,6 @@ const navigation: MenuItem[] = [
     icon: <FileBarChart size={16} />,
     children: [
       {
-        label: "Sales Report",
-        icon: <FileBarChart size={14} />,
-        path: "/reports/sales",
-      },
-      {
-        label: "Purchase Report",
-        icon: <FileBarChart size={14} />,
-        path: "/reports/purchase",
-      },
-      {
         label: "Profit & Loss",
         icon: <FileBarChart size={14} />,
         path: "/reports/profit-loss",
@@ -168,17 +153,7 @@ const navigation: MenuItem[] = [
       {
         label: "Stock Summary",
         icon: <FileBarChart size={14} />,
-        path: "/reports/stock",
-      },
-      {
-        label: "Customer Ledger",
-        icon: <FileBarChart size={14} />,
-        path: "/reports/customer-ledger",
-      },
-      {
-        label: "Supplier Ledger",
-        icon: <FileBarChart size={14} />,
-        path: "/reports/supplier-ledger",
+        path: "/reports/stock-summary",
       },
     ],
   },

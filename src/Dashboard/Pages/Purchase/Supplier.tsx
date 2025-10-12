@@ -1,0 +1,182 @@
+import { useMemo, useState } from "react";
+import {
+  Card,
+  TextInput,
+  Button,
+  ScrollArea,
+  Text,
+  Title,
+} from "@mantine/core";
+import SupplierForm from "../../../components/purchase/SupplierForm";
+import type { Supplier } from "../../../components/purchase/SupplierForm";
+import { formatCurrency } from "../../../lib/format-utils";
+
+function formatDate(iso?: string) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "-";
+  return d.toLocaleString();
+}
+
+const mockSuppliers: Supplier[] = [
+  {
+    id: "s1",
+    supplierCode: "SUP-001",
+    name: "Aluminium Co",
+    city: "Lahore",
+    gstNumber: "GST-111",
+    phone: "0300123456",
+    createdAt: new Date().toISOString(),
+    openingBalance: 1000,
+    currentBalance: -2500,
+  },
+];
+
+export default function SuppliersPage() {
+  const [q, setQ] = useState("");
+  const [data, setData] = useState<Supplier[]>(mockSuppliers);
+  const [open, setOpen] = useState(false);
+  const [edit, setEdit] = useState<Supplier | undefined>(undefined);
+
+  const filtered = useMemo(() => {
+    const term = q.toLowerCase().trim();
+    if (!term) return data;
+    return data.filter(
+      (s) =>
+        s.name.toLowerCase().includes(term) ||
+        String(s.city ?? "")
+          .toLowerCase()
+          .includes(term) ||
+        s.supplierCode.toLowerCase().includes(term)
+    );
+  }, [q, data]);
+
+  function handleSave(next: Supplier) {
+    setData((prev) => {
+      const existing = prev.findIndex((s) => s.id === next.id);
+      if (existing >= 0) {
+        const copy = [...prev];
+        copy[existing] = next;
+        return copy;
+      }
+      return [next, ...prev];
+    });
+  }
+
+  return (
+    <div>
+      <Card>
+        <Card.Section
+          style={{
+            padding: 12,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <Title order={2}>Suppliers</Title>
+            <Text c="dimmed">Manage purchase suppliers</Text>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <TextInput
+              placeholder="Search suppliers..."
+              value={q}
+              onChange={(e) => setQ(e.currentTarget.value)}
+            />
+            <Button
+              onClick={() => {
+                setEdit(undefined);
+                setOpen(true);
+              }}
+            >
+              Add Supplier
+            </Button>
+          </div>
+        </Card.Section>
+
+        <Card.Section>
+          <ScrollArea>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                marginTop: 12,
+              }}
+            >
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>City</th>
+                  <th>GST</th>
+                  <th>Phone</th>
+                  <th>Created</th>
+                  <th style={{ textAlign: "right" }}>Balance</th>
+                  <th style={{ textAlign: "right" }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s) => (
+                  <tr key={s.id}>
+                    <td style={{ fontFamily: "monospace" }}>
+                      {s.supplierCode}
+                    </td>
+                    <td>{s.name}</td>
+                    <td>{s.city}</td>
+                    <td>{s.gstNumber}</td>
+                    <td>{s.phone}</td>
+                    <td>
+                      {formatDate(
+                        typeof s.createdAt === "string"
+                          ? s.createdAt
+                          : s.createdAt?.toString()
+                      )}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <div style={{ fontWeight: 700 }}>
+                        {formatCurrency(s.currentBalance ?? 0)}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: (s.currentBalance ?? 0) < 0 ? "red" : "green",
+                        }}
+                      >
+                        {Math.abs(s.currentBalance ?? 0) > 0
+                          ? `${
+                              (s.currentBalance ?? 0) < 0 ? "Debit" : "Credit"
+                            } ${formatCurrency(
+                              Math.abs(s.currentBalance ?? 0)
+                            )}`
+                          : "Nil"}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEdit(s);
+                          setOpen(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ScrollArea>
+        </Card.Section>
+      </Card>
+
+      <SupplierForm
+        open={open}
+        initial={edit}
+        onClose={() => setOpen(false)}
+        onSave={handleSave}
+      />
+    </div>
+  );
+}

@@ -38,7 +38,7 @@ export function LineItemsTable({
 
   return (
     <Table withColumnBorders>
-      <Table.Thead>
+      <Table.Th>
         <Table.Tr>
           <Table.Th style={{ width: 300 }}>Item</Table.Th>
           <Table.Th style={{ width: 140 }}>Color</Table.Th>
@@ -55,7 +55,7 @@ export function LineItemsTable({
           <Table.Th style={{ width: 120 }}>Amount</Table.Th>
           <Table.Th style={{ width: 120 }}>Remove</Table.Th>
         </Table.Tr>
-      </Table.Thead>
+      </Table.Th>
       <Table.Tbody>
         {items.map((it) => {
           const gross = (it.quantity || 0) * (it.rate || 0);

@@ -1,4 +1,8 @@
 import React, { createContext, useContext, useState } from "react";
+import {
+  computeInventoryAfterReturn,
+  computePurchasesAfterReturn,
+} from "./return-utils";
 import type { SalesPayload } from "../../components/sales/SalesDocShell";
 
 export interface InventoryItem {
@@ -58,10 +62,73 @@ export interface PurchaseRecord {
   id: string;
   date: string;
   supplier: string;
-  items: Array<{ sku: string; quantity: number; price: number }>;
+  // per-line items on a PO. 'received' tracks total qty received so far for that line.
+  items: Array<{
+    sku: string;
+    quantity: number;
+    price: number;
+    received?: number;
+  }>;
   total: number;
+  // legacy payment status
   status?: "paid" | "pending" | "overdue";
+  // fulfillment status based on GRNs
+  fulfillmentStatus?: "open" | "partially_received" | "received";
 }
+
+export interface GRNRecord {
+  id: string;
+  grnNumber: string;
+  grnDate: string;
+  supplier?: string;
+  supplierId?: string;
+  supplierName?: string;
+  linkedPoId?: string;
+  items: Array<{ sku: string; quantity: number; price: number }>;
+  subtotal: number;
+  totalAmount: number;
+  status?: string;
+}
+
+export interface PurchaseReturnRecord {
+  id: string;
+  returnNumber: string;
+  returnDate: string;
+  supplier?: string;
+  supplierId?: string;
+  linkedPoId?: string;
+  items: Array<{ sku: string; quantity: number; price?: number }>;
+  subtotal: number;
+  totalAmount: number;
+  reason?: string;
+  status?: string;
+  // idempotency / processing flag
+  processed?: boolean;
+}
+
+export interface SupplierCreditRecord {
+  id: string;
+  supplierId?: string;
+  supplierName?: string;
+  date: string;
+  amount: number;
+  note?: string;
+}
+
+export interface Expense {
+  id: string;
+  expenseNumber: string;
+  expenseDate: string | Date;
+  category: string;
+  description?: string;
+  amount: number;
+  paymentMethod?: "Cash" | "Card" | "UPI" | "Cheque";
+  reference?: string;
+  remarks?: string;
+  createdAt?: string | Date;
+}
+
+export type ExpenseInput = Omit<Expense, "id" | "createdAt">;
 
 // Color model used across the product module
 export interface Color {
@@ -72,6 +139,7 @@ export interface Color {
 }
 
 interface DataContextType {
+  updateExpense(id: string, arg1: Partial<Expense>): unknown;
   inventory: InventoryItem[];
   setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
   // Colors
@@ -89,6 +157,31 @@ interface DataContextType {
   setQuotations: React.Dispatch<React.SetStateAction<SalesPayload[]>>;
   customers: Customer[];
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
+  expenses: Expense[];
+  setExpenses: React.Dispatch<React.SetStateAction<Expense[]>>;
+  // helper to add a new expense
+  addExpense: (e: ExpenseInput) => Expense;
+  grns: GRNRecord[];
+  setGrns: React.Dispatch<React.SetStateAction<GRNRecord[]>>;
+  purchaseReturns: PurchaseReturnRecord[];
+  setPurchaseReturns: React.Dispatch<
+    React.SetStateAction<PurchaseReturnRecord[]>
+  >;
+  supplierCredits: SupplierCreditRecord[];
+  setSupplierCredits: React.Dispatch<
+    React.SetStateAction<SupplierCreditRecord[]>
+  >;
+  // helper: apply GRN to inventory (increase stock) and update purchase summary
+  applyGrnToInventory: (grn: GRNRecord) => void;
+  updatePurchaseFromGrn: (grn: GRNRecord) => void;
+  // helper: apply Purchase Return to inventory (decrease stock) and update purchase summary
+  applyPurchaseReturnToInventory: (ret: PurchaseReturnRecord) => void;
+  updatePurchaseFromReturn: (ret: PurchaseReturnRecord) => void;
+  // process a purchase return idempotently: persist, apply inventory changes, update PO, create credit
+  processPurchaseReturn: (ret: PurchaseReturnRecord) => {
+    applied: boolean;
+    message?: string;
+  };
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -115,7 +208,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [inventory, setInventory] = useState<InventoryItem[]>(initialInventory);
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
+  const [grns, setGrns] = useState<GRNRecord[]>([]);
+  const [purchaseReturns, setPurchaseReturns] = useState<
+    PurchaseReturnRecord[]
+  >([]);
+  const [supplierCredits, setSupplierCredits] = useState<
+    SupplierCreditRecord[]
+  >([]);
   const [quotations, setQuotations] = useState<SalesPayload[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   // Customers - simple in-memory store. Seed a Walk-in customer by default.
   const [customers, setCustomers] = useState<Customer[]>([
     {
@@ -154,6 +255,124 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     return newColor;
   };
 
+  const addExpense = (e: ExpenseInput) => {
+    const record: Expense = {
+      id:
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `exp-${Date.now()}`,
+      createdAt: new Date(),
+      ...e,
+    };
+    setExpenses((prev) => [record, ...(prev || [])]);
+    return record;
+  };
+
+  const updateExpense = (id: string, patch: Partial<Expense>) => {
+    setExpenses((prev) =>
+      (prev || []).map((x) => (x.id === id ? { ...x, ...patch } : x))
+    );
+  };
+
+  function applyGrnToInventory(grn: GRNRecord) {
+    // For each item in GRN, try to find inventory by sku and increase stock
+    setInventory((prev) =>
+      prev.map((item) => {
+        const found = grn.items.find(
+          (gi) => String(gi.sku) === String(item.sku)
+        );
+        if (found) {
+          return {
+            ...item,
+            stock: (item.stock || 0) + (found.quantity || 0),
+          } as InventoryItem;
+        }
+        return item;
+      })
+    );
+  }
+
+  function updatePurchaseFromGrn(grn: GRNRecord) {
+    if (!grn.linkedPoId) return;
+    setPurchases((prev) =>
+      prev.map((po) => {
+        if (String(po.id) !== String(grn.linkedPoId)) return po;
+        // For each GRN item, add its qty to the matching PO item's 'received' field
+        const items = (po.items || []).map((pi) => {
+          const matched = grn.items.find(
+            (gi) => String(gi.sku) === String(pi.sku)
+          );
+          if (!matched) return { ...pi };
+          const prevReceived = pi.received || 0;
+          return { ...pi, received: prevReceived + (matched.quantity || 0) };
+        });
+
+        // compute fulfillmentStatus
+        let fulfillmentStatus: PurchaseRecord["fulfillmentStatus"] = "open";
+        const totalOrdered = items.reduce((s, i) => s + (i.quantity || 0), 0);
+        const totalReceived = items.reduce((s, i) => s + (i.received || 0), 0);
+        if (totalReceived <= 0) fulfillmentStatus = "open";
+        else if (totalReceived < totalOrdered)
+          fulfillmentStatus = "partially_received";
+        else fulfillmentStatus = "received";
+
+        return { ...po, items, fulfillmentStatus } as PurchaseRecord;
+      })
+    );
+  }
+
+  function applyPurchaseReturnToInventory(ret: PurchaseReturnRecord) {
+    setInventory((prev) => computeInventoryAfterReturn(prev, ret));
+  }
+
+  function updatePurchaseFromReturn(ret: PurchaseReturnRecord) {
+    setPurchases((prev) => computePurchasesAfterReturn(prev, ret));
+  }
+
+  function processPurchaseReturn(ret: PurchaseReturnRecord) {
+    // Idempotency: if a return with same id or returnNumber already processed, skip
+    const exists = purchaseReturns.find(
+      (r) => r.id === ret.id || r.returnNumber === ret.returnNumber
+    );
+    if (exists && exists.processed) {
+      return { applied: false, message: "Return already processed" };
+    }
+
+    // persist/update return record (mark processed)
+    const toSave: PurchaseReturnRecord = { ...ret, processed: true };
+    setPurchaseReturns((prev) => [
+      toSave,
+      ...(prev || []).filter(
+        (p) => p.id !== toSave.id && p.returnNumber !== toSave.returnNumber
+      ),
+    ]);
+
+    // apply inventory change and update purchase using pure helpers
+    setInventory((prev) => computeInventoryAfterReturn(prev, toSave));
+    setPurchases((prev) => computePurchasesAfterReturn(prev, toSave));
+
+    // create supplier credit (simple amount record)
+    const supplierName =
+      (customers || []).find((c) => String(c.id) === String(toSave.supplierId))
+        ?.name ||
+      toSave.supplier ||
+      "";
+    const credit: SupplierCreditRecord = {
+      id:
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `scr-${Date.now()}`,
+      supplierId: toSave.supplierId,
+      supplierName,
+      date: new Date().toISOString(),
+      amount: toSave.totalAmount || 0,
+      note: `Credit for return ${toSave.returnNumber}`,
+    };
+    setSupplierCredits((prev) => [credit, ...(prev || [])]);
+
+    return { applied: true };
+  }
+
   return (
     <DataContext.Provider
       value={{
@@ -163,6 +382,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         setSales,
         purchases,
         setPurchases,
+        expenses,
+        setExpenses,
+        // expose expense helpers
+        addExpense,
+        updateExpense,
+        grns,
+        setGrns,
+        applyGrnToInventory,
+        updatePurchaseFromGrn,
+        purchaseReturns,
+        setPurchaseReturns,
+        applyPurchaseReturnToInventory,
+        updatePurchaseFromReturn,
+        supplierCredits,
+        setSupplierCredits,
+        processPurchaseReturn,
         quotations,
         setQuotations,
         customers,

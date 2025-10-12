@@ -1,23 +1,22 @@
 import type { RouteObject } from "react-router";
 import DashboardLayout from "../DashboardLayout/DashboardLayout";
 import Dashboard from "../Pages/Dashboard";
-import POS from "../Pages/POS";
-import Inventory from "../Pages/Inventory";
-import Reports from "../Pages/Reports";
-import CashBook from "../Pages/CashBook";
-import Settings from "../Pages/Settings";
-
-import PurchaseInvoice from "../Pages/PurchaseInvoice";
-import SalesReturn from "../Pages/SalesReturn";
-import PurchaseReturn from "../Pages/PurchaseReturn";
-import Ledger from "../Pages/Ledger";
-import GRN from "../Pages/GRN";
-
+import SalesReturnPage from "../Pages/Sales/Salereturn";
 import ProductMaster from "../Pages/Products/ProductMaster";
 import StockReportPage from "../Pages/Products/StockReport";
 import CustomersPage from "../Pages/Sales/Customers";
 import QuotationsPage from "../Pages/Sales/Quotation";
 import SalesInvoicePage from "../Pages/Sales/SaleInvoice";
+import SuppliersPage from "../Pages/Purchase/Supplier";
+import PurchaseOrderPage from "../Pages/Purchase/PurchaseOrder";
+import GRNPage from "../Pages/Purchase/GRN";
+import PurchaseInvoicePage from "../Pages/Purchase/PurchaseInvoice";
+import PurchaseReturnPage from "../Pages/Purchase/PurchaseReturn";
+import ExpensesPage from "../Pages/Expenses";
+import ReceiptsPage from "../Pages/Accounts/ReceiptVoucher";
+
+import ProfitLoss from "../Pages/Reports/Profit&Loss";
+import Stocksummary from "../Pages/Reports/Stocksummary";
 
 const routes: RouteObject[] = [
   {
@@ -51,49 +50,51 @@ const routes: RouteObject[] = [
         element: <SalesInvoicePage />,
       },
       {
-        path: "pos",
-        element: <POS />,
+        path: "sales/returns",
+        element: <SalesReturnPage />,
+      },
+      //-------------------Purchases-----------------//
+      {
+        path: "/purchase/suppliers",
+        element: <SuppliersPage />,
       },
       {
-        path: "inventory",
-        element: <Inventory />,
+        path: "/purchase/orders",
+        element: <PurchaseOrderPage />,
       },
       {
-        path: "grn",
-        element: <GRN />,
-      },
-      // {
-      //   path: "invoices/sales",
-      //   element: <SalesInvoice />,
-      // },
-      {
-        path: "invoices/purchase",
-        element: <PurchaseInvoice />,
+        path: "/purchase/grn",
+        element: <GRNPage />,
       },
       {
-        path: "invoices/sales-return",
-        element: <SalesReturn />,
+        path: "/purchase/invoices",
+        element: <PurchaseInvoicePage />,
       },
       {
-        path: "invoices/purchase-return",
-        element: <PurchaseReturn />,
+        path: "/purchase/returns",
+        element: <PurchaseReturnPage />,
       },
+      //-------------------Expenses-----------------//
       {
-        path: "ledger",
-        element: <Ledger />,
+        path: "/expenses",
+        element: <ExpensesPage />,
       },
+      // -------------------Accounts-----------------//
       {
-        path: "cashbook",
-        element: <CashBook />,
+        path: "/accounts/receipts",
+        element: <ReceiptsPage />,
       },
+      //---------------------Reports-----------------//
       {
-        path: "reports",
-        element: <Reports />,
+        path: "/reports/stock-summary",
+        element: <Stocksummary />,
       },
+
       {
-        path: "settings",
-        element: <Settings />,
+        path: "/reports/profit-loss",
+        element: <ProfitLoss />,
       },
+      {},
     ],
   },
 ];
