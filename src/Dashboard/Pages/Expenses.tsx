@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Button,
   Modal,
@@ -6,8 +6,8 @@ import {
   Select,
   NumberInput,
   Group,
-  Table,
 } from "@mantine/core";
+import Table from "../../lib/AppTable";
 import { Plus } from "lucide-react";
 
 const mockExpenses: ExpenseType[] = [
@@ -68,7 +68,17 @@ const categories = [
 export default function ExpensesPage() {
   const [q, setQ] = useState("");
   const dataCtx = useDataContext();
+  const { loadExpenses } = dataCtx;
   const expenses = useMemo(() => dataCtx.expenses ?? [], [dataCtx.expenses]);
+
+  useEffect(() => {
+    if (
+      (!dataCtx.expenses || dataCtx.expenses.length === 0) &&
+      typeof loadExpenses === "function"
+    ) {
+      loadExpenses().catch(() => {});
+    }
+  }, [loadExpenses]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ExpenseType | null>(null);
 

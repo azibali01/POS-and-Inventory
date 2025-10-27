@@ -1,15 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import {
-  Title,
-  Text,
-  Table,
-  Divider,
-  ScrollArea,
-  Grid,
-  Card,
-} from "@mantine/core";
+import { useMemo, useEffect } from "react";
+import { Title, Text, Divider, ScrollArea, Grid, Card } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 import { useDataContext } from "../../Context/DataContext";
 import type {
   SaleRecord,
@@ -31,7 +24,21 @@ import {
 } from "recharts";
 
 export default function ProfitLoss() {
-  const { sales = [], purchases = [], expenses = [] } = useDataContext();
+  const {
+    sales = [],
+    purchases = [],
+    expenses = [],
+    loadSales,
+    loadPurchases,
+    loadExpenses,
+  } = useDataContext();
+
+  useEffect(() => {
+    // load the heavy datasets lazily when this report page mounts
+    if (typeof loadSales === "function") loadSales().catch(() => {});
+    if (typeof loadPurchases === "function") loadPurchases().catch(() => {});
+    if (typeof loadExpenses === "function") loadExpenses().catch(() => {});
+  }, [loadSales, loadPurchases, loadExpenses]);
   // simple aggregations ignoring tax/COGS details
   const totals = useMemo(() => {
     const sTotal = sales.reduce(
@@ -114,38 +121,38 @@ export default function ProfitLoss() {
       <div style={{ marginBottom: 18 }}>
         <Text style={{ fontWeight: 600 }}>Summary</Text>
         <Table verticalSpacing="sm" mt="xs">
-          <tbody>
-            <tr>
-              <td>Sales</td>
-              <td style={{ textAlign: "right" }}>
+          <Table.Tbody>
+            <Table.Tr>
+              <Table.Td>Sales</Table.Td>
+              <Table.Td style={{ textAlign: "right" }}>
                 {formatCurrency(totals.sTotal)}
-              </td>
-            </tr>
-            <tr>
-              <td>Purchases</td>
-              <td style={{ textAlign: "right" }}>
+              </Table.Td>
+            </Table.Tr>
+            <Table.Tr>
+              <Table.Td>Purchases</Table.Td>
+              <Table.Td style={{ textAlign: "right" }}>
                 {formatCurrency(totals.pTotal)}
-              </td>
-            </tr>
-            <tr>
-              <td>Gross Profit (Sales - Purchases)</td>
-              <td style={{ textAlign: "right" }}>
+              </Table.Td>
+            </Table.Tr>
+            <Table.Tr>
+              <Table.Td>Gross Profit (Sales - Purchases)</Table.Td>
+              <Table.Td style={{ textAlign: "right" }}>
                 {formatCurrency(totals.grossProfit)}
-              </td>
-            </tr>
-            <tr>
-              <td>Expenses</td>
-              <td style={{ textAlign: "right" }}>
+              </Table.Td>
+            </Table.Tr>
+            <Table.Tr>
+              <Table.Td>Expenses</Table.Td>
+              <Table.Td style={{ textAlign: "right" }}>
                 {formatCurrency(totals.eTotal)}
-              </td>
-            </tr>
-            <tr>
-              <td style={{ fontWeight: 700 }}>Net Profit</td>
-              <td style={{ textAlign: "right", fontWeight: 700 }}>
+              </Table.Td>
+            </Table.Tr>
+            <Table.Tr>
+              <Table.Td style={{ fontWeight: 700 }}>Net Profit</Table.Td>
+              <Table.Td style={{ textAlign: "right", fontWeight: 700 }}>
                 {formatCurrency(totals.netProfit)}
-              </td>
-            </tr>
-          </tbody>
+              </Table.Td>
+            </Table.Tr>
+          </Table.Tbody>
         </Table>
       </div>
 
@@ -209,26 +216,26 @@ export default function ProfitLoss() {
         <Text style={{ fontWeight: 600, marginBottom: 8 }}>Sales (latest)</Text>
         <ScrollArea style={{ maxHeight: 240 }}>
           <Table highlightOnHover verticalSpacing="sm">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Date</th>
-                <th>Customer</th>
-                <th style={{ textAlign: "right" }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>ID</Table.Th>
+                <Table.Th>Date</Table.Th>
+                <Table.Th>Customer</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Total</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {sales.map((s: SaleRecord) => (
-                <tr key={s.id}>
-                  <td>{s.id}</td>
-                  <td>{formatDate(s.date)}</td>
-                  <td>{s.customer}</td>
-                  <td style={{ textAlign: "right" }}>
+                <Table.Tr key={s.id}>
+                  <Table.Td>{s.id}</Table.Td>
+                  <Table.Td>{formatDate(s.date)}</Table.Td>
+                  <Table.Td>{s.customer}</Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
                     {formatCurrency(s.total)}
-                  </td>
-                </tr>
+                  </Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
+            </Table.Tbody>
           </Table>
         </ScrollArea>
       </div>
@@ -241,26 +248,26 @@ export default function ProfitLoss() {
         </Text>
         <ScrollArea style={{ maxHeight: 240 }}>
           <Table highlightOnHover verticalSpacing="sm">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Date</th>
-                <th>Supplier</th>
-                <th style={{ textAlign: "right" }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>ID</Table.Th>
+                <Table.Th>Date</Table.Th>
+                <Table.Th>Supplier</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Total</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {purchases.map((p: PurchaseRecord) => (
-                <tr key={p.id}>
-                  <td>{p.id}</td>
-                  <td>{formatDate(p.date)}</td>
-                  <td>{p.supplier}</td>
-                  <td style={{ textAlign: "right" }}>
+                <Table.Tr key={p.id}>
+                  <Table.Td>{p.id}</Table.Td>
+                  <Table.Td>{formatDate(p.date)}</Table.Td>
+                  <Table.Td>{p.supplier}</Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
                     {formatCurrency(p.total)}
-                  </td>
-                </tr>
+                  </Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
+            </Table.Tbody>
           </Table>
         </ScrollArea>
       </div>
@@ -273,26 +280,26 @@ export default function ProfitLoss() {
         </Text>
         <ScrollArea style={{ maxHeight: 240 }}>
           <Table highlightOnHover verticalSpacing="sm">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Date</th>
-                <th>Category</th>
-                <th style={{ textAlign: "right" }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>ID</Table.Th>
+                <Table.Th>Date</Table.Th>
+                <Table.Th>Category</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Amount</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {expenses.map((ex: Expense) => (
-                <tr key={ex.id}>
-                  <td>{ex.expenseNumber || ex.id}</td>
-                  <td>{formatDate(ex.expenseDate as string)}</td>
-                  <td>{ex.category}</td>
-                  <td style={{ textAlign: "right" }}>
+                <Table.Tr key={ex.id}>
+                  <Table.Td>{ex.expenseNumber || ex.id}</Table.Td>
+                  <Table.Td>{formatDate(ex.expenseDate as string)}</Table.Td>
+                  <Table.Td>{ex.category}</Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
                     {formatCurrency(ex.amount)}
-                  </td>
-                </tr>
+                  </Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
+            </Table.Tbody>
           </Table>
         </ScrollArea>
       </div>

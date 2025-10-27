@@ -1,17 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Button,
   Card,
   Group,
   ScrollArea,
-  Table,
   Text,
   Title,
   Badge,
   Modal,
 } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 import { IconFileText, IconPlus } from "@tabler/icons-react";
+import openPrintWindow from "../../../components/print/printWindow";
+import type { InvoiceData } from "../../../components/print/printTemplate";
 import { useDataContext } from "../../Context/DataContext";
 import type { SaleRecord } from "../../Context/DataContext";
 import SalesDocShell, {
@@ -32,8 +34,34 @@ const fallbackQuotes: SaleRecord[] = [
 ];
 
 export default function QuotationsPage() {
-  const { sales, setSales } = useDataContext();
-  const { customers, inventory } = useDataContext();
+  const {
+    sales,
+    setSales,
+    loadSales,
+    customers,
+    inventory,
+    loadCustomers,
+    loadInventory,
+  } = useDataContext();
+
+  useEffect(() => {
+    // load sales/customers/inventory lazily when this page mounts (if not already loaded)
+    if ((!sales || sales.length === 0) && typeof loadSales === "function") {
+      loadSales().catch(() => {});
+    }
+    if (
+      (!customers || customers.length === 0) &&
+      typeof loadCustomers === "function"
+    ) {
+      loadCustomers().catch(() => {});
+    }
+    if (
+      (!inventory || inventory.length === 0) &&
+      typeof loadInventory === "function"
+    ) {
+      loadInventory().catch(() => {});
+    }
+  }, [loadSales, loadCustomers, loadInventory]);
   const [open, setOpen] = useState(false);
   const [, setCreating] = useState(false);
 
@@ -99,7 +127,11 @@ export default function QuotationsPage() {
         color: "green",
       });
     } catch (err: unknown) {
-      console.error("Create quotation failed", err);
+      showNotification({
+        title: "Create Quotation Failed",
+        message: String(err),
+        color: "red",
+      });
       // rollback optimistic record
       setSales((prev) => prev.filter((s) => s.id !== tempId));
       const message = err instanceof Error ? err.message : String(err);
@@ -141,36 +173,72 @@ export default function QuotationsPage() {
         <Card.Section>
           <ScrollArea>
             <Table verticalSpacing="sm">
-              <thead>
-                <tr>
-                  <th>Number</th>
-                  <th>Date</th>
-                  <th>Customer</th>
-                  <th style={{ textAlign: "right" }}>Amount</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: "right" }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Number</Table.Th>
+                  <Table.Th>Date</Table.Th>
+                  <Table.Th>Customer</Table.Th>
+                  <Table.Th style={{ textAlign: "right" }}>Amount</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th style={{ textAlign: "right" }}>Action</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
                 {quotes.map((q: Partial<SaleRecord>) => (
-                  <tr key={q.id}>
-                    <td style={{ fontFamily: "monospace" }}>{q.id}</td>
-                    <td>
+                  <Table.Tr key={q.id}>
+                    <Table.Td style={{ fontFamily: "monospace" }}>
+                      {q.id}
+                    </Table.Td>
+                    <Table.Td>
                       {q.date ? new Date(q.date).toLocaleDateString() : ""}
-                    </td>
-                    <td>{q.customer ?? ""}</td>
-                    <td style={{ textAlign: "right" }}>{q.total ?? 0}</td>
-                    <td>
+                    </Table.Td>
+                    <Table.Td>{q.customer ?? ""}</Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
+                      {q.total ?? 0}
+                    </Table.Td>
+                    <Table.Td>
                       <Badge>{q.status ?? "Draft"}</Badge>
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <Button variant="subtle">
-                        <IconFileText size={16} />
-                      </Button>
-                    </td>
-                  </tr>
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          gap: 6,
+                        }}
+                      >
+                        <Button variant="subtle">
+                          <IconFileText size={16} />
+                        </Button>
+                        <Button
+                          variant="subtle"
+                          onClick={() => {
+                            const d: InvoiceData = {
+                              title: "Quotation",
+                              companyName: "Seven Star Traders",
+                              addressLines: [
+                                "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
+                              ],
+                              invoiceNo: String(q.id),
+                              date: q.date as string,
+                              customer: q.customer as string,
+                              items: (q.items || []).map((it, idx) => ({
+                                sr: idx + 1,
+                                section: it.sku || "",
+                                amount: (it.quantity || 0) * (it.price || 0),
+                              })),
+                              totals: { total: (q.total as number) || 0 },
+                            };
+                            openPrintWindow(d);
+                          }}
+                        >
+                          Print
+                        </Button>
+                      </div>
+                    </Table.Td>
+                  </Table.Tr>
                 ))}
-              </tbody>
+              </Table.Tbody>
             </Table>
           </ScrollArea>
         </Card.Section>

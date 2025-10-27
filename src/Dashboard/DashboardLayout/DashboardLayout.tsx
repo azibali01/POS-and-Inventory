@@ -207,6 +207,7 @@ export default function DashboardLayout() {
         <AppShell.Navbar p="md" bg="#F5F5F5" style={{ color: "#000000ff" }}>
           <Stack gap="xs">
             {navigation.map((item) => {
+              // If item has children render a parent NavLink containing child NavLinks
               if (item.children && item.children.length > 0) {
                 return (
                   <NavLink
@@ -224,36 +225,37 @@ export default function DashboardLayout() {
                       label: { fontSize: "14px", fontWeight: 600 },
                     }}
                   >
-                    {item.children.map((child) => (
-                      <NavLink
-                        key={child.label}
-                        component={Link}
-                        to={child.path || "#"}
-                        label={child.label}
-                        leftSection={child.icon}
-                        active={location.pathname === child.path}
-                        styles={{
-                          root: {
-                            color: "#000000ff",
-                            borderRadius: "8px",
-                            marginLeft: 16,
-                            fontWeight: 500,
-                            fontSize: "13px",
-                            "&:hover": { backgroundColor: "#333" },
-                            "&[data-active]": {
-                              backgroundColor: "#333",
-                              color: "#fff",
-                              fontWeight: 800,
+                    {item.children.map((child) => {
+                      const isActive = location.pathname === child.path;
+                      return (
+                        <NavLink
+                          key={child.label}
+                          component={Link}
+                          to={child.path || "#"}
+                          label={child.label}
+                          leftSection={child.icon}
+                          active={isActive}
+                          styles={{
+                            root: {
+                              color: isActive ? "#fff" : "#000000ff",
+                              backgroundColor: isActive ? "#333" : undefined,
+                              borderRadius: "8px",
+                              marginLeft: 16,
+                              fontWeight: isActive ? 800 : 500,
+                              fontSize: "13px",
+                              "&:hover": { backgroundColor: "#333" },
                             },
-                          },
-                          label: { fontSize: "13px", fontWeight: 500 },
-                        }}
-                      />
-                    ))}
+                            label: { fontSize: "13px", fontWeight: 500 },
+                          }}
+                        />
+                      );
+                    })}
                   </NavLink>
                 );
               }
 
+              // Default single-level nav item
+              const isActive = location.pathname === item.path;
               return (
                 <NavLink
                   key={item.label}
@@ -261,17 +263,14 @@ export default function DashboardLayout() {
                   to={item.path || "#"}
                   label={item.label}
                   leftSection={item.icon}
-                  active={location.pathname === item.path}
+                  active={isActive}
                   styles={{
                     root: {
-                      color: "#000000ff",
+                      color: isActive ? "#fff" : "#000000ff",
+                      backgroundColor: isActive ? "#333" : undefined,
                       borderRadius: "8px",
                       "&:hover": { backgroundColor: "#333" },
-                      "&[data-active]": {
-                        backgroundColor: "#333",
-                        color: "#fff",
-                        fontWeight: 800,
-                      },
+                      fontWeight: isActive ? 800 : undefined,
                     },
                     label: { fontSize: "14px", fontWeight: 600 },
                   }}

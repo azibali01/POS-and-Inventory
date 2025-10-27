@@ -2,7 +2,10 @@ import { MantineProvider, type MantineThemeOverride } from "@mantine/core";
 import "@mantine/core/styles.css";
 import type { PropsWithChildren } from "react";
 
-const theme: MantineThemeOverride = {};
+const theme: MantineThemeOverride = {
+  fontFamily:
+    "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial",
+};
 
 type Props = PropsWithChildren;
 

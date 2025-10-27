@@ -7,9 +7,9 @@ import {
   Box,
   Grid,
   Tabs,
-  Table,
   ScrollArea,
 } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 import {
   IconAlertTriangle,
   IconPackage,
@@ -118,33 +118,39 @@ export default function StockReportPage() {
             <Card.Section>
               <ScrollArea>
                 <Table verticalSpacing="sm">
-                  <thead>
-                    <tr>
-                      <th>Item Code</th>
-                      <th>Item Name</th>
-                      <th>Category</th>
-                      <th style={{ textAlign: "right" }}>Current Stock</th>
-                      <th style={{ textAlign: "right" }}>Min. Level</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Item Code</Table.Th>
+                      <Table.Th>Item Name</Table.Th>
+                      <Table.Th>Category</Table.Th>
+                      <Table.Th style={{ textAlign: "right" }}>
+                        Current Stock
+                      </Table.Th>
+                      <Table.Th style={{ textAlign: "right" }}>
+                        Min. Level
+                      </Table.Th>
+                      <Table.Th>Status</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
                     {products.map((product) => (
-                      <tr key={product.id}>
-                        <td style={{ fontFamily: "monospace" }}>
+                      <Table.Tr key={product.id}>
+                        <Table.Td style={{ fontFamily: "monospace" }}>
                           {product.code || product.sku}
-                        </td>
-                        <td>{product.name}</td>
-                        <td>
+                        </Table.Td>
+                        <Table.Td>{product.name}</Table.Td>
+                        <Table.Td>
                           <Badge>{product.category}</Badge>
-                        </td>
-                        <td style={{ textAlign: "right", fontWeight: 600 }}>
+                        </Table.Td>
+                        <Table.Td
+                          style={{ textAlign: "right", fontWeight: 600 }}
+                        >
                           {formatNumber(product.stock)} {product.unit}
-                        </td>
-                        <td style={{ textAlign: "right", color: "#666" }}>
+                        </Table.Td>
+                        <Table.Td style={{ textAlign: "right", color: "#666" }}>
                           {formatNumber(product.minStock)} {product.unit}
-                        </td>
-                        <td>
+                        </Table.Td>
+                        <Table.Td>
                           {product.stock < 0 ? (
                             <Badge color="red">Negative</Badge>
                           ) : product.stock <= product.minStock ? (
@@ -152,10 +158,10 @@ export default function StockReportPage() {
                           ) : (
                             <Badge color="green">In Stock</Badge>
                           )}
-                        </td>
-                      </tr>
+                        </Table.Td>
+                      </Table.Tr>
                     ))}
-                  </tbody>
+                  </Table.Tbody>
                 </Table>
               </ScrollArea>
             </Card.Section>
@@ -177,27 +183,33 @@ export default function StockReportPage() {
             <Card.Section>
               <ScrollArea>
                 <Table verticalSpacing="sm">
-                  <thead>
-                    <tr>
-                      <th>Item Code</th>
-                      <th>Item Name</th>
-                      <th>Category</th>
-                      <th style={{ textAlign: "right" }}>Current Stock</th>
-                      <th style={{ textAlign: "right" }}>Min. Level</th>
-                      <th style={{ textAlign: "right" }}>Shortfall</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Item Code</Table.Th>
+                      <Table.Th>Item Name</Table.Th>
+                      <Table.Th>Category</Table.Th>
+                      <Table.Th style={{ textAlign: "right" }}>
+                        Current Stock
+                      </Table.Th>
+                      <Table.Th style={{ textAlign: "right" }}>
+                        Min. Level
+                      </Table.Th>
+                      <Table.Th style={{ textAlign: "right" }}>
+                        Shortfall
+                      </Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
                     {lowStockItems.map((product) => (
-                      <tr key={product.id}>
-                        <td style={{ fontFamily: "monospace" }}>
+                      <Table.Tr key={product.id}>
+                        <Table.Td style={{ fontFamily: "monospace" }}>
                           {product.code || product.sku}
-                        </td>
-                        <td>{product.name}</td>
-                        <td>
+                        </Table.Td>
+                        <Table.Td>{product.name}</Table.Td>
+                        <Table.Td>
                           <Badge>{product.category}</Badge>
-                        </td>
-                        <td
+                        </Table.Td>
+                        <Table.Td
                           style={{
                             textAlign: "right",
                             color: "#c92a2a",
@@ -205,11 +217,11 @@ export default function StockReportPage() {
                           }}
                         >
                           {formatNumber(product.stock)} {product.unit}
-                        </td>
-                        <td style={{ textAlign: "right", color: "#666" }}>
+                        </Table.Td>
+                        <Table.Td style={{ textAlign: "right", color: "#666" }}>
                           {formatNumber(product.minStock)} {product.unit}
-                        </td>
-                        <td
+                        </Table.Td>
+                        <Table.Td
                           style={{
                             textAlign: "right",
                             color: "#c92a2a",
@@ -218,10 +230,10 @@ export default function StockReportPage() {
                         >
                           {formatNumber(product.minStock - product.stock)}{" "}
                           {product.unit}
-                        </td>
-                      </tr>
+                        </Table.Td>
+                      </Table.Tr>
                     ))}
-                  </tbody>
+                  </Table.Tbody>
                 </Table>
               </ScrollArea>
             </Card.Section>
@@ -243,26 +255,30 @@ export default function StockReportPage() {
             <Card.Section>
               <ScrollArea>
                 <Table verticalSpacing="sm">
-                  <thead>
-                    <tr>
-                      <th>Item Code</th>
-                      <th>Item Name</th>
-                      <th>Category</th>
-                      <th style={{ textAlign: "right" }}>Current Stock</th>
-                      <th style={{ textAlign: "right" }}>Min. Level</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Item Code</Table.Th>
+                      <Table.Th>Item Name</Table.Th>
+                      <Table.Th>Category</Table.Th>
+                      <Table.Th style={{ textAlign: "right" }}>
+                        Current Stock
+                      </Table.Th>
+                      <Table.Th style={{ textAlign: "right" }}>
+                        Min. Level
+                      </Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
                     {negativeStockItems.map((product) => (
-                      <tr key={product.id}>
-                        <td style={{ fontFamily: "monospace" }}>
+                      <Table.Tr key={product.id}>
+                        <Table.Td style={{ fontFamily: "monospace" }}>
                           {product.code || product.sku}
-                        </td>
-                        <td>{product.name}</td>
-                        <td>
+                        </Table.Td>
+                        <Table.Td>{product.name}</Table.Td>
+                        <Table.Td>
                           <Badge>{product.category}</Badge>
-                        </td>
-                        <td
+                        </Table.Td>
+                        <Table.Td
                           style={{
                             textAlign: "right",
                             color: "#c92a2a",
@@ -270,13 +286,13 @@ export default function StockReportPage() {
                           }}
                         >
                           {formatNumber(product.stock)} {product.unit}
-                        </td>
-                        <td style={{ textAlign: "right", color: "#666" }}>
+                        </Table.Td>
+                        <Table.Td style={{ textAlign: "right", color: "#666" }}>
                           {formatNumber(product.minStock)} {product.unit}
-                        </td>
-                      </tr>
+                        </Table.Td>
+                      </Table.Tr>
                     ))}
-                  </tbody>
+                  </Table.Tbody>
                 </Table>
               </ScrollArea>
             </Card.Section>

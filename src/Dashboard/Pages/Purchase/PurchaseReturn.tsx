@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { showNotification } from "@mantine/notifications";
 import {
   Card,
   TextInput,
@@ -7,9 +8,11 @@ import {
   Text,
   Select,
   Title,
-  Table,
   Modal,
 } from "@mantine/core";
+import openPrintWindow from "../../../components/print/printWindow";
+import type { InvoiceData } from "../../../components/print/printTemplate";
+import Table from "../../../lib/AppTable";
 import {
   useDataContext,
   type PurchaseReturnRecord,
@@ -89,6 +92,7 @@ export default function PurchaseReturnPage() {
                   <th>Date</th>
                   <th>Supplier</th>
                   <th style={{ textAlign: "right" }}>Amount</th>
+                  <th style={{ textAlign: "right" }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -101,6 +105,54 @@ export default function PurchaseReturnPage() {
                     <td>{r.supplier}</td>
                     <td style={{ textAlign: "right" }}>
                       {formatCurrency(r.total)}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <Button
+                          variant="subtle"
+                          onClick={() => {
+                            // find the full return record from context
+                            const full = (purchaseReturns || []).find(
+                              (x) => x.id === r.id
+                            ) as PurchaseReturnRecord | undefined;
+                            const items = (full?.items || []).map(
+                              (it, idx) => ({
+                                sr: idx + 1,
+                                section: String(it.sku),
+                                quantity: it.quantity,
+                                rate: it.price,
+                                amount: (it.quantity || 0) * (it.price || 0),
+                              })
+                            );
+                            const payload: InvoiceData = {
+                              title: "Purchase Return",
+                              companyName: "Seven Star Traders",
+                              addressLines: [
+                                "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
+                              ],
+                              invoiceNo: r.returnNumber,
+                              date: String(r.returnDate),
+                              customer: r.supplier,
+                              items,
+                              totals: {
+                                subtotal: full?.subtotal ?? r.total,
+                                tax: 0,
+                                total: full?.totalAmount ?? r.total,
+                              },
+                              footerNotes: ["Purchase Return Document"],
+                            };
+                            openPrintWindow(payload);
+                          }}
+                        >
+                          Print
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -119,7 +171,12 @@ export default function PurchaseReturnPage() {
             // idempotent processing via DataContext
             const res = processPurchaseReturn(ret);
             if (res.applied) setOpen(false);
-            else alert(res.message || "Return not applied");
+            else
+              showNotification({
+                title: "Return Not Applied",
+                message: res.message || "Return not applied",
+                color: "orange",
+              });
           }}
         />
       </Modal>
@@ -163,7 +220,7 @@ function ReturnForm({
       rateSource: "old" as const,
       colorId: undefined,
       color: undefined,
-      gauge: undefined,
+      thickness: undefined,
       length: undefined,
       grossAmount: 0,
       percent: 0,
@@ -198,7 +255,7 @@ function ReturnForm({
           rateSource: "old" as const,
           colorId: undefined,
           color: undefined,
-          gauge: undefined,
+          thickness: undefined,
           length: undefined,
           grossAmount: 0,
           percent: 0,
@@ -257,9 +314,51 @@ function ReturnForm({
     setConfirmOpen(true);
   }
 
+  function handlePrintDraft() {
+    const payload: InvoiceData = {
+      title: "Purchase Return (Draft)",
+      companyName: "Seven Star Traders",
+      addressLines: ["Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan"],
+      invoiceNo: returnNumber,
+      date: returnDate,
+      customer:
+        suppliers.find((s) => String(s.id) === String(supplierId))?.name ?? "",
+      items: (items || []).map((it, idx) => ({
+        sr: idx + 1,
+        section: String(it.productId || it.productName),
+        quantity: it.quantity,
+        rate: it.rate,
+        amount: it.amount || (it.quantity || 0) * (it.rate || 0),
+      })),
+      totals: { subtotal: totals.sub, tax: totals.tax, total: totals.total },
+      footerNotes: ["Purchase Return (Draft)"],
+    };
+    openPrintWindow(payload);
+  }
+
   function handleConfirmSave() {
     if (!confirmPayload) return;
-    onSave(confirmPayload);
+    // attempt to persist to backend, then process locally
+    (async () => {
+      try {
+        const api = await import("../../../lib/api");
+        await api.createPurchaseReturn({
+          id: confirmPayload.id,
+          items: confirmPayload.items,
+          total: confirmPayload.totalAmount,
+          date: confirmPayload.returnDate,
+          supplierId: confirmPayload.supplierId,
+        });
+      } catch (err) {
+        showNotification({
+          title: "Purchase Return Persist Failed",
+          message: String(err),
+          color: "red",
+        });
+      } finally {
+        onSave(confirmPayload);
+      }
+    })();
     setConfirmOpen(false);
   }
 
@@ -354,6 +453,9 @@ function ReturnForm({
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <Button variant="outline" onClick={() => onClose()}>
               Cancel
+            </Button>
+            <Button variant="default" onClick={handlePrintDraft}>
+              Print Draft
             </Button>
             <Button onClick={handleSave}>Save Return</Button>
           </div>

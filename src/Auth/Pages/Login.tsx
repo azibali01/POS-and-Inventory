@@ -72,7 +72,7 @@ const Login = () => {
           <Text c="#a9a9a9">Sign in to your account</Text>
 
           <form
-            onSubmit={form.onSubmit(console.log, handleError)}
+            onSubmit={form.onSubmit(() => handleLogin(), handleError)}
             style={{ width: "100%" }}
           >
             <Stack gap="md">

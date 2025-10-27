@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { showNotification } from "@mantine/notifications";
 import {
   Card,
   TextInput,
@@ -8,12 +9,14 @@ import {
   Text,
   Select,
   Title,
-  Table,
   Modal,
 } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 import { PurchaseLineItemsTable } from "./line-items-table-purchase";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
+import openPrintWindow from "../../../components/print/printWindow";
+import type { InvoiceData } from "../../../components/print/printTemplate";
 import {
   useDataContext,
   type Customer,
@@ -37,7 +40,15 @@ export function PurchaseInvoiceForm({
 }: {
   onSubmit?: (payload: PurchaseInvoicePayload) => void;
 }) {
-  const { customers: suppliers = [], grns = [] } = useDataContext();
+  const { customers: suppliers = [], grns = [], loadGrns } = useDataContext();
+
+  useEffect(() => {
+    if ((!grns || grns.length === 0) && typeof loadGrns === "function") {
+      loadGrns().catch(() => {
+        /* ignore - errors surfaced by DataContext */
+      });
+    }
+  }, [loadGrns]);
 
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceDate, setInvoiceDate] = useState<string>(
@@ -64,7 +75,7 @@ export function PurchaseInvoiceForm({
       rateSource: "manual",
       colorId: undefined,
       color: undefined,
-      gauge: undefined,
+      thickness: undefined,
       length: undefined,
       grossAmount: 0,
       percent: 0,
@@ -95,7 +106,7 @@ export function PurchaseInvoiceForm({
         rateSource: "old",
         colorId: undefined,
         color: undefined,
-        gauge: undefined,
+        thickness: undefined,
         length: undefined,
         grossAmount: (i.quantity || 0) * (i.price || 0),
         percent: 0,
@@ -136,6 +147,28 @@ export function PurchaseInvoiceForm({
       remarks,
     };
     onSubmit?.(payload);
+    // persist to backend via API, optimistic
+    (async () => {
+      try {
+        const api = await import("../../../lib/api");
+        await api.createPurchase({
+          items: items.map((i) => ({
+            inventoryId: i.productId,
+            quantity: i.quantity,
+            unitPrice: i.rate,
+          })),
+          total: totals.total,
+          date: invoiceDate,
+          supplierId,
+        });
+      } catch (err) {
+        showNotification({
+          title: "Purchase Invoice Persist Failed",
+          message: String(err),
+          color: "red",
+        });
+      }
+    })();
   }
 
   return (
@@ -288,7 +321,42 @@ export function PurchaseInvoiceForm({
           marginTop: 8,
         }}
       >
-        <Button type="button" variant="outline" onClick={() => window.print()}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            const invoice: InvoiceData = {
+              title: "Purchase Invoice",
+              companyName: "Seven Star Traders",
+              addressLines: [
+                "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
+              ],
+              invoiceNo: invoiceNumber,
+              date: invoiceDate,
+              grn: grnNumber || null,
+              items: items.map((it, idx) => ({
+                sr: idx + 1,
+                section: it.productName,
+                thickness: it.thickness,
+                sizeFt: it.length,
+                lengths: it.quantity,
+                totalFeet: it.grossAmount,
+                rate: it.rate,
+                amount: it.amount || it.netAmount || it.grossAmount,
+              })),
+              totals: {
+                subtotal: totals.sub,
+                tax: totals.tax,
+                total: totals.total,
+              },
+              footerNotes: [
+                "Extrusion & Powder Coating",
+                "Aluminum Window, Door, Profiles & All Kinds of Pipes",
+              ],
+            };
+            openPrintWindow(invoice);
+          }}
+        >
           Print
         </Button>
         <Button type="submit">Save Invoice</Button>

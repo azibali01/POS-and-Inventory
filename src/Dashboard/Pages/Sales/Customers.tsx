@@ -7,11 +7,11 @@ import {
   Input,
   Modal,
   ScrollArea,
-  Table,
   Text,
   Title,
   Badge,
 } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 import {
   IconPlus,
   IconSearch,
@@ -91,29 +91,29 @@ export default function CustomersPage() {
         <Card.Section>
           <ScrollArea>
             <Table verticalSpacing="sm">
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  <th>Name</th>
-                  <th>City</th>
-                  <th>Phone</th>
-                  <th>GST</th>
-                  <th style={{ textAlign: "right" }}>Balance</th>
-                  <th>Status</th>
-                  <th style={{ textAlign: "right" }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Code</Table.Th>
+                  <Table.Th>Name</Table.Th>
+                  <Table.Th>City</Table.Th>
+                  <Table.Th>Phone</Table.Th>
+                  <Table.Th>GST</Table.Th>
+                  <Table.Th style={{ textAlign: "right" }}>Balance</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th style={{ textAlign: "right" }}>Actions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
                 {filtered.map((c: Customer) => (
-                  <tr key={c.id}>
-                    <td style={{ fontFamily: "monospace" }}>
+                  <Table.Tr key={c.id}>
+                    <Table.Td style={{ fontFamily: "monospace" }}>
                       {c.customerCode}
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{c.name}</td>
-                    <td style={{ color: "#666" }}>{c.city}</td>
-                    <td>{c.phone}</td>
-                    <td style={{ fontSize: 12 }}>{c.gstNumber}</td>
-                    <td style={{ textAlign: "right", fontWeight: 600 }}>
+                    </Table.Td>
+                    <Table.Td style={{ fontWeight: 600 }}>{c.name}</Table.Td>
+                    <Table.Td style={{ color: "#666" }}>{c.city}</Table.Td>
+                    <Table.Td>{c.phone}</Table.Td>
+                    <Table.Td style={{ fontSize: 12 }}>{c.gstNumber}</Table.Td>
+                    <Table.Td style={{ textAlign: "right", fontWeight: 600 }}>
                       {c.currentBalance && c.currentBalance < 0 ? (
                         <span style={{ color: "red" }}>
                           Debit {formatCurrency(Math.abs(c.currentBalance))}
@@ -124,13 +124,13 @@ export default function CustomersPage() {
                           {formatCurrency(Math.abs(c.currentBalance || 0))}
                         </span>
                       )}
-                    </td>
-                    <td>
+                    </Table.Td>
+                    <Table.Td>
                       <Badge color={c.isActive ? "teal" : "gray"}>
                         {c.isActive ? "Active" : "Inactive"}
                       </Badge>
-                    </td>
-                    <td style={{ textAlign: "right" }}>
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
                       <Group gap="xs">
                         <Button
                           variant="subtle"
@@ -166,10 +166,10 @@ export default function CustomersPage() {
                           <IconTrash size={14} />
                         </Button>
                       </Group>
-                    </td>
-                  </tr>
+                    </Table.Td>
+                  </Table.Tr>
                 ))}
-              </tbody>
+              </Table.Tbody>
             </Table>
           </ScrollArea>
         </Card.Section>

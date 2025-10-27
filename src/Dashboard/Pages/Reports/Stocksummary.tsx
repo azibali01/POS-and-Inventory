@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { Title, Table, Text, ScrollArea, Badge } from "@mantine/core";
+import { Title, Text, ScrollArea, Badge } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 import { useDataContext } from "../../Context/DataContext";
 import type { InventoryItem } from "../../Context/DataContext";
 import { formatCurrency } from "../../../lib/format-utils";
@@ -12,7 +13,9 @@ export default function Stocksummary() {
   const lowStock = useMemo(
     () =>
       inventory.filter(
-        (i: InventoryItem) => (i.stock ?? 0) <= (i.minStock ?? 0)
+        (i: InventoryItem) =>
+          ((i as any).openingStock ?? i.stock ?? 0) <=
+          ((i as any).minimumStockLevel ?? i.minStock ?? 0)
       ),
     [inventory]
   );
@@ -28,36 +31,40 @@ export default function Stocksummary() {
         <Text style={{ fontWeight: 600, marginBottom: 8 }}>Inventory</Text>
         <ScrollArea style={{ maxHeight: 360 }}>
           <Table highlightOnHover verticalSpacing="sm">
-            <thead>
-              <tr>
-                <th>SKU</th>
-                <th>Name</th>
-                <th>Category</th>
-                <th style={{ textAlign: "right" }}>Stock</th>
-                <th style={{ textAlign: "right" }}>Min</th>
-                <th style={{ textAlign: "right" }}>Cost</th>
-                <th style={{ textAlign: "right" }}>Sell</th>
-                <th>Supplier</th>
-              </tr>
-            </thead>
-            <tbody>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>SKU</Table.Th>
+                <Table.Th>Name</Table.Th>
+                <Table.Th>Category</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Stock</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Min</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Cost</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Sell</Table.Th>
+                <Table.Th>Supplier</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {inventory.map((it: InventoryItem) => (
-                <tr key={it.id}>
-                  <td>{it.sku}</td>
-                  <td>{it.name}</td>
-                  <td>{it.category}</td>
-                  <td style={{ textAlign: "right" }}>{it.stock}</td>
-                  <td style={{ textAlign: "right" }}>{it.minStock}</td>
-                  <td style={{ textAlign: "right" }}>
+                <Table.Tr key={it.id}>
+                  <Table.Td>{it.sku}</Table.Td>
+                  <Table.Td>{it.name}</Table.Td>
+                  <Table.Td>{it.category}</Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
+                    {(it as any).openingStock ?? it.stock}
+                  </Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
+                    {(it as any).minimumStockLevel ?? it.minStock}
+                  </Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
                     {formatCurrency(it.costPrice)}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {formatCurrency(it.sellingPrice)}
-                  </td>
-                  <td>{it.supplier}</td>
-                </tr>
+                  </Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
+                    {formatCurrency((it as any).salesRate ?? it.sellingPrice)}
+                  </Table.Td>
+                  <Table.Td>{it.supplier}</Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
+            </Table.Tbody>
           </Table>
         </ScrollArea>
       </div>

@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Modal, Button, TextInput } from "@mantine/core";
+import Table from "../../../lib/AppTable";
+import { showNotification } from "@mantine/notifications";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
 import type { PurchaseLineItem } from "./types";
 import GRNForm, { type GRNFormPayload } from "./GRNForm.generated";
@@ -19,8 +21,21 @@ type GRN = {
 };
 
 export default function GRNPage() {
-  const { grns, setGrns, applyGrnToInventory, updatePurchaseFromGrn } =
-    useDataContext();
+  const {
+    grns,
+    setGrns,
+    applyGrnToInventory,
+    updatePurchaseFromGrn,
+    loadGrns,
+  } = useDataContext();
+
+  useEffect(() => {
+    if ((!grns || grns.length === 0) && typeof loadGrns === "function") {
+      loadGrns().catch(() => {
+        /* ignore - errors surfaced by DataContext */
+      });
+    }
+  }, [loadGrns]);
   const [data, setData] = useState<GRN[]>(() =>
     (grns || []).map((g) => ({
       id: g.id,
@@ -42,7 +57,7 @@ export default function GRNPage() {
         rateSource: "old",
         colorId: undefined,
         color: undefined,
-        gauge: undefined,
+        thickness: undefined,
         length: undefined,
         grossAmount: (it.quantity || 0) * (it.price || 0),
         percent: 0,
@@ -88,6 +103,25 @@ export default function GRNPage() {
 
     if (typeof setGrns === "function") {
       setGrns((prev) => [record, ...(prev || [])]);
+      (async () => {
+        try {
+          const api = await import("../../../lib/api");
+          await api.createGRN({
+            id: record.id,
+            items: record.items,
+            subtotal: record.subtotal,
+            totalAmount: record.totalAmount,
+            grnDate: record.grnDate,
+            supplierId: record.supplierId,
+          });
+        } catch (err) {
+          showNotification({
+            title: "GRN Persist Failed",
+            message: String(err),
+            color: "red",
+          });
+        }
+      })();
     }
     // update local view (map GRNRecord -> local GRN shape expected by this page)
     const local: GRN = {
@@ -137,17 +171,26 @@ export default function GRNPage() {
             <Button onClick={() => setOpen(true)}>Create GRN</Button>
           </div>
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th>GRN Number</th>
-              <th>Date</th>
-              <th>Supplier</th>
-              <th style={{ textAlign: "right" }}>Total</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table
+          striped
+          highlightOnHover
+          verticalSpacing="sm"
+          style={{
+            width: "100%",
+            border: "1px solid rgba(0,0,0,0.06)",
+            borderCollapse: "collapse",
+          }}
+        >
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>GRN Number</Table.Th>
+              <Table.Th>Date</Table.Th>
+              <Table.Th>Supplier</Table.Th>
+              <Table.Th style={{ textAlign: "right" }}>Total</Table.Th>
+              <Table.Th>Status</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
             {data
               .filter((o) => {
                 const term = q.trim().toLowerCase();
@@ -158,18 +201,20 @@ export default function GRNPage() {
                 );
               })
               .map((o) => (
-                <tr key={o.id}>
-                  <td style={{ fontFamily: "monospace" }}>{o.grnNumber}</td>
-                  <td>{formatDate(o.grnDate)}</td>
-                  <td>{o.supplierName}</td>
-                  <td style={{ textAlign: "right" }}>
+                <Table.Tr key={o.id}>
+                  <Table.Td style={{ fontFamily: "monospace" }}>
+                    {o.grnNumber}
+                  </Table.Td>
+                  <Table.Td>{formatDate(o.grnDate)}</Table.Td>
+                  <Table.Td>{o.supplierName}</Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
                     {formatCurrency(o.totalAmount)}
-                  </td>
-                  <td>{o.status}</td>
-                </tr>
+                  </Table.Td>
+                  <Table.Td>{o.status}</Table.Td>
+                </Table.Tr>
               ))}
-          </tbody>
-        </table>
+          </Table.Tbody>
+        </Table>
       </div>
     </div>
   );

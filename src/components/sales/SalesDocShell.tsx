@@ -19,6 +19,8 @@ import type {
   InventoryItem,
 } from "../../Dashboard/Context/DataContext";
 import { useDataContext } from "../..//Dashboard/Context/DataContext";
+import openPrintWindow from "../print/printWindow";
+import type { InvoiceData } from "../print/printTemplate";
 
 export interface SalesPayload {
   mode: "Quotation" | "Invoice";
@@ -533,7 +535,83 @@ export default function SalesDocShell({
           marginTop: 12,
         }}
       >
-        <Button type="button" variant="outline" onClick={() => window.print()}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            try {
+              // find GRNs that contain any of the SKUs in this invoice
+              const allGrns = (ctx.grns || []) as any[];
+              const skuSet = new Set(items.map((it) => String(it.productId)));
+              const matched = allGrns.filter((g) =>
+                (g.items || []).some((gi: any) => skuSet.has(String(gi.sku)))
+              );
+
+              const grnList = Array.from(
+                new Set(matched.map((g) => g.grnNumber))
+              ).filter(Boolean);
+
+              const invoiceItems = items.map((it, idx) => ({
+                sr: idx + 1,
+                section: it.productName || it.productId,
+                color: (it as any).color ?? undefined,
+                thickness: (it as any).thickness ?? undefined,
+                sizeFt: (it as any).length ?? undefined,
+                lengths: it.quantity,
+                totalFeet: undefined,
+                rate: it.rate,
+                amount: it.amount ?? (it.quantity || 0) * (it.rate || 0),
+              }));
+
+              // optionally append GRN reference rows
+              const grnRows = matched.flatMap((g) => [
+                {
+                  sr: undefined,
+                  section: `GRN: ${g.grnNumber} — ${g.supplierName ?? ""}`,
+                },
+                ...(g.items || []).map((gi: any) => ({
+                  sr: undefined,
+                  section: `  ${gi.sku ?? gi.description ?? ""}`,
+                  color: gi.color ?? undefined,
+                  thickness: gi.thickness ?? undefined,
+                  sizeFt: gi.size ?? undefined,
+                  lengths: gi.quantity,
+                  totalFeet: gi.totalFeet ?? undefined,
+                  rate: gi.price ?? undefined,
+                  amount: (gi.quantity || 0) * (gi.price || 0),
+                })),
+              ]);
+
+              const data: InvoiceData = {
+                title: mode === "Invoice" ? "Sales Invoice" : "Quotation",
+                companyName: "Seven Star Traders",
+                addressLines: [
+                  "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
+                ],
+                invoiceNo: docNo,
+                date: docDate,
+                ms: selectedCustomer?.name ?? undefined,
+                customer: selectedCustomer?.name ?? undefined,
+                grn: grnList.length ? grnList.join(", ") : null,
+                items: [...invoiceItems, ...grnRows],
+                totals: {
+                  subtotal: totals.sub,
+                  tax: (totals as any).tax ?? 0,
+                  total:
+                    (totals as any).total ?? (totals as any).totalNetAmount,
+                },
+                footerNotes: [
+                  "Extrusion & Powder Coating",
+                  "Aluminum Window, Door, Profiles & All Kinds of Pipes",
+                ],
+              };
+              openPrintWindow(data);
+            } catch (err) {
+              console.error("Failed to open print preview", err);
+              window.print();
+            }
+          }}
+        >
           Print
         </Button>
         <Button type="submit">Save {mode}</Button>

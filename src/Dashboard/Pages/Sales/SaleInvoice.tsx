@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollArea,
 } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 // using Mantine modal and card components
 import SalesDocShell, {
   type SalesPayload,
@@ -18,6 +19,9 @@ import type { SaleRecord } from "../../Context/DataContext";
 import { useDataContext } from "../../Context/DataContext";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
 import { IconPlus, IconReceipt } from "@tabler/icons-react";
+import openPrintWindow from "../../../components/print/printWindow";
+import type { InvoiceData } from "../../../components/print/printTemplate";
+import { showNotification } from "@mantine/notifications";
 
 type Invoice = {
   id: string | number;
@@ -49,7 +53,7 @@ const sampleInvoices: Invoice[] = [
 
 export default function SaleInvoicePage() {
   const [invoices] = useState<Invoice[]>(sampleInvoices);
-  const { customers, inventory, quotations, setQuotations, setSales } =
+  const { customers, inventory, quotations, setQuotations, createSale } =
     useDataContext();
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -83,40 +87,77 @@ export default function SaleInvoicePage() {
           <Title order={4}>Recent Invoices</Title>
           <Text color="dimmed">Last {invoices.length} invoices</Text>
           <div style={{ marginTop: 12, overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left" }}>Number</th>
-                  <th style={{ textAlign: "left" }}>Date</th>
-                  <th style={{ textAlign: "left" }}>Customer</th>
-                  <th style={{ textAlign: "right" }}>Amount</th>
-                  <th style={{ textAlign: "left" }}>Status</th>
-                  <th style={{ textAlign: "right" }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table
+              striped
+              highlightOnHover
+              verticalSpacing="sm"
+              style={{
+                width: "100%",
+                border: "1px solid rgba(0,0,0,0.06)",
+                borderCollapse: "collapse",
+              }}
+            >
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th style={{ textAlign: "left" }}>Number</Table.Th>
+                  <Table.Th style={{ textAlign: "left" }}>Date</Table.Th>
+                  <Table.Th style={{ textAlign: "left" }}>Customer</Table.Th>
+                  <Table.Th style={{ textAlign: "right" }}>Amount</Table.Th>
+                  <Table.Th style={{ textAlign: "left" }}>Status</Table.Th>
+                  <Table.Th style={{ textAlign: "right" }}>Action</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
                 {invoices.map((inv) => (
-                  <tr key={inv.id}>
-                    <td style={{ fontFamily: "monospace" }}>
+                  <Table.Tr key={inv.id}>
+                    <Table.Td style={{ fontFamily: "monospace" }}>
                       {inv.invoiceNumber}
-                    </td>
-                    <td>{formatDate(inv.invoiceDate)}</td>
-                    <td>{inv.customerName}</td>
-                    <td style={{ textAlign: "right" }}>
+                    </Table.Td>
+                    <Table.Td>{formatDate(inv.invoiceDate)}</Table.Td>
+                    <Table.Td>{inv.customerName}</Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
                       {formatCurrency(inv.totalAmount)}
-                    </td>
-                    <td>
+                    </Table.Td>
+                    <Table.Td>
                       <Badge variant="outline">{inv.status}</Badge>
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <Button variant="subtle" leftSection={<IconReceipt />}>
-                        Open
-                      </Button>
-                    </td>
-                  </tr>
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          gap: 8,
+                        }}
+                      >
+                        <Button variant="subtle" leftSection={<IconReceipt />}>
+                          Open
+                        </Button>
+                        <Button
+                          variant="subtle"
+                          onClick={() => {
+                            const invData: InvoiceData = {
+                              title: "Sales Invoice",
+                              companyName: "Seven Star Traders",
+                              addressLines: [
+                                "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
+                              ],
+                              invoiceNo: inv.invoiceNumber,
+                              date: inv.invoiceDate as string,
+                              customer: inv.customerName,
+                              items: [],
+                              totals: { total: inv.totalAmount },
+                            };
+                            openPrintWindow(invData);
+                          }}
+                        >
+                          Print
+                        </Button>
+                      </div>
+                    </Table.Td>
+                  </Table.Tr>
                 ))}
-              </tbody>
-            </table>
+              </Table.Tbody>
+            </Table>
           </div>
         </Box>
       </Card>
@@ -128,7 +169,7 @@ export default function SaleInvoicePage() {
             customers={customers}
             products={inventory}
             showImportIssues={false}
-            onSubmit={(payload: SalesPayload) => {
+            onSubmit={async (payload: SalesPayload) => {
               // create invoice in memory
               const invId = `inv-${Date.now()}`;
               const invoiceNumber = makeInvoiceNumber();
@@ -151,8 +192,21 @@ export default function SaleInvoicePage() {
                 status: "pending",
               };
 
-              if (typeof setSales === "function") {
-                setSales((prev) => [saleRecord, ...prev]);
+              // Create sale using context function
+              try {
+                await createSale({
+                  id: saleRecord.id,
+                  items: saleRecord.items,
+                  total: saleRecord.total,
+                  date: saleRecord.date,
+                  customerId: saleRecord.customer,
+                });
+              } catch (err) {
+                showNotification({
+                  title: "Sale Persist Failed",
+                  message: String(err),
+                  color: "red",
+                });
               }
 
               // mark quotation converted if referenced
@@ -239,36 +293,53 @@ export default function SaleInvoicePage() {
                         paddingTop: 8,
                       }}
                     >
-                      <table
-                        style={{ width: "100%", borderCollapse: "collapse" }}
+                      <Table
+                        striped
+                        highlightOnHover
+                        verticalSpacing="sm"
+                        style={{
+                          width: "100%",
+                          border: "1px solid rgba(0,0,0,0.06)",
+                          borderCollapse: "collapse",
+                        }}
                       >
-                        <thead>
-                          <tr>
-                            <th style={{ textAlign: "left" }}>Item</th>
-                            <th style={{ textAlign: "right" }}>Qty</th>
-                            <th style={{ textAlign: "right" }}>Rate</th>
-                            <th style={{ textAlign: "right" }}>Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th style={{ textAlign: "left" }}>
+                              Item
+                            </Table.Th>
+                            <Table.Th style={{ textAlign: "right" }}>
+                              Qty
+                            </Table.Th>
+                            <Table.Th style={{ textAlign: "right" }}>
+                              Rate
+                            </Table.Th>
+                            <Table.Th style={{ textAlign: "right" }}>
+                              Amount
+                            </Table.Th>
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
                           {q.items.map((it, i) => (
-                            <tr key={it.id || i}>
-                              <td>{it.productName || it.productId}</td>
-                              <td style={{ textAlign: "right" }}>
+                            <Table.Tr key={it.id || i}>
+                              <Table.Td>
+                                {it.productName || it.productId}
+                              </Table.Td>
+                              <Table.Td style={{ textAlign: "right" }}>
                                 {it.quantity}
-                              </td>
-                              <td style={{ textAlign: "right" }}>
+                              </Table.Td>
+                              <Table.Td style={{ textAlign: "right" }}>
                                 {it.rate?.toFixed?.(2) ?? it.rate}
-                              </td>
-                              <td style={{ textAlign: "right" }}>
+                              </Table.Td>
+                              <Table.Td style={{ textAlign: "right" }}>
                                 {((it.quantity || 0) * (it.rate || 0)).toFixed(
                                   2
                                 )}
-                              </td>
-                            </tr>
+                              </Table.Td>
+                            </Table.Tr>
                           ))}
-                        </tbody>
-                      </table>
+                        </Table.Tbody>
+                      </Table>
                     </div>
                   )}
 
@@ -324,7 +395,7 @@ export default function SaleInvoicePage() {
               products={inventory}
               initial={initialPayload}
               showImportIssues={false}
-              onSubmit={(payload: SalesPayload) => {
+              onSubmit={async (payload: SalesPayload) => {
                 // create invoice like above
                 const invId = `inv-${Date.now()}`;
                 const invoiceNumber = makeInvoiceNumber();
@@ -346,8 +417,23 @@ export default function SaleInvoicePage() {
                   total: payload.totals.total,
                   status: "pending",
                 };
-                if (typeof setSales === "function")
-                  setSales((prev) => [saleRecord, ...prev]);
+
+                // Create sale using context function
+                try {
+                  await createSale({
+                    id: saleRecord.id,
+                    items: saleRecord.items,
+                    total: saleRecord.total,
+                    date: saleRecord.date,
+                    customerId: saleRecord.customer,
+                  });
+                } catch (err) {
+                  showNotification({
+                    title: "Sale Persist Failed",
+                    message: String(err),
+                    color: "red",
+                  });
+                }
 
                 if (
                   payload.sourceQuotationId &&

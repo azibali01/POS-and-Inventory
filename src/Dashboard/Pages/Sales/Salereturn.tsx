@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollArea,
 } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 import SalesDocShell, {
   type SalesPayload,
 } from "../../../components/sales/SalesDocShell";
@@ -55,43 +56,52 @@ export default function SaleReturnPage() {
           <Title order={4}>Recent Returns</Title>
           <Text color="dimmed">Last {returns.length} returns</Text>
           <div style={{ marginTop: 12, overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left" }}>Number</th>
-                  <th style={{ textAlign: "left" }}>Date</th>
-                  <th style={{ textAlign: "left" }}>Customer</th>
-                  <th style={{ textAlign: "right" }}>Amount</th>
-                  <th style={{ textAlign: "left" }}>Status</th>
-                  <th style={{ textAlign: "right" }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table
+              striped
+              highlightOnHover
+              verticalSpacing="sm"
+              style={{
+                width: "100%",
+                border: "1px solid rgba(0,0,0,0.06)",
+                borderCollapse: "collapse",
+              }}
+            >
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th style={{ textAlign: "left" }}>Number</Table.Th>
+                  <Table.Th style={{ textAlign: "left" }}>Date</Table.Th>
+                  <Table.Th style={{ textAlign: "left" }}>Customer</Table.Th>
+                  <Table.Th style={{ textAlign: "right" }}>Amount</Table.Th>
+                  <Table.Th style={{ textAlign: "left" }}>Status</Table.Th>
+                  <Table.Th style={{ textAlign: "right" }}>Action</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
                 {returns.map((r) => (
-                  <tr key={r.id}>
-                    <td style={{ fontFamily: "monospace" }}>
+                  <Table.Tr key={r.id}>
+                    <Table.Td style={{ fontFamily: "monospace" }}>
                       {r.returnNumber}
-                    </td>
-                    <td>{formatDate(r.returnDate)}</td>
-                    <td>{r.customerName}</td>
-                    <td style={{ textAlign: "right" }}>
+                    </Table.Td>
+                    <Table.Td>{formatDate(r.returnDate)}</Table.Td>
+                    <Table.Td>{r.customerName}</Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
                       {formatCurrency(r.totalAmount)}
-                    </td>
-                    <td>
+                    </Table.Td>
+                    <Table.Td>
                       <Badge variant="outline">{r.status}</Badge>
-                    </td>
-                    <td style={{ textAlign: "right" }}>
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
                       <Button
                         variant="subtle"
                         leftSection={<IconArrowBackUp />}
                       >
                         Open
                       </Button>
-                    </td>
-                  </tr>
+                    </Table.Td>
+                  </Table.Tr>
                 ))}
-              </tbody>
-            </table>
+              </Table.Tbody>
+            </Table>
           </div>
         </Box>
       </Card>

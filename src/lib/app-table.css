@@ -1,0 +1,37 @@
+.app-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.app-table thead th {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  text-align: left;
+  padding: 8px 12px;
+}
+.app-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+.app-table td,
+.app-table th {
+  vertical-align: middle;
+}
+.app-table tr:hover td {
+  background: rgba(0, 0, 0, 0.01);
+}
+.app-table th:last-child,
+.app-table td:last-child {
+  text-align: right;
+}
+.app-table td:first-child,
+.app-table th:first-child {
+  font-family: monospace;
+}
+
+/* Optional helpers */
+.app-table.with-column-borders th,
+.app-table.with-column-borders td {
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+.app-table.with-row-borders tbody tr {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}

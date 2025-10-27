@@ -1,5 +1,5 @@
-import { useState } from "react";
-// client-side parsing libraries removed — parsing handled server-side in this build
+import { useState, useEffect, useMemo } from "react";
+import { useDebouncedValue } from "@mantine/hooks";
 import {
   Card,
   Group,
@@ -9,12 +9,13 @@ import {
   Box,
   Button,
   TextInput,
+  Select,
   Modal,
-  Table,
   ScrollArea,
   Checkbox,
   NumberInput,
 } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 import { showNotification } from "@mantine/notifications";
 import {
   IconPlus,
@@ -30,31 +31,19 @@ import { useDataContext } from "../../Context/DataContext";
 import type { InventoryItem } from "../../Context/DataContext";
 
 import { ProductForm } from "../../../components/products/ProductForm";
-import { ProductDetails } from "../..//../components/products/ProductDetails";
+import { ProductDetails } from "../../../components/products/ProductDetails";
 
-function formatNumber(n: number) {
+function formatNumber(n?: number | null) {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "-";
   return n.toLocaleString();
 }
 
-function formatCurrency(n: number) {
+function formatCurrency(n?: number | null) {
+  if (typeof n !== "number" || !Number.isFinite(n)) return "-";
   return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
 export default function ProductMaster() {
-  type ParsedRow = {
-    sku?: string;
-    code?: string;
-    name?: string;
-    description?: string;
-    newPrice?: number | string | null;
-    matchedProductId?: number | null;
-    matchedProductName?: string | null;
-    // some parsers return snake_case fields
-    matched_id?: number | string | null;
-    matched_name?: string | null;
-    selected?: boolean;
-  };
-
   type UploadPreviewRow = {
     sku?: string;
     code?: string;
@@ -73,11 +62,27 @@ export default function ProductMaster() {
   };
 
   type ApplyResponse = { updated?: Array<{ id: number; newPrice?: number }> };
-  const { inventory, getColorById } = useDataContext();
+  const {
+    inventory,
+    categoriesForSelect = [],
+    loadInventory,
+    deleteInventoryItem,
+  } = useDataContext();
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch] = useDebouncedValue(searchTerm, 200);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(
     null
   );
+
+  useEffect(() => {
+    // Load inventory when this page mounts (if not already loaded).
+    // Do NOT include `refreshFromBackend` in deps — the provider recreates
+    // that function on state changes which would cause this effect to run
+    // repeatedly and trigger duplicate network requests (seen when modal
+    // does optimistic updates). Only depend on the stable `loadInventory`.
+    if (typeof loadInventory === "function") loadInventory().catch(() => {});
+  }, [loadInventory]);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
@@ -86,31 +91,71 @@ export default function ProductMaster() {
   const [uploadPreview, setUploadPreview] = useState<UploadPreviewRow[] | null>(
     null
   );
-  const [uploadLoading, setUploadLoading] = useState(false);
+
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [reviewRows, setReviewRows] = useState<ReviewRow[] | null>(null);
   const [undoSnapshot, setUndoSnapshot] = useState<Map<number, number> | null>(
     null
   );
 
-  const filtered = inventory.filter((p) =>
-    Object.values(p).some((v) =>
-      String(v).toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  );
+  const filtered = useMemo(() => {
+    const term = (debouncedSearch || "").toLowerCase();
+    return (inventory || []).filter((p) => {
+      if (selectedCategory && (p.category || "") !== selectedCategory)
+        return false;
+      if (!term) return true;
+      return Object.values(p).some((v) =>
+        String(v).toLowerCase().includes(term)
+      );
+    });
+  }, [inventory, debouncedSearch, selectedCategory]);
 
   const getStockStatus = (item: InventoryItem) => {
-    if (item.stock < 0) return <Badge color="red">Negative</Badge>;
-    if (item.stock <= item.minStock)
-      return <Badge color="yellow">Low Stock</Badge>;
+    const stock = (item as any).openingStock ?? item.stock;
+    const min = (item as any).minimumStockLevel ?? item.minStock;
+    if (stock < 0) return <Badge color="red">Negative</Badge>;
+    if (stock <= (min ?? 0)) return <Badge color="yellow">Low Stock</Badge>;
     return <Badge color="green">In Stock</Badge>;
   };
 
   const { setInventory } = useDataContext();
 
-  const handleDelete = (id: number) => {
-    setInventory((prev) => prev.filter((p) => p.id !== id));
-  };
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  function handleDeleteRequest(id: number) {
+    // open confirmation modal
+    setConfirmDeleteId(id);
+    setConfirmDeleteOpen(true);
+  }
+
+  async function performDelete(id: number) {
+    setDeleteLoading(true);
+    try {
+      // Prefer serverId (raw backend id) for DELETE. If not available, fall
+      // back to the client-side numeric id — servers that expect Mongo ids will
+      // likely fail for synthetic numeric ids.
+      const item = inventory.find((x) => x.id === id);
+      const targetId = (item && (item as any).serverId) ?? id;
+      await deleteInventoryItem(targetId as string | number);
+      showNotification({
+        title: "Deleted",
+        message: `Product ${id} deleted`,
+        color: "orange",
+      });
+    } catch (err) {
+      showNotification({
+        title: "Delete Failed",
+        message: String(err),
+        color: "red",
+      });
+    } finally {
+      setDeleteLoading(false);
+      setConfirmDeleteOpen(false);
+      setConfirmDeleteId(null);
+    }
+  }
 
   return (
     <div>
@@ -146,75 +191,69 @@ export default function ProductMaster() {
             <Text c="dimmed">{filtered.length} products found</Text>
           </div>
 
-          <div style={{ width: 320 }}>
+          <div style={{ width: 520, display: "flex", gap: 8 }}>
             <TextInput
               placeholder="Search products..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.currentTarget.value)}
               leftSection={<IconSearch size={16} />}
+              style={{ flex: 1 }}
+            />
+            <Select
+              placeholder="Filter by category"
+              data={(categoriesForSelect || []).map((c) => ({
+                value: c.value,
+                label: c.label,
+              }))}
+              value={selectedCategory ?? undefined}
+              onChange={(v) => setSelectedCategory(v ?? null)}
+              clearable
+              style={{ width: 180 }}
             />
           </div>
         </Group>
 
         <ScrollArea>
-          <Table verticalSpacing="sm">
-            <thead>
-              <tr>
-                <th>Item Code</th>
-                <th>Item Name</th>
-                <th>Category</th>
-                <th>Color</th>
-                <th>Length</th>
-                <th>Brand</th>
-                <th style={{ textAlign: "right" }}>Current Stock</th>
-                <th style={{ textAlign: "right" }}>Purchase Rate</th>
-                <th style={{ textAlign: "right" }}>Old Price</th>
-                <th style={{ textAlign: "right" }}>New Price</th>
-                <th style={{ textAlign: "right" }}>Sale Rate</th>
-                <th>Status</th>
-                <th style={{ textAlign: "right" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table verticalSpacing="sm" withColumnBorders withRowBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Item Code</Table.Th>
+                <Table.Th>Item Name</Table.Th>
+                <Table.Th>Category</Table.Th>
+                <Table.Th>Color</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>
+                  Current Stock
+                </Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Sale Rate</Table.Th>
+                <Table.Th>Status</Table.Th>
+                <Table.Th style={{ textAlign: "right" }}>Actions</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {filtered.map((p) => (
-                <tr key={p.id}>
-                  <td style={{ fontFamily: "monospace" }}>
+                <Table.Tr key={p.id}>
+                  <Table.Td style={{ fontFamily: "monospace" }}>
                     {p.code || p.sku || String(p.id) || "-"}
-                  </td>
-                  <td>{p.name || "-"}</td>
-                  <td>
-                    <Badge>{p.category}</Badge>
-                  </td>
-                  <td>
-                    {p.colorId && getColorById(p.colorId)
-                      ? getColorById(p.colorId)!.code &&
-                        getColorById(p.colorId)!.code !==
-                          getColorById(p.colorId)!.name
-                        ? `${getColorById(p.colorId)!.name} (${
-                            getColorById(p.colorId)!.code
-                          })`
-                        : getColorById(p.colorId)!.name
-                      : p.color ?? "-"}
-                  </td>
-                  <td>{p.length ?? "-"}</td>
-                  <td>{p.supplier}</td>
-                  <td style={{ textAlign: "right", fontWeight: 600 }}>
-                    {formatNumber(p.stock)} {p.unit}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {formatCurrency(p.costPrice)}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {formatCurrency(p.oldPrice ?? 0)}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {formatCurrency(p.newPrice ?? p.sellingPrice ?? 0)}
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    {formatCurrency(p.sellingPrice)}
-                  </td>
-                  <td>{getStockStatus(p)}</td>
-                  <td style={{ textAlign: "right" }}>
+                  </Table.Td>
+                  <Table.Td>{p.name || "-"}</Table.Td>
+                  <Table.Td>
+                    <Badge
+                      style={{ cursor: "pointer" }}
+                      onClick={() => setSelectedCategory(p.category || null)}
+                    >
+                      {p.category}
+                    </Badge>
+                  </Table.Td>
+
+                  <Table.Td>{p.color ?? "-"}</Table.Td>
+                  <Table.Td style={{ textAlign: "right", fontWeight: 600 }}>
+                    {formatNumber((p as any).openingStock ?? p.stock)} {p.unit}
+                  </Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
+                    {formatCurrency((p as any).salesRate ?? p.sellingPrice)}
+                  </Table.Td>
+                  <Table.Td>{getStockStatus(p)}</Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
                     <Group justify="flex-end">
                       <Button
                         variant="subtle"
@@ -237,15 +276,15 @@ export default function ProductMaster() {
                       <Button
                         variant="subtle"
                         color="red"
-                        onClick={() => handleDelete(p.id)}
+                        onClick={() => handleDeleteRequest(p.id)}
                       >
                         <IconTrash />
                       </Button>
                     </Group>
-                  </td>
-                </tr>
+                  </Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
+            </Table.Tbody>
           </Table>
         </ScrollArea>
       </Card>
@@ -254,7 +293,7 @@ export default function ProductMaster() {
         opened={isViewOpen}
         onClose={() => setIsViewOpen(false)}
         title="Product Details"
-        size={"80%"}
+        size={"70%"}
       >
         {selectedProduct ? (
           <ProductDetails product={selectedProduct} />
@@ -267,7 +306,7 @@ export default function ProductMaster() {
         opened={isEditOpen}
         onClose={() => setIsEditOpen(false)}
         title="Edit Product"
-        size={"80%"}
+        size={"70%"}
       >
         {selectedProduct && (
           <ProductForm
@@ -280,8 +319,8 @@ export default function ProductMaster() {
       <Modal
         opened={isAddOpen}
         onClose={() => setIsAddOpen(false)}
-        title="Add Product"
-        size={"80%"}
+        title={<strong>Add Product</strong>}
+        size={"70%"}
       >
         <ProductForm onClose={() => setIsAddOpen(false)} />
       </Modal>
@@ -306,78 +345,7 @@ export default function ProductMaster() {
           />
 
           <div style={{ marginTop: 12 }}>
-            <Button
-              onClick={async () => {
-                if (!uploadFile) return;
-                setUploadLoading(true);
-                try {
-                  const fd = new FormData();
-                  fd.append("file", uploadFile);
-                  const res = await fetch("/api/upload-rates", {
-                    method: "POST",
-                    body: fd,
-                  });
-                  if (!res.ok) throw new Error(await res.text());
-                  const jsonResp = await res.json();
-                  const raw = (jsonResp.parsed || jsonResp) as ParsedRow[];
-                  // coerce and normalize parsed rows to expected types
-                  const normalized = (raw || []).map((r) => {
-                    const maybePrice =
-                      r.newPrice != null ? Number(r.newPrice) : null;
-                    const invalid =
-                      maybePrice != null && !Number.isFinite(maybePrice);
-                    return {
-                      sku: r.sku ?? r.code ?? undefined,
-                      code: r.code ?? r.sku ?? undefined,
-                      name: r.name ?? r.description ?? undefined,
-                      newPrice: maybePrice,
-                      priceInvalid: invalid,
-                      matchedProductId:
-                        r.matchedProductId != null
-                          ? Number(r.matchedProductId)
-                          : r.matched_id != null
-                          ? Number(r.matched_id)
-                          : null,
-                      matchedProductName:
-                        r.matchedProductName ?? r.matched_name ?? undefined,
-                      selected: !!r.selected,
-                    } as UploadPreviewRow;
-                  });
-                  setUploadPreview(normalized);
-                  const invalidCount = normalized.filter(
-                    (x) => x.priceInvalid
-                  ).length;
-                  if (invalidCount) {
-                    showNotification({
-                      title: `Upload parsed with ${invalidCount} invalid price(s)`,
-                      message: "Fix or clear invalid prices before reviewing",
-                      color: "yellow",
-                      icon: <IconAlertCircle size={18} />,
-                    });
-                  } else {
-                    showNotification({
-                      title: "Upload parsed",
-                      message: "Preview ready",
-                      color: "green",
-                      icon: <IconCheck size={18} />,
-                    });
-                  }
-                } catch (err) {
-                  console.error(err);
-                  showNotification({
-                    title: "Upload failed",
-                    message: String(err),
-                    color: "red",
-                    icon: <IconX size={18} />,
-                  });
-                } finally {
-                  setUploadLoading(false);
-                }
-              }}
-              loading={uploadLoading}
-            >
-              Parse & Preview
-            </Button>
+            <Button>Parse & Preview</Button>
           </div>
 
           {uploadPreview && (
@@ -420,9 +388,9 @@ export default function ProductMaster() {
                 )
               </Button>
               <Table striped verticalSpacing="sm">
-                <thead>
-                  <tr>
-                    <th style={{ width: 40 }}>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th style={{ width: 40 }}>
                       <Checkbox
                         checked={uploadPreview.every((r) => r.selected)}
                         indeterminate={
@@ -438,18 +406,18 @@ export default function ProductMaster() {
                           );
                         }}
                       />
-                    </th>
-                    <th>#</th>
-                    <th>SKU / Code</th>
-                    <th>Name</th>
-                    <th>New Price</th>
-                    <th>Match</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </Table.Th>
+                    <Table.Th>#</Table.Th>
+                    <Table.Th>SKU / Code</Table.Th>
+                    <Table.Th>Name</Table.Th>
+                    <Table.Th>New Price</Table.Th>
+                    <Table.Th>Match</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
                   {uploadPreview.map((r, idx) => (
-                    <tr key={idx}>
-                      <td>
+                    <Table.Tr key={idx}>
+                      <Table.Td>
                         <Checkbox
                           checked={!!r.selected}
                           onChange={(e) =>
@@ -467,11 +435,11 @@ export default function ProductMaster() {
                             )
                           }
                         />
-                      </td>
-                      <td>{idx + 1}</td>
-                      <td>{r.sku ?? r.code ?? "-"}</td>
-                      <td>{r.name ?? "-"}</td>
-                      <td style={{ textAlign: "right", width: 160 }}>
+                      </Table.Td>
+                      <Table.Td>{idx + 1}</Table.Td>
+                      <Table.Td>{r.sku ?? r.code ?? "-"}</Table.Td>
+                      <Table.Td>{r.name ?? "-"}</Table.Td>
+                      <Table.Td style={{ textAlign: "right", width: 160 }}>
                         <NumberInput
                           value={r.newPrice ?? undefined}
                           min={0}
@@ -502,11 +470,11 @@ export default function ProductMaster() {
                             Invalid price
                           </Text>
                         )}
-                      </td>
-                      <td>{r.matchedProductName ?? "-"}</td>
-                    </tr>
+                      </Table.Td>
+                      <Table.Td>{r.matchedProductName ?? "-"}</Table.Td>
+                    </Table.Tr>
                   ))}
-                </tbody>
+                </Table.Tbody>
               </Table>
 
               <Group justify="flex-end" style={{ marginTop: 12 }}>
@@ -546,10 +514,19 @@ export default function ProductMaster() {
                       setIsUploadOpen(false);
                       setUploadPreview(null);
                       setUploadFile(null);
-                      alert("Rates applied successfully");
+                      showNotification({
+                        title: "Rates Applied",
+                        message: "Rates applied successfully",
+                        color: "green",
+                        icon: <IconCheck size={16} />,
+                      });
                     } catch (err) {
-                      console.error(err);
-                      alert("Apply failed: " + String(err));
+                      showNotification({
+                        title: "Apply failed",
+                        message: String(err),
+                        color: "red",
+                        icon: <IconX size={16} />,
+                      });
                     }
                   }}
                 >
@@ -570,6 +547,38 @@ export default function ProductMaster() {
         </div>
       </Modal>
 
+      <Modal
+        opened={confirmDeleteOpen}
+        onClose={() => {
+          setConfirmDeleteOpen(false);
+          setConfirmDeleteId(null);
+        }}
+        title="Delete product"
+      >
+        <Text>
+          Are you sure you want to delete product with id '{confirmDeleteId}'?
+          This action cannot be undone.
+        </Text>
+        <Group justify="flex-end" mt="md">
+          <Button
+            onClick={() => {
+              setConfirmDeleteOpen(false);
+              setConfirmDeleteId(null);
+            }}
+            variant="default"
+          >
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            onClick={() => confirmDeleteId && performDelete(confirmDeleteId)}
+            loading={deleteLoading}
+          >
+            Delete
+          </Button>
+        </Group>
+      </Modal>
+
       {/* Review modal */}
       <Modal
         opened={isReviewOpen}
@@ -579,25 +588,25 @@ export default function ProductMaster() {
       >
         <div>
           <Table striped verticalSpacing="sm">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>SKU</th>
-                <th>Product</th>
-                <th>Old Price</th>
-                <th>New Price</th>
-                <th>Delta</th>
-                <th>Include</th>
-              </tr>
-            </thead>
-            <tbody>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>#</Table.Th>
+                <Table.Th>SKU</Table.Th>
+                <Table.Th>Product</Table.Th>
+                <Table.Th>Old Price</Table.Th>
+                <Table.Th>New Price</Table.Th>
+                <Table.Th>Delta</Table.Th>
+                <Table.Th>Include</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
               {reviewRows?.map((r, i) => (
-                <tr key={i}>
-                  <td>{i + 1}</td>
-                  <td>{r.sku ?? r.code ?? "-"}</td>
-                  <td>{r.matchedProductName ?? r.name ?? "-"}</td>
-                  <td>{formatCurrency(r.oldPrice ?? 0)}</td>
-                  <td>
+                <Table.Tr key={i}>
+                  <Table.Td>{i + 1}</Table.Td>
+                  <Table.Td>{r.sku ?? r.code ?? "-"}</Table.Td>
+                  <Table.Td>{r.matchedProductName ?? r.name ?? "-"}</Table.Td>
+                  <Table.Td>{formatCurrency(r.oldPrice ?? 0)}</Table.Td>
+                  <Table.Td>
                     <NumberInput
                       value={r.newPrice ?? undefined}
                       min={0}
@@ -631,8 +640,8 @@ export default function ProductMaster() {
                         Invalid price
                       </Text>
                     )}
-                  </td>
-                  <td
+                  </Table.Td>
+                  <Table.Td
                     style={{
                       color:
                         r.delta && r.delta > 0
@@ -643,8 +652,8 @@ export default function ProductMaster() {
                     }}
                   >
                     {r.delta != null ? formatCurrency(r.delta) : "-"}
-                  </td>
-                  <td>
+                  </Table.Td>
+                  <Table.Td>
                     <Checkbox
                       checked={!!r.include}
                       onChange={(e) =>
@@ -659,10 +668,10 @@ export default function ProductMaster() {
                         )
                       }
                     />
-                  </td>
-                </tr>
+                  </Table.Td>
+                </Table.Tr>
               ))}
-            </tbody>
+            </Table.Tbody>
           </Table>
 
           <Group justify="flex-end" style={{ marginTop: 12 }}>
@@ -675,7 +684,11 @@ export default function ProductMaster() {
                   (r) => r.include && r.matchedProductId && r.newPrice != null
                 );
                 if (toApply.length === 0) {
-                  alert("No rows selected to apply");
+                  showNotification({
+                    title: "No rows selected",
+                    message: "No rows selected to apply",
+                    color: "yellow",
+                  });
                   return;
                 }
                 // create undo snapshot

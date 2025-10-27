@@ -1,8 +1,9 @@
 export function formatCurrency(n: number) {
   try {
-    return new Intl.NumberFormat("en-IN", {
+    // Use Pakistani locale and PKR currency so formatting (symbol, grouping) matches PKR
+    return new Intl.NumberFormat("en-PK", {
       style: "currency",
-      currency: "INR",
+      currency: "PKR",
     }).format(n);
   } catch {
     return `Rs ${n.toFixed(2)}`;

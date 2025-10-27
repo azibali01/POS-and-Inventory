@@ -10,8 +10,8 @@ import {
   TextInput,
   Button,
   Title,
-  Table,
 } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 import { ReceiptForm } from "../../../components/accounts/receipt-form";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
 import { Plus, Search } from "lucide-react";

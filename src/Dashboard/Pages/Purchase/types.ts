@@ -11,7 +11,7 @@ export type PurchaseLineItem = {
   // per-line metadata requested by user
   colorId?: string;
   color?: string;
-  gauge?: string;
+  thickness?: string;
   length?: string | number;
   // amounts
   grossAmount: number; // quantity * rate

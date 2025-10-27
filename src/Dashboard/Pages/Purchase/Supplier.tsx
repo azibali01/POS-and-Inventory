@@ -7,6 +7,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 import SupplierForm from "../../../components/purchase/SupplierForm";
 import type { Supplier } from "../../../components/purchase/SupplierForm";
 import { formatCurrency } from "../../../lib/format-utils";
@@ -97,43 +98,47 @@ export default function SuppliersPage() {
 
         <Card.Section>
           <ScrollArea>
-            <table
+            <Table
+              striped
+              highlightOnHover
+              verticalSpacing="sm"
               style={{
                 width: "100%",
-                borderCollapse: "collapse",
                 marginTop: 12,
+                border: "1px solid rgba(0,0,0,0.06)",
+                borderCollapse: "collapse",
               }}
             >
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  <th>Name</th>
-                  <th>City</th>
-                  <th>GST</th>
-                  <th>Phone</th>
-                  <th>Created</th>
-                  <th style={{ textAlign: "right" }}>Balance</th>
-                  <th style={{ textAlign: "right" }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Code</Table.Th>
+                  <Table.Th>Name</Table.Th>
+                  <Table.Th>City</Table.Th>
+                  <Table.Th>GST</Table.Th>
+                  <Table.Th>Phone</Table.Th>
+                  <Table.Th>Created</Table.Th>
+                  <Table.Th style={{ textAlign: "right" }}>Balance</Table.Th>
+                  <Table.Th style={{ textAlign: "right" }}>Action</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
                 {filtered.map((s) => (
-                  <tr key={s.id}>
-                    <td style={{ fontFamily: "monospace" }}>
+                  <Table.Tr key={s.id}>
+                    <Table.Td style={{ fontFamily: "monospace" }}>
                       {s.supplierCode}
-                    </td>
-                    <td>{s.name}</td>
-                    <td>{s.city}</td>
-                    <td>{s.gstNumber}</td>
-                    <td>{s.phone}</td>
-                    <td>
+                    </Table.Td>
+                    <Table.Td>{s.name}</Table.Td>
+                    <Table.Td>{s.city}</Table.Td>
+                    <Table.Td>{s.gstNumber}</Table.Td>
+                    <Table.Td>{s.phone}</Table.Td>
+                    <Table.Td>
                       {formatDate(
                         typeof s.createdAt === "string"
                           ? s.createdAt
                           : s.createdAt?.toString()
                       )}
-                    </td>
-                    <td style={{ textAlign: "right" }}>
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
                       <div style={{ fontWeight: 700 }}>
                         {formatCurrency(s.currentBalance ?? 0)}
                       </div>
@@ -151,8 +156,8 @@ export default function SuppliersPage() {
                             )}`
                           : "Nil"}
                       </div>
-                    </td>
-                    <td style={{ textAlign: "right" }}>
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
                       <Button
                         variant="outline"
                         onClick={() => {
@@ -162,11 +167,11 @@ export default function SuppliersPage() {
                       >
                         Edit
                       </Button>
-                    </td>
-                  </tr>
+                    </Table.Td>
+                  </Table.Tr>
                 ))}
-              </tbody>
-            </table>
+              </Table.Tbody>
+            </Table>
           </ScrollArea>
         </Card.Section>
       </Card>

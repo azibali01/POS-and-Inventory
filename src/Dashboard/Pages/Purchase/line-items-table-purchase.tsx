@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Button, NumberInput, Select, TextInput } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 import { Plus, Trash2 } from "lucide-react";
 import { useDataContext } from "../../Context/DataContext";
 import { formatCurrency } from "../../../lib/format-utils";
@@ -56,7 +57,7 @@ export function PurchaseLineItemsTable({
       rateSource: "old",
       colorId: undefined,
       color: undefined,
-      gauge: undefined,
+      thickness: undefined,
       length: undefined,
       grossAmount: rate * 1,
       percent: 0,
@@ -106,49 +107,62 @@ export function PurchaseLineItemsTable({
           borderRadius: 6,
         }}
       >
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left", padding: 8 }}>Item</th>
-              <th style={{ textAlign: "left", padding: 8, width: 120 }}>
+        <Table
+          striped
+          highlightOnHover
+          verticalSpacing="sm"
+          style={{ width: "100%" }}
+        >
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th style={{ textAlign: "left", padding: 8 }}>
+                Item
+              </Table.Th>
+              <Table.Th style={{ textAlign: "left", padding: 8, width: 120 }}>
                 Color
-              </th>
-              <th style={{ textAlign: "left", padding: 8, width: 100 }}>
-                Gauge
-              </th>
-              <th style={{ textAlign: "left", padding: 8, width: 100 }}>
+              </Table.Th>
+              <Table.Th style={{ textAlign: "left", padding: 8, width: 100 }}>
+                Thickness
+              </Table.Th>
+              <Table.Th style={{ textAlign: "left", padding: 8, width: 100 }}>
                 Length
-              </th>
-              <th style={{ textAlign: "left", padding: 8, width: 120 }}>
+              </Table.Th>
+              <Table.Th style={{ textAlign: "left", padding: 8, width: 120 }}>
                 Price Source
-              </th>
-              <th style={{ textAlign: "right", padding: 8, width: 80 }}>Qty</th>
-              <th style={{ textAlign: "right", padding: 8, width: 120 }}>
+              </Table.Th>
+              <Table.Th style={{ textAlign: "right", padding: 8, width: 80 }}>
+                Qty
+              </Table.Th>
+              <Table.Th style={{ textAlign: "right", padding: 8, width: 120 }}>
                 Rate
-              </th>
-              <th style={{ textAlign: "right", padding: 8, width: 120 }}>
+              </Table.Th>
+              <Table.Th style={{ textAlign: "right", padding: 8, width: 120 }}>
                 Gross
-              </th>
-              <th style={{ textAlign: "right", padding: 8, width: 80 }}>%</th>
-              <th style={{ textAlign: "right", padding: 8, width: 120 }}>
+              </Table.Th>
+              <Table.Th style={{ textAlign: "right", padding: 8, width: 80 }}>
+                %
+              </Table.Th>
+              <Table.Th style={{ textAlign: "right", padding: 8, width: 120 }}>
                 Discount
-              </th>
-              <th style={{ textAlign: "right", padding: 8, width: 120 }}>
+              </Table.Th>
+              <Table.Th style={{ textAlign: "right", padding: 8, width: 120 }}>
                 Net
-              </th>
-              <th style={{ textAlign: "right", padding: 8, width: 80 }}>GST</th>
-              <th style={{ textAlign: "right", padding: 8, width: 120 }}>
+              </Table.Th>
+              <Table.Th style={{ textAlign: "right", padding: 8, width: 80 }}>
+                GST
+              </Table.Th>
+              <Table.Th style={{ textAlign: "right", padding: 8, width: 120 }}>
                 Amount
-              </th>
-              <th style={{ textAlign: "right", padding: 8, width: 80 }}>
+              </Table.Th>
+              <Table.Th style={{ textAlign: "right", padding: 8, width: 80 }}>
                 Action
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
             {items.map((row) => (
-              <tr key={row.id}>
-                <td style={{ padding: 8 }}>
+              <Table.Tr key={row.id}>
+                <Table.Td style={{ padding: 8 }}>
                   <Select
                     searchable
                     data={products.map((p) => ({
@@ -173,7 +187,7 @@ export function PurchaseLineItemsTable({
                         );
                         const mappedRateSource = prod.newPrice ? "new" : "old";
                         const ext = prod as unknown as {
-                          gauge?: string | number;
+                          thickness?: string | number;
                           weight?: string | number;
                           msl?: string | number;
                           length?: string | number;
@@ -193,10 +207,10 @@ export function PurchaseLineItemsTable({
                             | "manual",
                           colorId: prod.colorId ?? prod.color ?? undefined,
                           color: prod.color ?? undefined,
-                          gauge:
-                            ext.gauge ?? ext.weight ?? ext.msl ?? ext.length
+                          thickness:
+                            ext.thickness ?? ext.weight ?? ext.msl ?? ext.length
                               ? String(
-                                  ext.gauge ??
+                                  ext.thickness ??
                                     ext.weight ??
                                     ext.msl ??
                                     ext.length
@@ -215,8 +229,8 @@ export function PurchaseLineItemsTable({
                       }
                     }}
                   />
-                </td>
-                <td style={{ padding: 8 }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8 }}>
                   <Select
                     placeholder="Color"
                     data={colors.map((c) => ({ value: c.id, label: c.name }))}
@@ -229,17 +243,17 @@ export function PurchaseLineItemsTable({
                       })
                     }
                   />
-                </td>
-                <td style={{ padding: 8 }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8 }}>
                   <TextInput
-                    value={row.gauge}
+                    value={row.thickness}
                     onChange={(e) =>
-                      updateRow(row.id, { gauge: e.target.value })
+                      updateRow(row.id, { thickness: e.target.value })
                     }
-                    placeholder="Gauge"
+                    placeholder="Thickness"
                   />
-                </td>
-                <td style={{ padding: 8 }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8 }}>
                   <TextInput
                     value={String(row.length ?? "")}
                     onChange={(e) =>
@@ -247,8 +261,8 @@ export function PurchaseLineItemsTable({
                     }
                     placeholder="Length"
                   />
-                </td>
-                <td style={{ padding: 8 }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8 }}>
                   <Select
                     data={[
                       { value: "old", label: "Old" },
@@ -275,8 +289,8 @@ export function PurchaseLineItemsTable({
                       }
                     }}
                   />
-                </td>
-                <td style={{ padding: 8, textAlign: "right" }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8, textAlign: "right" }}>
                   <NumberInput
                     value={row.quantity}
                     onChange={(v) =>
@@ -284,8 +298,8 @@ export function PurchaseLineItemsTable({
                     }
                     min={0}
                   />
-                </td>
-                <td style={{ padding: 8 }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8 }}>
                   <NumberInput
                     value={row.rate}
                     onChange={(v) =>
@@ -293,11 +307,11 @@ export function PurchaseLineItemsTable({
                     }
                     min={0}
                   />
-                </td>
-                <td style={{ padding: 8 }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8 }}>
                   <NumberInput value={row.grossAmount} readOnly />
-                </td>
-                <td style={{ padding: 8 }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8 }}>
                   <NumberInput
                     value={row.percent}
                     onChange={(v) =>
@@ -306,8 +320,8 @@ export function PurchaseLineItemsTable({
                     min={0}
                     max={100}
                   />
-                </td>
-                <td style={{ padding: 8 }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8 }}>
                   <NumberInput
                     value={row.discountAmount}
                     onChange={(v) =>
@@ -315,11 +329,11 @@ export function PurchaseLineItemsTable({
                     }
                     min={0}
                   />
-                </td>
-                <td style={{ padding: 8 }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8 }}>
                   <NumberInput value={row.netAmount} readOnly />
-                </td>
-                <td style={{ padding: 8 }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8 }}>
                   <NumberInput
                     value={row.taxRate}
                     onChange={(v) =>
@@ -327,19 +341,19 @@ export function PurchaseLineItemsTable({
                     }
                     min={0}
                   />
-                </td>
-                <td style={{ padding: 8, textAlign: "right" }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8, textAlign: "right" }}>
                   {formatCurrency(row.amount)}
-                </td>
-                <td style={{ padding: 8, textAlign: "right" }}>
+                </Table.Td>
+                <Table.Td style={{ padding: 8, textAlign: "right" }}>
                   <Button variant="subtle" onClick={() => removeRow(row.id)}>
                     <Trash2 size={14} />
                   </Button>
-                </td>
-              </tr>
+                </Table.Td>
+              </Table.Tr>
             ))}
-          </tbody>
-        </table>
+          </Table.Tbody>
+        </Table>
       </div>
 
       <div

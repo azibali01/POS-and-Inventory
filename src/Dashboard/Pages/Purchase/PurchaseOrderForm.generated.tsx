@@ -1,6 +1,7 @@
 import type React from "react";
 
 import { useMemo, useState } from "react";
+import { showNotification } from "@mantine/notifications";
 import {
   Card,
   TextInput,
@@ -11,8 +12,8 @@ import {
   Select,
   Title,
   NumberInput,
-  Table,
 } from "@mantine/core";
+import Table from "../../../lib/AppTable";
 // inline table used instead of PurchaseLineItemsTable
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
@@ -61,7 +62,7 @@ export function PurchaseOrderForm({
       rateSource: "manual",
       colorId: undefined,
       color: undefined,
-      gauge: undefined,
+      thickness: undefined,
       length: undefined,
       grossAmount: 0,
       percent: 0,
@@ -115,7 +116,7 @@ export function PurchaseOrderForm({
             rateSource: "manual",
             colorId: undefined,
             color: undefined,
-            gauge: undefined,
+            thickness: undefined,
             length: undefined,
             grossAmount: gross,
             percent: 0,
@@ -157,7 +158,11 @@ export function PurchaseOrderForm({
       status,
     };
     onSubmit?.(payload);
-    console.info("Purchase Order saved (mock)!", payload);
+    showNotification({
+      title: "Purchase Order",
+      message: "Purchase Order saved (mock)",
+      color: "green",
+    });
   }
 
   return (
@@ -265,51 +270,79 @@ export function PurchaseOrderForm({
             {/* Sales-style table design adapted for PurchaseLineItem */}
             <div style={{ overflowX: "auto" }}>
               <Table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr>
-                    <td style={{ textAlign: "left", padding: 8 }}>Item</td>
-                    <th style={{ textAlign: "left", padding: 8, width: 120 }}>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th style={{ textAlign: "left", padding: 8 }}>
+                      Item
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "left", padding: 8, width: 120 }}
+                    >
                       Color
-                    </th>
-                    <th style={{ textAlign: "left", padding: 8, width: 120 }}>
-                      Gauge
-                    </th>
-                    <th style={{ textAlign: "left", padding: 8, width: 120 }}>
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "left", padding: 8, width: 120 }}
+                    >
+                      Thickness
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "left", padding: 8, width: 120 }}
+                    >
                       Length
-                    </th>
-                    <th style={{ textAlign: "left", padding: 8, width: 120 }}>
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "left", padding: 8, width: 120 }}
+                    >
                       Price Source
-                    </th>
-                    <th style={{ textAlign: "right", padding: 8, width: 100 }}>
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "right", padding: 8, width: 100 }}
+                    >
                       Qty
-                    </th>
-                    <th style={{ textAlign: "right", padding: 8, width: 120 }}>
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "right", padding: 8, width: 120 }}
+                    >
                       Rate
-                    </th>
-                    <th style={{ textAlign: "right", padding: 8, width: 120 }}>
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "right", padding: 8, width: 120 }}
+                    >
                       Gross
-                    </th>
-                    <th style={{ textAlign: "right", padding: 8, width: 80 }}>
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "right", padding: 8, width: 80 }}
+                    >
                       %
-                    </th>
-                    <th style={{ textAlign: "right", padding: 8, width: 120 }}>
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "right", padding: 8, width: 120 }}
+                    >
                       Discount
-                    </th>
-                    <th style={{ textAlign: "right", padding: 8, width: 120 }}>
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "right", padding: 8, width: 120 }}
+                    >
                       Net
-                    </th>
-                    <th style={{ textAlign: "right", padding: 8, width: 80 }}>
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "right", padding: 8, width: 80 }}
+                    >
                       GST
-                    </th>
-                    <th style={{ textAlign: "right", padding: 8, width: 120 }}>
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "right", padding: 8, width: 120 }}
+                    >
                       Amount
-                    </th>
-                    <th style={{ textAlign: "right", padding: 8, width: 80 }}>
+                    </Table.Th>
+                    <Table.Th
+                      style={{ textAlign: "right", padding: 8, width: 80 }}
+                    >
                       Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
                   {items.map((it) => {
                     const gross = (it.quantity || 0) * (it.rate || 0);
                     const discount = it.discountAmount ?? 0;
@@ -317,8 +350,8 @@ export function PurchaseOrderForm({
                     const tax = ((it.taxRate || 0) * net) / 100;
                     const lineTotal = net + tax;
                     return (
-                      <tr key={it.id}>
-                        <td style={{ padding: 8 }}>
+                      <Table.Tr key={it.id}>
+                        <Table.Td style={{ padding: 8 }}>
                           <Select
                             searchable
                             data={inventory.map((p) => ({
@@ -332,7 +365,7 @@ export function PurchaseOrderForm({
                               );
                               if (prod) {
                                 const ext = prod as unknown as {
-                                  gauge?: string | number;
+                                  thickness?: string | number;
                                   weight?: string | number;
                                   msl?: string | number;
                                   length?: string | number;
@@ -366,13 +399,13 @@ export function PurchaseOrderForm({
                                             prod.color ??
                                             undefined,
                                           color: prod.color ?? undefined,
-                                          gauge:
-                                            ext.gauge ??
+                                          thickness:
+                                            ext.thickness ??
                                             ext.weight ??
                                             ext.msl ??
                                             ext.length
                                               ? String(
-                                                  ext.gauge ??
+                                                  ext.thickness ??
                                                     ext.weight ??
                                                     ext.msl ??
                                                     ext.length
@@ -412,8 +445,8 @@ export function PurchaseOrderForm({
                               }
                             }}
                           />
-                        </td>
-                        <td style={{ padding: 8 }}>
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8 }}>
                           <Select
                             placeholder="Color"
                             data={colors.map((c) => ({
@@ -437,23 +470,23 @@ export function PurchaseOrderForm({
                               )
                             }
                           />
-                        </td>
-                        <td style={{ padding: 8 }}>
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8 }}>
                           <TextInput
-                            value={it.gauge ?? ""}
+                            value={it.thickness ?? ""}
                             onChange={(e) =>
                               setItems((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
-                                    ? { ...row, gauge: e.target.value }
+                                    ? { ...row, thickness: e.target.value }
                                     : row
                                 )
                               )
                             }
-                            placeholder="Gauge"
+                            placeholder="Thickness"
                           />
-                        </td>
-                        <td style={{ padding: 8 }}>
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8 }}>
                           <TextInput
                             value={String(it.length ?? "")}
                             onChange={(e) =>
@@ -467,8 +500,8 @@ export function PurchaseOrderForm({
                             }
                             placeholder="Length"
                           />
-                        </td>
-                        <td style={{ padding: 8 }}>
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8 }}>
                           <Select
                             data={[
                               { value: "old", label: "Old" },
@@ -507,8 +540,8 @@ export function PurchaseOrderForm({
                               }
                             }}
                           />
-                        </td>
-                        <td style={{ padding: 8, textAlign: "right" }}>
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8, textAlign: "right" }}>
                           <NumberInput
                             value={it.quantity}
                             onChange={(v) =>
@@ -526,8 +559,8 @@ export function PurchaseOrderForm({
                             }
                             min={0}
                           />
-                        </td>
-                        <td style={{ padding: 8 }}>
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8 }}>
                           <NumberInput
                             value={it.rate}
                             onChange={(v) =>
@@ -546,9 +579,11 @@ export function PurchaseOrderForm({
                             }
                             min={0}
                           />
-                        </td>
-                        <td style={{ padding: 8 }}>{gross.toFixed(2)}</td>
-                        <td style={{ padding: 8 }}>
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8 }}>
+                          {gross.toFixed(2)}
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8 }}>
                           <NumberInput
                             value={it.percent ?? 0}
                             onChange={(v) =>
@@ -568,8 +603,8 @@ export function PurchaseOrderForm({
                             min={0}
                             max={100}
                           />
-                        </td>
-                        <td style={{ padding: 8 }}>
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8 }}>
                           <NumberInput
                             value={it.discountAmount}
                             onChange={(v) =>
@@ -583,9 +618,11 @@ export function PurchaseOrderForm({
                             }
                             min={0}
                           />
-                        </td>
-                        <td style={{ padding: 8 }}>{net.toFixed(2)}</td>
-                        <td style={{ padding: 8 }}>
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8 }}>
+                          {net.toFixed(2)}
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8 }}>
                           <NumberInput
                             value={it.taxRate}
                             onChange={(v) =>
@@ -599,11 +636,11 @@ export function PurchaseOrderForm({
                             }
                             min={0}
                           />
-                        </td>
-                        <td style={{ padding: 8, textAlign: "right" }}>
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8, textAlign: "right" }}>
                           {formatCurrency(lineTotal)}
-                        </td>
-                        <td style={{ padding: 8, textAlign: "right" }}>
+                        </Table.Td>
+                        <Table.Td style={{ padding: 8, textAlign: "right" }}>
                           <Button
                             variant="subtle"
                             onClick={() =>
@@ -614,11 +651,11 @@ export function PurchaseOrderForm({
                           >
                             <Trash2 size={14} />
                           </Button>
-                        </td>
-                      </tr>
+                        </Table.Td>
+                      </Table.Tr>
                     );
                   })}
-                </tbody>
+                </Table.Tbody>
               </Table>
             </div>
           </div>

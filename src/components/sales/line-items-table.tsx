@@ -1,5 +1,6 @@
 import { useCallback } from "react";
-import { Table, NumberInput, TextInput, Button, Select } from "@mantine/core";
+import { NumberInput, TextInput, Button, Select } from "@mantine/core";
+import Table from "../../lib/AppTable";
 import type { InventoryItem } from "../../Dashboard/Context/DataContext";
 
 export type LineItem = {
@@ -14,7 +15,7 @@ export type LineItem = {
   amount?: number;
   rateSource?: "old" | "new";
   color?: string;
-  gauge?: string | number;
+  thickness?: string | number;
   length?: string | number;
   percent?: number;
   discountAmount?: number;
@@ -38,11 +39,11 @@ export function LineItemsTable({
 
   return (
     <Table withColumnBorders>
-      <Table.Th>
+      <Table.Thead>
         <Table.Tr>
           <Table.Th style={{ width: 300 }}>Item</Table.Th>
           <Table.Th style={{ width: 140 }}>Color</Table.Th>
-          <Table.Th style={{ width: 120 }}>Gauge</Table.Th>
+          <Table.Th style={{ width: 120 }}>Thickness</Table.Th>
           <Table.Th style={{ width: 120 }}>Length</Table.Th>
           <Table.Th style={{ width: 120 }}>Price Source</Table.Th>
           <Table.Th style={{ width: 120 }}>Qty</Table.Th>
@@ -55,7 +56,7 @@ export function LineItemsTable({
           <Table.Th style={{ width: 120 }}>Amount</Table.Th>
           <Table.Th style={{ width: 120 }}>Remove</Table.Th>
         </Table.Tr>
-      </Table.Th>
+      </Table.Thead>
       <Table.Tbody>
         {items.map((it) => {
           const gross = (it.quantity || 0) * (it.rate || 0);
@@ -80,7 +81,7 @@ export function LineItemsTable({
                       );
                       if (prod) {
                         const ext = prod as unknown as {
-                          gauge?: string | number;
+                          thickness?: string | number;
                           weight?: string | number;
                           msl?: string | number;
                           length?: string | number;
@@ -93,8 +94,8 @@ export function LineItemsTable({
                           rate: prod.sellingPrice,
                           // map product metadata into the line item when available
                           color: prod.color ?? prod.colorId ?? ext.color ?? "",
-                          gauge:
-                            ext.gauge ??
+                          thickness:
+                            ext.thickness ??
                             ext.weight ??
                             ext.msl ??
                             ext.length ??
@@ -126,10 +127,10 @@ export function LineItemsTable({
 
               <Table.Td>
                 <TextInput
-                  value={String(it.gauge ?? "")}
-                  placeholder="Gauge"
+                  value={String(it.thickness ?? "")}
+                  placeholder="Thickness"
                   onChange={(e) =>
-                    update(it.id, { gauge: e.currentTarget.value })
+                    update(it.id, { thickness: e.currentTarget.value })
                   }
                 />
               </Table.Td>

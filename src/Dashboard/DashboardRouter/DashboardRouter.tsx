@@ -17,6 +17,7 @@ import ReceiptsPage from "../Pages/Accounts/ReceiptVoucher";
 
 import ProfitLoss from "../Pages/Reports/Profit&Loss";
 import Stocksummary from "../Pages/Reports/Stocksummary";
+import CategoryPage from "../Pages/Products/Category";
 
 const routes: RouteObject[] = [
   {
@@ -31,6 +32,10 @@ const routes: RouteObject[] = [
       {
         path: "products",
         element: <ProductMaster />,
+      },
+      {
+        path: "products/categories",
+        element: <CategoryPage />,
       },
       {
         path: "products/stock-report",

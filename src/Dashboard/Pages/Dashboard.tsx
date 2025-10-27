@@ -1,23 +1,17 @@
-import { useMemo } from "react";
-import {
-  Card,
-  Group,
-  Text,
-  Title,
-  Badge,
-  SimpleGrid,
-  Box,
-  Button,
-} from "@mantine/core";
+import React, { useMemo } from "react";
+import { Card, Group, Text, Title, SimpleGrid, Box } from "@mantine/core";
 import {
   IconShoppingCart,
   IconPackage,
   IconChartBar,
   IconCalendar,
-  IconPlus,
-  IconDownload,
+  IconUsers,
+  IconFileInvoice,
+  IconReportAnalytics,
 } from "@tabler/icons-react";
-import { useDataContext } from "../Context/DataContext";
+import { Link } from "react-router-dom";
+import { useDataContext, type SaleRecord } from "../Context/DataContext";
+import { formatCurrency } from "../../lib/format-utils";
 import dayjs from "dayjs";
 import {
   BarChart,
@@ -30,34 +24,43 @@ import {
   LineChart,
   Line,
 } from "recharts";
-import { Alert } from "@mantine/core";
-
-function formatCurrency(n: number) {
-  return n.toLocaleString(undefined, { minimumFractionDigits: 0 });
-}
-
-// formatDate helper removed (not used) — using dayjs directly where needed
 
 export default function Dashboard() {
-  const { inventory, sales, purchases } = useDataContext();
+  const {
+    inventory = [],
+    sales,
+    purchases = [],
+    customers = [],
+    categories = [],
+    expenses = [],
+    grns = [],
+  } = useDataContext();
+
+  const salesArray: SaleRecord[] = useMemo(() => {
+    if (Array.isArray(sales)) return sales as SaleRecord[];
+    const maybe = sales as unknown as { data?: unknown } | undefined;
+    if (maybe && Array.isArray(maybe.data)) return maybe.data as SaleRecord[];
+    return [];
+  }, [sales]);
 
   const totalSales = useMemo(
-    () => sales.reduce((s, it) => s + (it.total || 0), 0),
-    [sales]
+    () => salesArray.reduce((s, it) => s + (it.total || 0), 0),
+    [salesArray]
   );
   const inventoryCount = inventory.length;
 
-  const today = dayjs().format("YYYY-MM-DD");
-  const todaySales = sales.filter((s) => s.date === today);
-  const todayRevenue = todaySales.reduce((sum, s) => sum + (s.total || 0), 0);
+  const todayRevenue = useMemo(() => {
+    return salesArray
+      .filter((s) => dayjs(s.date).isSame(dayjs(), "day"))
+      .reduce((sum, s) => sum + (s.total || 0), 0);
+  }, [salesArray]);
 
   const monthlyRevenue = useMemo(() => {
     const byMonth: Record<string, number> = {};
-    sales.forEach((s) => {
+    salesArray.forEach((s) => {
       const m = dayjs(s.date).format("MMM YYYY");
       byMonth[m] = (byMonth[m] || 0) + (s.total || 0);
     });
-    // return last 7 months
     const months = Array.from({ length: 7 }).map((_, i) =>
       dayjs()
         .subtract(6 - i, "month")
@@ -67,11 +70,11 @@ export default function Dashboard() {
       month: m,
       amount: Math.round(byMonth[m] || 0),
     }));
-  }, [sales]);
+  }, [salesArray]);
 
   const monthlyPurchases = useMemo(() => {
     const byMonth: Record<string, number> = {};
-    (purchases || []).forEach((p) => {
+    purchases.forEach((p) => {
       const m = dayjs(p.date).format("MMM YYYY");
       byMonth[m] = (byMonth[m] || 0) + (p.total || 0);
     });
@@ -86,21 +89,25 @@ export default function Dashboard() {
     }));
   }, [purchases]);
 
-  const monthlyProfit = useMemo(() => {
-    return monthlyRevenue.map((r, idx) => ({
-      month: r.month,
-      amount: r.amount - (monthlyPurchases[idx]?.amount || 0),
-    }));
-  }, [monthlyRevenue, monthlyPurchases]);
+  const monthlyProfit = useMemo(
+    () =>
+      monthlyRevenue.map((r, idx) => ({
+        month: r.month,
+        amount: r.amount - (monthlyPurchases[idx]?.amount || 0),
+      })),
+    [monthlyRevenue, monthlyPurchases]
+  );
 
-  const recentSales = [...sales]
-    .sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf())
-    .slice(0, 5);
-  const recentPurchases = [...(purchases || [])]
-    .sort((a, b) => dayjs(b.date).valueOf() - dayjs(a.date).valueOf())
-    .slice(0, 5);
-  const lowStock = inventory.filter((item) => item.stock <= 15);
-  const negativeStock = inventory.filter((item) => item.stock < 0);
+  const purchasesTotal = useMemo(
+    () => purchases.reduce((s, p) => s + (p.total || 0), 0),
+    [purchases]
+  );
+  const customersCount = customers.length;
+  const categoriesCount = categories.length;
+  const expensesTotal = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+  const grnCount = grns.length;
+
+  const lowStock = inventory.filter((i) => (i.stock ?? 0) <= 15);
 
   const stats = [
     {
@@ -110,7 +117,7 @@ export default function Dashboard() {
     },
     {
       title: "Inventory Items",
-      value: inventoryCount.toString(),
+      value: String(inventoryCount),
       icon: <IconPackage size={20} color="#868e96" />,
     },
     {
@@ -125,39 +132,72 @@ export default function Dashboard() {
     },
   ];
 
+  type CardDef = {
+    label: string;
+    path: string;
+    icon: React.ReactNode;
+    meta?: string;
+  };
+
+  const quickLinks: CardDef[] = [
+    {
+      label: "Products",
+      path: "/products",
+      icon: <IconPackage size={18} />,
+      meta: `${inventoryCount} items`,
+    },
+    {
+      label: "Categories",
+      path: "/products/categories",
+      icon: <IconReportAnalytics size={18} />,
+      meta: `${categoriesCount} categories`,
+    },
+    {
+      label: "Stock Report",
+      path: "/products/stock-report",
+      icon: <IconChartBar size={18} />,
+      meta: `${lowStock.length} low`,
+    },
+    {
+      label: "Customers",
+      path: "/sales/customers",
+      icon: <IconUsers size={18} />,
+      meta: `${customersCount} customers`,
+    },
+    {
+      label: "Sales Invoices",
+      path: "/sales/invoices",
+      icon: <IconFileInvoice size={18} />,
+      meta: `${salesArray.length} · ${formatCurrency(totalSales)}`,
+    },
+    {
+      label: "GRN",
+      path: "/purchase/grn",
+      icon: <IconFileInvoice size={18} />,
+      meta: `${grnCount} GRNs`,
+    },
+    {
+      label: "Purchase Invoices",
+      path: "/purchase/invoices",
+      icon: <IconFileInvoice size={18} />,
+      meta: `${purchases.length} · ${formatCurrency(purchasesTotal)}`,
+    },
+    {
+      label: "Expenses",
+      path: "/expenses",
+      icon: <IconReportAnalytics size={18} />,
+      meta: `${expenses.length} · ${formatCurrency(expensesTotal)}`,
+    },
+  ];
+
   return (
     <div>
       <Box mb="lg">
         <Title order={1}>Welcome to Aluminium POS</Title>
         <Text c="dimmed" size="md">
-          Manage your aluminium business with our comprehensive POS and
-          inventory system.
+          Manage your aluminium business with our POS and inventory system.
         </Text>
       </Box>
-
-      <Group mb="xl" gap={16}>
-        <Button
-          leftSection={<IconPlus size={18} />}
-          color="indigo"
-          variant="filled"
-        >
-          Add Sale
-        </Button>
-        <Button
-          leftSection={<IconPlus size={18} />}
-          color="teal"
-          variant="filled"
-        >
-          Add Inventory
-        </Button>
-        <Button
-          leftSection={<IconDownload size={18} />}
-          color="gray"
-          variant="outline"
-        >
-          Export Data
-        </Button>
-      </Group>
 
       <SimpleGrid cols={{ base: 1, md: 3, lg: 4 }} spacing="lg" mb="xl">
         {stats.map((stat) => (
@@ -181,70 +221,43 @@ export default function Dashboard() {
         ))}
       </SimpleGrid>
 
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-        {/* Alerts */}
-        <div>
-          <Alert title="Low Stock Alert" color="red" mb="md">
-            {lowStock.length} items are running low on stock.
-          </Alert>
-          <Alert title="Negative Stock Alert" color="red">
-            {negativeStock.length} items have negative stock balance.
-          </Alert>
-        </div>
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Title order={4}>Recent Sales</Title>
-          <Text c="dimmed" size="sm" mb="md">
-            Latest transactions
-          </Text>
-          <Box>
-            {recentSales.length === 0 ? (
-              <Text c="dimmed">No sales yet.</Text>
-            ) : (
-              recentSales.map((sale, index) => (
-                <Group key={index} justify="space-between" mb="sm">
-                  <Box>
-                    <Text fw={500}>{sale.customer}</Text>
-                    <Text size="xs" c="dimmed">
-                      {dayjs(sale.date).format("MMM DD, YYYY")}
-                    </Text>
-                  </Box>
-                  <Text fw={600}>{(sale.total || 0).toLocaleString()}</Text>
-                </Group>
-              ))
-            )}
-          </Box>
-        </Card>
+      <Box mb="lg">
+        <Title order={3} mb="sm">
+          Quick Links
+        </Title>
+        <SimpleGrid cols={{ base: 1, md: 3, lg: 4 }} spacing="md">
+          {quickLinks.map((p) => (
+            <Card
+              key={p.path}
+              component={Link}
+              to={p.path}
+              shadow="sm"
+              padding="lg"
+              radius="md"
+              withBorder
+              style={{ cursor: "pointer", textDecoration: "none" }}
+            >
+              <Group justify="space-between" mb="xs">
+                <Text size="sm" fw={600}>
+                  {p.label}
+                </Text>
+                {p.icon}
+              </Group>
+              {p.meta ? (
+                <Text size="lg" fw={700} mb="xs">
+                  {p.meta}
+                </Text>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  Open {p.label}
+                </Text>
+              )}
+            </Card>
+          ))}
+        </SimpleGrid>
+      </Box>
 
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Title order={4}>Low Stock Alert</Title>
-          <Text c="dimmed" size="sm" mb="md">
-            Items running low in inventory
-          </Text>
-          <Box>
-            {lowStock.length === 0 ? (
-              <Text c="dimmed">No low stock items.</Text>
-            ) : (
-              lowStock.map((item, index) => (
-                <Group key={index} justify="space-between" mb="sm">
-                  <Box>
-                    <Text fw={500}>{item.name}</Text>
-                    <Text size="xs" c="dimmed">
-                      {item.stock} units
-                    </Text>
-                  </Box>
-                  <Badge
-                    color={item.stock <= 8 ? "yellow" : "red"}
-                    variant="filled"
-                    size="sm"
-                  >
-                    {item.stock <= 8 ? "Critical" : "Low"}
-                  </Badge>
-                </Group>
-              ))
-            )}
-          </Box>
-        </Card>
-      </SimpleGrid>
+      {/* Low stock/negative stock alerts and Recent Sales removed per user request */}
 
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt="xl">
         <Card shadow="sm" padding="lg" radius="md" withBorder>
@@ -285,7 +298,7 @@ export default function Dashboard() {
       </SimpleGrid>
 
       <Card shadow="sm" padding="lg" radius="md" withBorder mt="xl">
-        <Title order={4}>Monthly Sales Trend</Title>
+        <Title order={4}>Profit / Loss</Title>
         <Text c="dimmed" size="sm" mb="md">
           Profit / Loss over last 7 months
         </Text>
@@ -307,59 +320,6 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
       </Card>
-
-      {/* Recent Purchases + Negative Stock */}
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt="xl">
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Title order={4}>Recent Purchases</Title>
-          <Text c="dimmed" size="sm" mb="md">
-            Latest purchase transactions
-          </Text>
-          <Box>
-            {recentPurchases.length === 0 ? (
-              <Text c="dimmed">No purchases yet.</Text>
-            ) : (
-              recentPurchases.map((purch, index) => (
-                <Group key={index} justify="space-between" mb="sm">
-                  <Box>
-                    <Text fw={500}>{purch.supplier}</Text>
-                    <Text size="xs" c="dimmed">
-                      {dayjs(purch.date).format("MMM DD, YYYY")}
-                    </Text>
-                  </Box>
-                  <Text fw={600}>{(purch.total || 0).toLocaleString()}</Text>
-                </Group>
-              ))
-            )}
-          </Box>
-        </Card>
-
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Title order={4}>Negative Stock Items</Title>
-          <Text c="dimmed" size="sm" mb="md">
-            Items with minus stock balance
-          </Text>
-          <Box>
-            {negativeStock.length === 0 ? (
-              <Text c="dimmed">No negative stock items.</Text>
-            ) : (
-              negativeStock.map((item, index) => (
-                <Group key={index} justify="space-between" mb="sm">
-                  <Box>
-                    <Text fw={500}>{item.name}</Text>
-                    <Text size="xs" c="dimmed">
-                      {item.code}
-                    </Text>
-                  </Box>
-                  <Badge variant="filled" color="red">
-                    {item.stock}
-                  </Badge>
-                </Group>
-              ))
-            )}
-          </Box>
-        </Card>
-      </SimpleGrid>
     </div>
   );
 }

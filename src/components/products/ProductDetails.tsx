@@ -7,25 +7,31 @@ interface Props {
 }
 
 export function ProductDetails({ product }: Props) {
-  const { getColorById } = useDataContext();
-  const color = product.colorId ? getColorById(product.colorId) : undefined;
+  const { colors } = useDataContext();
+  const color = product.colorId
+    ? colors?.find((c) => c.name === product.colorId)
+    : undefined;
   return (
     <div>
       <Card>
         <Group>
           <div>
-            <Text size="xs" color="dimmed">
-              Item Code
+            <Text size="xs" c="dimmed">
+              Purchase Rate
             </Text>
-            <Text fw={600}>{product.code}</Text>
+            <Text fw={600}>{product.costPrice}</Text>
           </div>
 
-          <Divider />
+          <div>
+            <Text size="xs" c="dimmed">
+              Sale Rate
+            </Text>
+            <Text fw={600}>
+              {(product as any).salesRate ?? product.sellingPrice}
+            </Text>
+          </div>
 
           <div>
-            <Text size="xs" color="dimmed">
-              Category
-            </Text>
             <Badge>{product.category}</Badge>
           </div>
 
@@ -73,7 +79,7 @@ export function ProductDetails({ product }: Props) {
               Stock
             </Text>
             <Text fw={600}>
-              {product.stock} {product.unit}
+              {(product as any).openingStock ?? product.stock} {product.unit}
             </Text>
           </div>
 
@@ -83,7 +89,7 @@ export function ProductDetails({ product }: Props) {
             </Text>
             <Text fw={600}>
               {color
-                ? `${color.name}${color.code ? ` (${color.code})` : ""}`
+                ? `${color.name}${color.name ? ` (${color.name})` : ""}`
                 : product.color ?? "-"}
             </Text>
           </div>
@@ -99,7 +105,9 @@ export function ProductDetails({ product }: Props) {
             <Text size="xs" c="dimmed">
               MSL
             </Text>
-            <Text fw={600}>{product.minStock}</Text>
+            <Text fw={600}>
+              {(product as any).minimumStockLevel ?? product.minStock}
+            </Text>
           </div>
         </Group>
       </Card>

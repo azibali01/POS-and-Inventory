@@ -1,5 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Modal, Button, TextInput } from "@mantine/core";
+import openPrintWindow from "../../../components/print/printWindow";
+import type { InvoiceData } from "../../../components/print/printTemplate";
+import Table from "../../../lib/AppTable";
+import { showNotification } from "@mantine/notifications";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
 import type { PurchaseLineItem } from "./types";
 import { PurchaseOrderForm as GeneratedPOForm } from "./PurchaseOrderForm.generated";
@@ -24,7 +28,18 @@ type PO = {
 };
 
 export default function PurchaseOrdersPage() {
-  const { purchases, setPurchases } = useDataContext();
+  const { purchases, setPurchases, loadPurchases } = useDataContext();
+
+  useEffect(() => {
+    if (
+      (!purchases || purchases.length === 0) &&
+      typeof loadPurchases === "function"
+    ) {
+      loadPurchases().catch(() => {
+        /* ignore - UI will show optimistic/empty list */
+      });
+    }
+  }, [loadPurchases]);
   // local view uses DataContext purchases mapped to PO type
   const [data, setData] = useState<PO[]>(() =>
     (purchases || []).map((p) => ({
@@ -72,7 +87,27 @@ export default function PurchaseOrdersPage() {
     };
 
     if (typeof setPurchases === "function") {
+      // optimistic
       setPurchases((prev) => [record, ...prev]);
+      (async () => {
+        try {
+          await (
+            await import("../../../lib/api")
+          ).createPurchase({
+            id: record.id,
+            items: record.items,
+            total: record.total,
+            date: record.date,
+            supplierId: record.supplier,
+          });
+        } catch (err) {
+          showNotification({
+            title: "Purchase Persist Failed",
+            message: String(err),
+            color: "red",
+          });
+        }
+      })();
     }
 
     // update local list too for immediate UI (optional)
@@ -124,17 +159,18 @@ export default function PurchaseOrdersPage() {
             <Button onClick={() => setOpen(true)}>Create PO</Button>
           </div>
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th>PO Number</th>
-              <th>Date</th>
-              <th>Supplier</th>
-              <th style={{ textAlign: "right" }}>Total</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>PO Number</Table.Th>
+              <Table.Th>Date</Table.Th>
+              <Table.Th>Supplier</Table.Th>
+              <Table.Th style={{ textAlign: "right" }}>Total</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th style={{ textAlign: "right" }}>Action</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
             {data
               .filter((o) => {
                 const term = q.trim().toLowerCase();
@@ -145,18 +181,102 @@ export default function PurchaseOrdersPage() {
                 );
               })
               .map((o) => (
-                <tr key={o.id}>
-                  <td style={{ fontFamily: "monospace" }}>{o.poNumber}</td>
-                  <td>{formatDate(o.poDate)}</td>
-                  <td>{o.supplierName}</td>
-                  <td style={{ textAlign: "right" }}>
+                <Table.Tr key={o.id}>
+                  <Table.Td style={{ fontFamily: "monospace" }}>
+                    {o.poNumber}
+                  </Table.Td>
+                  <Table.Td>{formatDate(o.poDate)}</Table.Td>
+                  <Table.Td>{o.supplierName}</Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
                     {formatCurrency(o.totalAmount)}
-                  </td>
-                  <td>{o.status}</td>
-                </tr>
+                  </Table.Td>
+                  <Table.Td>{o.status}</Table.Td>
+                  <Table.Td>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        justifyContent: "flex-end",
+                      }}
+                    >
+                      <Button
+                        variant="subtle"
+                        onClick={() => {
+                          const d: InvoiceData = {
+                            title: "Purchase Order",
+                            companyName: "Seven Star Traders",
+                            addressLines: [
+                              "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
+                            ],
+                            invoiceNo: String(o.poNumber),
+                            date: String(o.poDate),
+                            customer: o.supplierName,
+                            items: (o.items || []).map((it, idx) => {
+                              const p = it as PurchaseLineItem;
+                              const idLike =
+                                (
+                                  p as unknown as {
+                                    productId?: string;
+                                    sku?: string;
+                                  }
+                                ).productId ??
+                                (
+                                  p as unknown as {
+                                    productId?: string;
+                                    sku?: string;
+                                  }
+                                ).sku;
+                              const priceLike =
+                                (
+                                  p as unknown as {
+                                    rate?: number;
+                                    price?: number;
+                                  }
+                                ).rate ??
+                                (
+                                  p as unknown as {
+                                    rate?: number;
+                                    price?: number;
+                                  }
+                                ).price;
+                              const amountLike =
+                                (
+                                  p as unknown as {
+                                    netAmount?: number;
+                                    amount?: number;
+                                  }
+                                ).netAmount ??
+                                (
+                                  p as unknown as {
+                                    netAmount?: number;
+                                    amount?: number;
+                                  }
+                                ).amount;
+                              return {
+                                sr: idx + 1,
+                                section: p.productName || String(idLike ?? ""),
+                                quantity: p.quantity,
+                                rate: Number(priceLike ?? 0),
+                                amount: Number(amountLike ?? 0),
+                              };
+                            }),
+                            totals: {
+                              subtotal: o.subtotal ?? o.totalAmount,
+                              tax: 0,
+                              total: o.totalAmount,
+                            },
+                          };
+                          openPrintWindow(d);
+                        }}
+                      >
+                        Print
+                      </Button>
+                    </div>
+                  </Table.Td>
+                </Table.Tr>
               ))}
-          </tbody>
-        </table>
+          </Table.Tbody>
+        </Table>
       </div>
     </div>
   );
