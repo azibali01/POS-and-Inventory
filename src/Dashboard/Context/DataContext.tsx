@@ -194,8 +194,8 @@ interface DataContextType {
   salesLoading: boolean;
   salesError: string | null;
   loadSales: () => Promise<SaleRecord[]>;
-  createSale: (payload: any) => Promise<SaleRecord>;
-  updateSale: (id: string | number, payload: any) => Promise<SaleRecord>;
+  createSale: (payload: SaleRecord) => Promise<SaleRecord>;
+  updateSale: (id: string | number, payload: Partial<SaleRecord>) => Promise<SaleRecord>;
   deleteSale: (id: string | number) => Promise<void>;
 
   // ===== PURCHASES MODULE =====

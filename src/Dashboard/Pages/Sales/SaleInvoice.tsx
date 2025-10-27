@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   Group,
@@ -53,8 +53,16 @@ const sampleInvoices: Invoice[] = [
 
 export default function SaleInvoicePage() {
   const [invoices] = useState<Invoice[]>(sampleInvoices);
-  const { customers, inventory, quotations, setQuotations, createSale } =
-    useDataContext();
+  const { 
+    customers, 
+    inventory, 
+    quotations, 
+    setQuotations, 
+    createSale,
+    sales,
+    salesLoading,
+    loadSales 
+  } = useDataContext();
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   type ImportPayload = Partial<SalesPayload> & {
@@ -66,6 +74,26 @@ export default function SaleInvoicePage() {
 
   const makeInvoiceNumber = () =>
     `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
+
+  // Load sales data when component mounts
+  useEffect(() => {
+    if (typeof loadSales === "function") {
+      loadSales().catch(console.error);
+    }
+  }, [loadSales]);
+
+  // Convert sales records to invoice format for display
+  const actualInvoices: Invoice[] = sales.map(sale => ({
+    id: sale.id,
+    invoiceNumber: `INV-${sale.id}`,
+    invoiceDate: sale.date || new Date().toISOString(), // Fallback to current date if undefined
+    customerName: sale.customer,
+    totalAmount: sale.total,
+    status: sale.status === "paid" ? "Paid" : sale.status === "pending" ? "Pending" : "Overdue"
+  }));
+
+  // Combine sample invoices with actual sales (you can remove sampleInvoices if not needed)
+  const allInvoices = [...actualInvoices, ...invoices];
 
   return (
     <div>
@@ -84,8 +112,8 @@ export default function SaleInvoicePage() {
 
       <Card shadow="sm">
         <Box p="md">
-          <Title order={4}>Recent Invoices</Title>
-          <Text color="dimmed">Last {invoices.length} invoices</Text>
+          <Title order={4}>All Sales Invoices</Title>
+          <Text color="dimmed">{allInvoices.length} invoices total</Text>
           <div style={{ marginTop: 12, overflowX: "auto" }}>
             <Table
               striped
@@ -108,7 +136,20 @@ export default function SaleInvoicePage() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {invoices.map((inv) => (
+                {salesLoading ? (
+                  <Table.Tr>
+                    <Table.Td colSpan={6} style={{ textAlign: "center", padding: "2rem" }}>
+                      <Text color="dimmed">Loading sales data...</Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ) : allInvoices.length === 0 ? (
+                  <Table.Tr>
+                    <Table.Td colSpan={6} style={{ textAlign: "center", padding: "2rem" }}>
+                      <Text color="dimmed">No sales invoices found</Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ) : (
+                  allInvoices.map((inv) => (
                   <Table.Tr key={inv.id}>
                     <Table.Td style={{ fontFamily: "monospace" }}>
                       {inv.invoiceNumber}
@@ -119,7 +160,16 @@ export default function SaleInvoicePage() {
                       {formatCurrency(inv.totalAmount)}
                     </Table.Td>
                     <Table.Td>
-                      <Badge variant="outline">{inv.status}</Badge>
+                      <Badge 
+                        variant="outline" 
+                        color={
+                          inv.status === "Paid" ? "green" : 
+                          inv.status === "Pending" ? "yellow" : 
+                          inv.status === "Overdue" ? "red" : "gray"
+                        }
+                      >
+                        {inv.status}
+                      </Badge>
                     </Table.Td>
                     <Table.Td style={{ textAlign: "right" }}>
                       <div
@@ -155,15 +205,16 @@ export default function SaleInvoicePage() {
                       </div>
                     </Table.Td>
                   </Table.Tr>
-                ))}
+                  ))
+                )}
               </Table.Tbody>
             </Table>
           </div>
         </Box>
       </Card>
 
-      <Modal opened={open} onClose={() => setOpen(false)} size="70%">
-        <ScrollArea style={{ height: "75vh" }}>
+      <Modal opened={open} onClose={() => setOpen(false)} size="80%">
+        <ScrollArea >
           <SalesDocShell
             mode="Invoice"
             customers={customers}

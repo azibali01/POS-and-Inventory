@@ -10,7 +10,8 @@ export function formatCurrency(n: number) {
   }
 }
 
-export function formatDate(d: string | Date) {
+export function formatDate(d: string | Date | undefined | null) {
+  if (!d) return "-";
   const date = typeof d === "string" ? new Date(d) : d;
   if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleDateString();

@@ -310,7 +310,15 @@ export default function ProductMaster() {
       >
         {selectedProduct && (
           <ProductForm
-            product={selectedProduct}
+            product={{
+              ...selectedProduct,
+              id: String(selectedProduct.id),
+              itemName: selectedProduct.name ?? "",
+              salesRate: (selectedProduct as InventoryItem).salesRate ?? selectedProduct.sellingPrice ?? 0,
+              openingStock: (selectedProduct as InventoryItem).openingStock ?? selectedProduct.stock ?? 0,
+              minimumStockLevel: (selectedProduct as InventoryItem).minimumStockLevel ?? selectedProduct.minStock ?? 0,
+              thickness: (selectedProduct as any).thickness ?? 0,
+            }}
             onClose={() => setIsEditOpen(false)}
           />
         )}

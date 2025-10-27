@@ -10,8 +10,21 @@ import {
 } from "@mantine/core";
 import { useDataContext } from "../../Dashboard/Context/DataContext";
 
+interface Product {
+  id?: string;
+  itemName: string;
+  category: string;
+  thickness: number;
+  unit: string;
+  color: string;
+  salesRate: number;
+  openingStock: number;
+  minimumStockLevel: number;
+  description: string;
+}
+
 interface Props {
-  product?: any;
+  product?: Product;
   onClose: () => void;
 }
 
@@ -39,7 +52,7 @@ export function ProductForm({ product, onClose }: Props) {
       quantity: form.openingStock, // Map openingStock to quantity
     };
 
-    if (product) {
+    if (product && product.id !== undefined) {
       await updateInventoryItem(product.id, payload);
     } else {
       await createInventoryItem(payload);
@@ -59,7 +72,7 @@ export function ProductForm({ product, onClose }: Props) {
         />
         <Select
           label="Category"
-          data={categories.map((c: any) =>
+          data={categories.map((c: { name?: string } | string) =>
             typeof c === "string"
               ? { value: c, label: c }
               : { value: c.name ?? String(c), label: c.name ?? String(c) }

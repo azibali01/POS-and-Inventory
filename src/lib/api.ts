@@ -65,6 +65,8 @@ export interface SaleRecordPayload {
   total?: number;
   date?: string;
   customerId?: string | number;
+  customerName?: string;
+
   metadata?: Record<string, unknown>;
 }
 export interface PurchaseRecordPayload {
@@ -168,7 +170,7 @@ export async function getInventory() {
 }
 
 export async function getSales() {
-  const { data } = await api.get<SaleRecordPayload[]>("/sales");
+  const { data } = await api.get<SaleRecordPayload[]>("/sale-invoice");
   return data;
 }
 
@@ -213,7 +215,7 @@ export async function createInventory(item: InventoryItemPayload) {
 }
 
 export async function createSale(payload: SaleRecordPayload) {
-  const { data } = await api.post("/sales", payload);
+  const { data } = await api.post("/sale-invoice", payload);
   return data;
 }
 
@@ -292,12 +294,12 @@ export async function deleteCustomer(id: string | number) {
 
 // Sales endpoints
 export async function updateSale(id: string | number, patch: any) {
-  const { data } = await api.put(`/sales/${id}`, patch);
+  const { data } = await api.put(`/sale-invoice/${id}`, patch);
   return data;
 }
 
 export async function deleteSale(id: string | number) {
-  const { data } = await api.delete(`/sales/${id}`);
+  const { data } = await api.delete(`/sale-invoice/${id}`);
   return data;
 }
 
