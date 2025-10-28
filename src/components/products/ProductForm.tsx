@@ -8,23 +8,12 @@ import {
   Textarea,
   Box,
 } from "@mantine/core";
+import { showNotification } from "@mantine/notifications";
 import { useDataContext } from "../../Dashboard/Context/DataContext";
-
-interface Product {
-  id?: string;
-  itemName: string;
-  category: string;
-  thickness: number;
-  unit: string;
-  color: string;
-  salesRate: number;
-  openingStock: number;
-  minimumStockLevel: number;
-  description: string;
-}
+import type { InventoryItem } from "../../Dashboard/Context/DataContext";
 
 interface Props {
-  product?: Product;
+  product?: InventoryItem;
   onClose: () => void;
 }
 
@@ -33,13 +22,13 @@ export function ProductForm({ product, onClose }: Props) {
     useDataContext();
 
   const [form, setForm] = useState({
-    itemName: product?.itemName || "",
+    itemName: product?.name || "",
     category: product?.category || "",
     thickness: product?.thickness || 0,
     unit: product?.unit || "",
     color: product?.color || "",
     salesRate: product?.salesRate || 0,
-    openingStock: product?.openingStock || 0,
+    openingStock: product?.openingStock ?? 0,
     minimumStockLevel: product?.minimumStockLevel || 0,
     description: product?.description || "",
   });
@@ -47,17 +36,44 @@ export function ProductForm({ product, onClose }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate required fields
+    if (!form.itemName.trim()) {
+      showNotification({
+        title: "Validation Error",
+        message: "Item Name is required",
+        color: "red",
+      });
+      return;
+    }
+
+    // Create payload that matches the InventoryItemPayload interface
     const payload = {
-      ...form,
-      quantity: form.openingStock, // Map openingStock to quantity
+      itemName: form.itemName.trim(),
+      category: form.category || "General",
+      thickness: Number(form.thickness) || 0,
+      unit: form.unit || "ft",
+      color: form.color || "",
+      salesRate: Number(form.salesRate) || 0,
+      openingStock: Number(form.openingStock) || 0,
+      minimumStockLevel: Number(form.minimumStockLevel) || 0,
+      description: form.description.trim() || "",
+      quantity: Number(form.openingStock) || 0, // Map openingStock to quantity for backend
     };
 
-    if (product && product.id !== undefined) {
-      await updateInventoryItem(product.id, payload);
-    } else {
-      await createInventoryItem(payload);
+    try {
+      console.log("Submitting payload:", payload);
+      if (product && product.id !== undefined) {
+        console.log("Updating product with ID:", product.id);
+        await updateInventoryItem(product.id, payload);
+      } else {
+        console.log("Creating new product");
+        await createInventoryItem(payload);
+      }
+      onClose();
+    } catch (error) {
+      console.error("Form submission error:", error);
+      // The error notification will be handled by the DataContext
     }
-    onClose();
   };
   return (
     <Box component="form" onSubmit={handleSubmit}>
@@ -124,14 +140,14 @@ export function ProductForm({ product, onClose }: Props) {
           value={form.openingStock}
           onChange={(v) => setForm({ ...form, openingStock: Number(v) })}
         />
-      </Group>
-
-      <Group grow mt="sm">
         <NumberInput
           label="Minimum Stock Level"
           value={form.minimumStockLevel}
           onChange={(v) => setForm({ ...form, minimumStockLevel: Number(v) })}
         />
+      </Group>
+
+      <Group grow mt="sm">
         <Textarea
           label="Description"
           value={form.description}

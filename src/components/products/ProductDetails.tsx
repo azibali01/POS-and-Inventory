@@ -1,115 +1,92 @@
-import { Card, Text, Group, Divider, Badge } from "@mantine/core";
+import { Card, Text, Divider, Badge, Grid } from "@mantine/core";
 import type { InventoryItem } from "../../Dashboard/Context/DataContext";
-import { useDataContext } from "../../Dashboard/Context/DataContext";
+import { formatCurrency } from "../../lib/format-utils";
 
 interface Props {
   product: InventoryItem;
 }
 
 export function ProductDetails({ product }: Props) {
-  const { colors } = useDataContext();
-  const color = product.colorId
-    ? colors?.find((c) => c.name === product.colorId)
-    : undefined;
+    
   return (
     <div>
       <Card>
-        <Group>
-          <div>
+        <Grid>
+          <Grid.Col span={6}>
             <Text size="xs" c="dimmed">
-              Purchase Rate
+              Item Name
             </Text>
-            <Text fw={600}>{product.costPrice}</Text>
-          </div>
+            <Text fw={600} size="lg">{product.name || "-"}</Text>
+          </Grid.Col>
 
-          <div>
+          <Grid.Col span={6}>
             <Text size="xs" c="dimmed">
-              Sale Rate
+              Category
             </Text>
-            <Text fw={600}>
-              {(product as any).salesRate ?? product.sellingPrice}
-            </Text>
-          </div>
+            <Badge size="lg" mt={4}>{product.category || "-"}</Badge>
+          </Grid.Col>
 
-          <div>
-            <Badge>{product.category}</Badge>
-          </div>
-
-          <div>
-            <Text size="xs" color="dimmed">
-              Brand / Supplier
-            </Text>
-            <Text>{product.supplier}</Text>
-          </div>
-
-          <Divider />
-
-          <div>
-            <Text size="xs" color="dimmed">
-              Purchase Rate
-            </Text>
-            <Text fw={600}>{product.costPrice}</Text>
-          </div>
-
-          <div>
+          <Grid.Col span={4}>
             <Text size="xs" c="dimmed">
-              Sale Rate
+              Thickness
             </Text>
-            <Text fw={600}>{product.sellingPrice}</Text>
-          </div>
+            <Text fw={600}>{(product as any).thickness ?? product.thickness ?? "-"}</Text>
+          </Grid.Col>
 
-          <div>
+          <Grid.Col span={4}>
             <Text size="xs" c="dimmed">
-              Old Price
+              Unit
             </Text>
-            <Text fw={600}>{product.oldPrice ?? "-"}</Text>
-          </div>
+            <Text fw={600}>{product.unit || "-"}</Text>
+          </Grid.Col>
 
-          <div>
-            <Text size="xs" c="dimmed">
-              New Price
-            </Text>
-            <Text fw={600}>{product.newPrice ?? product.sellingPrice}</Text>
-          </div>
-
-          <Divider />
-
-          <div>
-            <Text size="xs" c="dimmed">
-              Stock
-            </Text>
-            <Text fw={600}>
-              {(product as any).openingStock ?? product.stock} {product.unit}
-            </Text>
-          </div>
-
-          <div>
+          <Grid.Col span={4}>
             <Text size="xs" c="dimmed">
               Color
             </Text>
             <Text fw={600}>
-              {color
-                ? `${color.name}${color.name ? ` (${color.name})` : ""}`
-                : product.color ?? "-"}
+              {product.color ?? "-"}
             </Text>
-          </div>
+          </Grid.Col>
 
-          <div>
+          <Divider />
+
+          <Grid.Col span={6}>
             <Text size="xs" c="dimmed">
-              Length
+              Sales Rate
             </Text>
-            <Text fw={600}>{product.length ?? "-"}</Text>
-          </div>
+            <Text fw={600} size="lg">
+              {(product as any).salesRate ? formatCurrency((product as any).salesRate) : "-"}
+            </Text>
+          </Grid.Col>
 
-          <div>
+          <Grid.Col span={6}>
             <Text size="xs" c="dimmed">
-              MSL
+              Opening Stock
+            </Text>
+            <Text fw={600} size="lg">
+              {(product as any).openingStock ?? product.stock ?? "-"}
+            </Text>
+          </Grid.Col>
+
+          <Grid.Col span={6}>
+            <Text size="xs" c="dimmed">
+              Minimum Stock Level
             </Text>
             <Text fw={600}>
-              {(product as any).minimumStockLevel ?? product.minStock}
+              {(product as any).minimumStockLevel ?? "-"}
             </Text>
-          </div>
-        </Group>
+          </Grid.Col>
+
+          <Grid.Col span={12}>
+            <Text size="xs" c="dimmed">
+              Description
+            </Text>
+            <Text fw={400}>
+              {product.description || "No description provided"}
+            </Text>
+          </Grid.Col>
+        </Grid>
       </Card>
     </div>
   );

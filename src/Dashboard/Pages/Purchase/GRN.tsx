@@ -55,7 +55,6 @@ export default function GRNPage() {
         quantity: it.quantity || 0,
         rate: it.price || 0,
         rateSource: "old",
-        colorId: undefined,
         color: undefined,
         thickness: undefined,
         length: undefined,

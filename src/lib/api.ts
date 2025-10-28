@@ -33,10 +33,6 @@ if (import.meta.env.MODE !== "production") {
 
 // Minimal types (mirror DataContext shapes as needed)
 export interface InventoryItemPayload {
-  // UI-friendly aliases (some callers use `sku`, `name`, `description`)
-  id?: string | number;
-  sku?: string;
-  itemCode?: string;
   itemName?: string;
   description?: string;
   category?: string;
@@ -47,9 +43,6 @@ export interface InventoryItemPayload {
   minimumStockLevel: number;
   quantity: number;
   unit?: number | string;
-
-  createdAt?: string;
-  updatedAt?: string;
   metadata?: Record<string, unknown>;
 }
 export interface SaleRecordPayload {
@@ -129,9 +122,13 @@ export interface ExpensePayload {
 export interface CustomerPayload {
   id?: string | number;
   name: string;
-  email?: string;
   phone?: string;
   address?: string;
+  city?: string;
+  openingAmount?: number;
+  creditLimit?: number;
+  paymentType?: "credit" | "debit";
+  createdAt?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -277,7 +274,7 @@ export async function updateCategory(
 }
 
 // Customer endpoints
-export async function createCustomer(payload: any) {
+export async function createCustomer(payload: CustomerPayload) {
   const { data } = await api.post("/customers", payload);
   return data;
 }
@@ -288,6 +285,9 @@ export async function updateCustomer(id: string | number, patch: any) {
 }
 
 export async function deleteCustomer(id: string | number) {
+  if (!id || id === 'undefined') {
+    throw new Error(`Invalid customer ID: ${id}`);
+  }
   const { data } = await api.delete(`/customers/${id}`);
   return data;
 }

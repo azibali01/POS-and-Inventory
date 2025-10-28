@@ -1,4 +1,4 @@
-import { Card, Text, Group, Badge, Divider } from "@mantine/core";
+import { Card, Text, Group, Divider } from "@mantine/core";
 
 import type { Customer } from "../../Dashboard/Context/DataContext";
 
@@ -22,14 +22,6 @@ export function CustomerDetails({ customer }: { customer: Customer }) {
         <Group justify="space-between">
           <div>
             <Text size="xs" c="dimmed">
-              Code
-            </Text>
-            <Text style={{ fontFamily: "monospace" }}>
-              {customer.customerCode}
-            </Text>
-          </div>
-          <div>
-            <Text size="xs" c="dimmed">
               Name
             </Text>
             <Text fw={700}>{customer.name}</Text>
@@ -47,12 +39,6 @@ export function CustomerDetails({ customer }: { customer: Customer }) {
           </div>
           <div>
             <Text size="xs" c="dimmed">
-              Email
-            </Text>
-            <Text>{customer.email}</Text>
-          </div>
-          <div>
-            <Text size="xs" c="dimmed">
               Address
             </Text>
             <Text>{customer.address}</Text>
@@ -63,12 +49,6 @@ export function CustomerDetails({ customer }: { customer: Customer }) {
             </Text>
             <Text>{customer.city}</Text>
           </div>
-          <div>
-            <Text size="xs" c="dimmed">
-              GST
-            </Text>
-            <Text size="xs">{customer.gstNumber}</Text>
-          </div>
           <Divider />
           <div>
             <Text size="xs" c="dimmed">
@@ -78,17 +58,15 @@ export function CustomerDetails({ customer }: { customer: Customer }) {
           </div>
           <div>
             <Text size="xs" c="dimmed">
-              Balance
+              Opening Amount
             </Text>
-            <Text fw={700}>{formatCurrency(customer.currentBalance || 0)}</Text>
+            <Text fw={700}>{formatCurrency(customer.openingAmount || 0)}</Text>
           </div>
           <div>
             <Text size="xs" c="dimmed">
-              Status
+              Payment Type
             </Text>
-            <Badge color={customer.isActive ? "green" : "gray"}>
-              {customer.isActive ? "Active" : "Inactive"}
-            </Badge>
+            <Text>{customer.paymentType || "credit"}</Text>
           </div>
           <div>
             <Text size="xs" c="dimmed">

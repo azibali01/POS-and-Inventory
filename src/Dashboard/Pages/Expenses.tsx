@@ -10,30 +10,7 @@ import {
 import Table from "../../lib/AppTable";
 import { Plus } from "lucide-react";
 
-const mockExpenses: ExpenseType[] = [
-  {
-    id: "1",
-    expenseNumber: "EXP-2025-001",
-    expenseDate: new Date().toISOString(),
-    category: "Rent",
-    description: "Office rent for May",
-    amount: 1500,
-    paymentMethod: "Cash",
-    reference: "REF-001",
-    remarks: "",
-  },
-  {
-    id: "2",
-    expenseNumber: "EXP-2025-002",
-    expenseDate: new Date().toISOString(),
-    category: "Utilities",
-    description: "Electricity bill",
-    amount: 230,
-    paymentMethod: "Card",
-    reference: "REF-002",
-    remarks: "",
-  },
-];
+
 
 import type {
   Expense as ExpenseType,
@@ -84,10 +61,9 @@ export default function ExpensesPage() {
 
   const filtered = useMemo(() => {
     const t = q.toLowerCase().trim();
-    if (!t) return expenses.length ? expenses : mockExpenses;
-    const source = expenses.length ? expenses : mockExpenses;
-    return source.filter(
-      (e) =>
+    if (!t) return expenses;
+    return expenses.filter(
+      (e: ExpenseType) =>
         e.expenseNumber.toLowerCase().includes(t) ||
         e.category.toLowerCase().includes(t) ||
         (e.description || "").toLowerCase().includes(t)

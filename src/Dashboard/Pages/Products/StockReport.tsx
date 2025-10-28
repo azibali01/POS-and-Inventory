@@ -1,3 +1,4 @@
+import React from "react";
 import {
   Card,
   Group,
@@ -19,20 +20,46 @@ import {
 import { useDataContext } from "../../Context/DataContext";
 import type { InventoryItem } from "../../Context/DataContext";
 
-function formatNumber(n: number) {
+function formatNumber(n: number | undefined) {
+  if (n === undefined || n === null || isNaN(n)) {
+    return "0";
+  }
   return n.toLocaleString();
 }
 
 export default function StockReportPage() {
-  const { inventory } = useDataContext();
+  const { inventory, loadInventory } = useDataContext();
 
+  // Clear any stored mock data and use real inventory data
+  React.useEffect(() => {
+    // Clear mock data from localStorage
+    localStorage.removeItem('dev-mock-inventory');
+    localStorage.setItem('dev-use-mock-data', 'false');
+    
+    // Load real inventory data
+    if (typeof loadInventory === 'function') {
+      loadInventory().catch(() => {
+        console.warn("Failed to load inventory data");
+      });
+    }
+  }, [loadInventory]);
+
+  // Use real inventory data (this will include products created/updated in ProductMaster)
   const products: InventoryItem[] = inventory;
+  
+  console.log("StockReport - Using real inventory data:", products.length, "items");
 
+  // Get stock value - prioritize openingStock for new products, then stock for updated products
+  const getStockValue = (p: InventoryItem) => {
+    const stock = p.openingStock ?? p.stock ?? 0;
+    return typeof stock === 'number' ? stock : 0;
+  };
+  
   const lowStockItems = products.filter(
-    (p) => p.stock <= p.minStock && p.stock > 0
+    (p) => getStockValue(p) <= (p.minimumStockLevel || 0) && getStockValue(p) > 0
   );
-  const negativeStockItems = products.filter((p) => p.stock < 0);
-  const inStockItems = products.filter((p) => p.stock > p.minStock);
+  const negativeStockItems = products.filter((p) => getStockValue(p) < 0);
+  const inStockItems = products.filter((p) => getStockValue(p) > (p.minimumStockLevel || 0));
 
   return (
     <div>
@@ -120,7 +147,7 @@ export default function StockReportPage() {
                 <Table verticalSpacing="sm">
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Item Code</Table.Th>
+                      <Table.Th>Sr No.</Table.Th>
                       <Table.Th>Item Name</Table.Th>
                       <Table.Th>Category</Table.Th>
                       <Table.Th style={{ textAlign: "right" }}>
@@ -133,10 +160,10 @@ export default function StockReportPage() {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {products.map((product) => (
+                    {products.map((product, index) => (
                       <Table.Tr key={product.id}>
                         <Table.Td style={{ fontFamily: "monospace" }}>
-                          {product.code || product.sku}
+                          {index + 1}
                         </Table.Td>
                         <Table.Td>{product.name}</Table.Td>
                         <Table.Td>
@@ -145,15 +172,15 @@ export default function StockReportPage() {
                         <Table.Td
                           style={{ textAlign: "right", fontWeight: 600 }}
                         >
-                          {formatNumber(product.stock)} {product.unit}
+                          {formatNumber(product.openingStock ?? product.stock)}
                         </Table.Td>
                         <Table.Td style={{ textAlign: "right", color: "#666" }}>
-                          {formatNumber(product.minStock)} {product.unit}
+                          {formatNumber(product.minimumStockLevel)}
                         </Table.Td>
                         <Table.Td>
-                          {product.stock < 0 ? (
+                          {getStockValue(product) < 0 ? (
                             <Badge color="red">Negative</Badge>
-                          ) : product.stock <= product.minStock ? (
+                          ) : getStockValue(product) <= (product.minimumStockLevel || 0) ? (
                             <Badge color="yellow">Low Stock</Badge>
                           ) : (
                             <Badge color="green">In Stock</Badge>
@@ -185,7 +212,7 @@ export default function StockReportPage() {
                 <Table verticalSpacing="sm">
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Item Code</Table.Th>
+                      <Table.Th>Sr No.</Table.Th>
                       <Table.Th>Item Name</Table.Th>
                       <Table.Th>Category</Table.Th>
                       <Table.Th style={{ textAlign: "right" }}>
@@ -200,10 +227,10 @@ export default function StockReportPage() {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {lowStockItems.map((product) => (
+                    {lowStockItems.map((product, index) => (
                       <Table.Tr key={product.id}>
                         <Table.Td style={{ fontFamily: "monospace" }}>
-                          {product.code || product.sku}
+                          {index + 1}
                         </Table.Td>
                         <Table.Td>{product.name}</Table.Td>
                         <Table.Td>
@@ -216,10 +243,10 @@ export default function StockReportPage() {
                             fontWeight: 600,
                           }}
                         >
-                          {formatNumber(product.stock)} {product.unit}
+                          {formatNumber(getStockValue(product))}
                         </Table.Td>
                         <Table.Td style={{ textAlign: "right", color: "#666" }}>
-                          {formatNumber(product.minStock)} {product.unit}
+                          {formatNumber(product.minimumStockLevel)}
                         </Table.Td>
                         <Table.Td
                           style={{
@@ -228,8 +255,7 @@ export default function StockReportPage() {
                             fontWeight: 600,
                           }}
                         >
-                          {formatNumber(product.minStock - product.stock)}{" "}
-                          {product.unit}
+                          {formatNumber((product.minimumStockLevel || 0) - getStockValue(product))}
                         </Table.Td>
                       </Table.Tr>
                     ))}
@@ -257,7 +283,7 @@ export default function StockReportPage() {
                 <Table verticalSpacing="sm">
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Item Code</Table.Th>
+                      <Table.Th>Sr No.</Table.Th>
                       <Table.Th>Item Name</Table.Th>
                       <Table.Th>Category</Table.Th>
                       <Table.Th style={{ textAlign: "right" }}>
@@ -269,10 +295,10 @@ export default function StockReportPage() {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {negativeStockItems.map((product) => (
+                    {negativeStockItems.map((product, index) => (
                       <Table.Tr key={product.id}>
                         <Table.Td style={{ fontFamily: "monospace" }}>
-                          {product.code || product.sku}
+                          {index + 1}
                         </Table.Td>
                         <Table.Td>{product.name}</Table.Td>
                         <Table.Td>
@@ -285,10 +311,10 @@ export default function StockReportPage() {
                             fontWeight: 600,
                           }}
                         >
-                          {formatNumber(product.stock)} {product.unit}
+                          {formatNumber(getStockValue(product))}
                         </Table.Td>
                         <Table.Td style={{ textAlign: "right", color: "#666" }}>
-                          {formatNumber(product.minStock)} {product.unit}
+                          {formatNumber(product.minimumStockLevel)}
                         </Table.Td>
                       </Table.Tr>
                     ))}

@@ -9,7 +9,6 @@ import {
   ScrollArea,
   Text,
   Title,
-  Badge,
 } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import {
@@ -23,6 +22,8 @@ import { CustomerForm } from "../../../components/sales/CustomerForm";
 import { CustomerDetails } from "../../../components/sales/CustomerDetails";
 import { useDataContext } from "../../Context/DataContext";
 import type { Customer } from "../../Context/DataContext";
+import { deleteCustomer } from "../../../lib/api";
+import { showNotification } from "@mantine/notifications";
 // local helpers
 function formatCurrency(n: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 0 });
@@ -39,15 +40,60 @@ export default function CustomersPage() {
   const [openAdd, setOpenAdd] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [openView, setOpenView] = useState(false);
+  const [openDelete, setOpenDelete] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return customers.filter((c) =>
-      [c.name, c.customerCode, c.city, c.phone, c.email, c.gstNumber].some(
+      [c.name, c.city, c.phone].some(
         (v) => (v || "").toLowerCase().includes(q)
       )
     );
   }, [customers, search]);
+
+  const handleDeleteConfirm = async () => {
+    if (!customerToDelete) return;
+    
+    // Validate ID exists and is valid
+    if (!customerToDelete.id || customerToDelete.id === "undefined" || customerToDelete.id.includes("undefined")) {
+      console.error("Invalid customer ID:", customerToDelete.id);
+      showNotification({
+        title: "Error",
+        message: "Cannot delete customer: Invalid ID",
+        color: "red",
+      });
+      setOpenDelete(false);
+      setCustomerToDelete(null);
+      return;
+    }
+    
+    setDeleting(true);
+    try {
+      console.log("Deleting customer with MongoDB ID:", customerToDelete.id);
+      await deleteCustomer(customerToDelete.id);
+      setCustomers((prev) =>
+        prev.filter((x) => x.id !== customerToDelete.id)
+      );
+      showNotification({
+        title: "Success",
+        message: "Customer deleted successfully",
+        color: "green",
+      });
+    } catch (error) {
+      console.error("Error deleting customer:", error);
+      showNotification({
+        title: "Error", 
+        message: "Failed to delete customer",
+        color: "red",
+      });
+    } finally {
+      setDeleting(false);
+      setOpenDelete(false);
+      setCustomerToDelete(null);
+    }
+  };
 
   return (
     <div>
@@ -93,44 +139,26 @@ export default function CustomersPage() {
             <Table verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Code</Table.Th>
                   <Table.Th>Name</Table.Th>
                   <Table.Th>City</Table.Th>
                   <Table.Th>Phone</Table.Th>
-                  <Table.Th>GST</Table.Th>
-                  <Table.Th style={{ textAlign: "right" }}>Balance</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th style={{ textAlign: "right" }}>Actions</Table.Th>
+                  <Table.Th>Opening Amount</Table.Th>
+                  <Table.Th>Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {filtered.map((c: Customer) => (
-                  <Table.Tr key={c.id}>
-                    <Table.Td style={{ fontFamily: "monospace" }}>
-                      {c.customerCode}
-                    </Table.Td>
+                {filtered.map((c: Customer, index) => (
+                  <Table.Tr key={c.id || `customer-fallback-${index}`}>
                     <Table.Td style={{ fontWeight: 600 }}>{c.name}</Table.Td>
                     <Table.Td style={{ color: "#666" }}>{c.city}</Table.Td>
                     <Table.Td>{c.phone}</Table.Td>
-                    <Table.Td style={{ fontSize: 12 }}>{c.gstNumber}</Table.Td>
-                    <Table.Td style={{ textAlign: "right", fontWeight: 600 }}>
-                      {c.currentBalance && c.currentBalance < 0 ? (
-                        <span style={{ color: "red" }}>
-                          Debit {formatCurrency(Math.abs(c.currentBalance))}
-                        </span>
-                      ) : (
-                        <span style={{ color: "green" }}>
-                          Credit{" "}
-                          {formatCurrency(Math.abs(c.currentBalance || 0))}
-                        </span>
-                      )}
+                    <Table.Td>
+                      <span style={{ color: c.paymentType === "debit" ? "red" : "green" }}>
+                        {c.paymentType === "debit" ? "Debit" : "Credit"}{" "}
+                        {formatCurrency(c.openingAmount || 0)}
+                      </span>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={c.isActive ? "teal" : "gray"}>
-                        {c.isActive ? "Active" : "Inactive"}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td style={{ textAlign: "right" }}>
                       <Group gap="xs">
                         <Button
                           variant="subtle"
@@ -157,10 +185,8 @@ export default function CustomersPage() {
                           color="red"
                           size="xs"
                           onClick={() => {
-                            // delete
-                            setCustomers((prev) =>
-                              prev.filter((x) => x.id !== c.id)
-                            );
+                            setCustomerToDelete(c);
+                            setOpenDelete(true);
                           }}
                         >
                           <IconTrash size={14} />
@@ -193,6 +219,42 @@ export default function CustomersPage() {
       <Modal opened={openAdd} onClose={() => setOpenAdd(false)} size="lg">
         <Box p="md">
           <CustomerForm onClose={() => setOpenAdd(false)} />
+        </Box>
+      </Modal>
+
+      <Modal 
+        opened={openDelete} 
+        onClose={() => {
+          setOpenDelete(false);
+          setCustomerToDelete(null);
+        }} 
+        size="sm"
+        title="Delete Customer"
+      >
+        <Box p="md">
+          <Text mb="md">
+            Are you sure you want to delete customer "{customerToDelete?.name}"? 
+            This action cannot be undone.
+          </Text>
+          <Group justify="flex-end" gap="sm">
+            <Button 
+              variant="default" 
+              onClick={() => {
+                setOpenDelete(false);
+                setCustomerToDelete(null);
+              }}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button 
+              color="red" 
+              onClick={handleDeleteConfirm}
+              loading={deleting}
+            >
+              Delete
+            </Button>
+          </Group>
         </Box>
       </Modal>
     </div>

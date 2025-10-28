@@ -18,10 +18,8 @@ export function PurchaseLineItemsTable({
   const products = inventory.map((p) => ({
     id: String(p.id),
     name: p.name,
-    code: p.code,
     unit: p.unit,
-    costPrice: p.costPrice,
-    sellingPrice: p.sellingPrice,
+    salesRate: p.salesRate || 0,
   }));
 
   const totals = useMemo(() => {
@@ -43,19 +41,18 @@ export function PurchaseLineItemsTable({
       id: "",
       name: "New Product",
       unit: "pcs",
-      costPrice: 0,
+      salesRate: 0,
     };
-    const rate = p.costPrice ?? p.sellingPrice ?? 0;
+    const rate = p.salesRate ?? 0;
     const row: PurchaseLineItem = {
       id: crypto.randomUUID(),
       productId: String(p.id),
       productName: p.name || "",
-      code: p.code,
+      code: undefined,
       unit: p.unit || "pcs",
       quantity: 1,
       rate,
       rateSource: "old",
-      colorId: undefined,
       color: undefined,
       thickness: undefined,
       length: undefined,
@@ -167,7 +164,7 @@ export function PurchaseLineItemsTable({
                     searchable
                     data={products.map((p) => ({
                       value: String(p.id),
-                      label: `${p.name} — ${p.code ?? p.id}`,
+                      label: `${p.name} — ${p.id}`,
                     }))}
                     value={row.productId}
                     onChange={(productId) => {
@@ -178,14 +175,9 @@ export function PurchaseLineItemsTable({
                         (inv) => String(inv.id) === String(productId)
                       );
                       if (prod) {
-                        // mirror Sales mapping: prefer newPrice/oldPrice then sellingPrice
-                        const mappedRate = Number(
-                          prod.newPrice ??
-                            prod.oldPrice ??
-                            prod.sellingPrice ??
-                            0
-                        );
-                        const mappedRateSource = prod.newPrice ? "new" : "old";
+                        // Use salesRate from the current inventory interface
+                        const mappedRate = Number(prod.salesRate ?? 0);
+                        const mappedRateSource = "old"; // Default to "old" since we don't have separate price fields
                         const ext = prod as unknown as {
                           thickness?: string | number;
                           weight?: string | number;
@@ -198,14 +190,13 @@ export function PurchaseLineItemsTable({
                         updateRow(row.id, {
                           productId: String(prod.id),
                           productName: prod.name,
-                          code: prod.code,
+                          code: undefined,
                           unit: prod.unit || "pcs",
                           rate: mappedRate,
                           rateSource: mappedRateSource as
                             | "old"
                             | "new"
                             | "manual",
-                          colorId: prod.colorId ?? prod.color ?? undefined,
                           color: prod.color ?? undefined,
                           thickness:
                             ext.thickness ?? ext.weight ?? ext.msl ?? ext.length
@@ -216,14 +207,14 @@ export function PurchaseLineItemsTable({
                                     ext.length
                                 )
                               : undefined,
-                          length: ext.length ?? prod.length ?? undefined,
+                          length: ext.length ?? undefined,
                         });
                       } else {
                         // fallback when product not found in inventory
                         updateRow(row.id, {
                           productId: String(productId || ""),
                           productName: p?.name || "",
-                          code: p?.code ?? undefined,
+                          code: undefined,
                           unit: p?.unit || "pcs",
                         });
                       }
@@ -233,13 +224,11 @@ export function PurchaseLineItemsTable({
                 <Table.Td style={{ padding: 8 }}>
                   <Select
                     placeholder="Color"
-                    data={colors.map((c) => ({ value: c.id, label: c.name }))}
-                    value={row.colorId}
+                    data={colors.map((c) => ({ value: c.name, label: c.name }))}
+                    value={row.color}
                     onChange={(v) =>
                       updateRow(row.id, {
-                        colorId: v ?? undefined,
-                        color: colors.find((c) => c.id === (v ?? undefined))
-                          ?.name,
+                        color: v ?? undefined,
                       })
                     }
                   />
@@ -276,10 +265,8 @@ export function PurchaseLineItemsTable({
                         (p) => String(p.id) === String(row.productId)
                       );
                       if (prod) {
-                        const chosen =
-                          source === "old"
-                            ? prod.oldPrice ?? prod.sellingPrice
-                            : prod.newPrice ?? prod.sellingPrice;
+                        // Since we only have salesRate, use it for both old and new
+                        const chosen = prod.salesRate ?? 0;
                         updateRow(row.id, {
                           rate: Number(chosen || 0),
                           rateSource: source,

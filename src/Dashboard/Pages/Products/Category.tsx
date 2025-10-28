@@ -144,17 +144,19 @@ export default function CategoryPage() {
       </Group>
 
       <Card>
-        <Table verticalSpacing="sm">
+        <Table  highlightOnHover withColumnBorders withRowBorders>
           <Table.Thead>
             <Table.Tr>
+              <Table.Th style={{ width: "60px" }}>Sr No.</Table.Th>
               <Table.Th>Category</Table.Th>
 
               <Table.Th style={{ textAlign: "right" }}>Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {categoriesList.map((name) => (
+            {categoriesList.map((name, index) => (
               <Table.Tr key={name}>
+                <Table.Td>{index + 1}</Table.Td>
                 <Table.Td>{name}</Table.Td>
                 <Table.Td style={{ textAlign: "right" }}>
                   <Group justify="flex-end">
@@ -176,7 +178,7 @@ export default function CategoryPage() {
             ))}
             {categoriesList.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={2} style={{ textAlign: "center" }}>
+                <Table.Td colSpan={3} style={{ textAlign: "center" }}>
                   <Text color="dimmed">No categories available</Text>
                 </Table.Td>
               </Table.Tr>

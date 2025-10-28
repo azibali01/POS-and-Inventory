@@ -17,55 +17,29 @@ import type { SalesPayload } from "../../components/sales/SalesDocShell";
 import type { InventoryItemPayload } from "../../lib/api";
 
 export interface InventoryItem {
-  id: number;
-  // raw id coming from the backend (could be Mongo _id string or numeric id)
-  serverId?: string | number;
-  name: string;
-  code: string;
-  sku: string;
+  id: number; // Required for database operations
+  name: string; // Required for display
   category: string;
-  supplier: string;
   unit: string;
-  // legacy free-text color (kept for backward compatibility)
   color?: string;
-  // canonical reference to a Color in the central colors list
-  colorId?: string;
-  length?: string | number;
   thickness?: number;
-  msl?: string | number; // Minimum Stock Level label/indicator (if different)
-  weight?: number;
-  costPrice: number;
-  oldPrice?: number;
-  sellingPrice: number;
-  // alias for backend field name
   salesRate?: number;
-  newPrice?: number;
   stock: number;
-  // openingStock alias (backend may use this name)
   openingStock?: number;
-  minStock: number;
-  // minimumStockLevel alias (backend may use this name)
   minimumStockLevel?: number;
-  maxStock: number;
-  location: string;
   description: string;
-  status: "active" | "inactive";
   lastUpdated: string;
 }
 
 export interface Customer {
-  id: number;
-  customerCode: string;
+  id: string;
   name: string;
   phone?: string;
-  email?: string;
   address?: string;
   city?: string;
-  gstNumber?: string;
-  openingBalance?: number;
+  openingAmount?: number;
   creditLimit?: number;
-  currentBalance?: number;
-  isActive?: boolean;
+  paymentType?: "credit" | "debit";
   createdAt?: string;
 }
 
@@ -282,21 +256,8 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  // Dev-only seed
-  let initialInventory: InventoryItem[] = [];
-  if (import.meta.env.MODE !== "production") {
-    // dynamic import so bundlers can tree-shake for production
-    import("../mock-products.json")
-      .then((m) => {
-        const mock = (m as unknown as { default?: unknown }).default || m;
-        if (Array.isArray(mock)) {
-          initialInventory = mock as InventoryItem[];
-        }
-      })
-      .catch(() => {
-        /* ignore */
-      });
-  }
+  // Dev-only seed - will be loaded in useEffect
+  const initialInventory: InventoryItem[] = [];
 
   // ===== STATE: INVENTORY =====
   const [inventory, setInventory] = useState<InventoryItem[]>(initialInventory);
@@ -309,23 +270,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
   // ===== STATE: CUSTOMERS =====
-  const [customers, setCustomers] = useState<Customer[]>([
-    {
-      id: 1,
-      customerCode: "CUST-001",
-      name: "Walk-in Customer",
-      phone: "",
-      email: "",
-      address: "",
-      city: "Local",
-      gstNumber: "",
-      openingBalance: 0,
-      creditLimit: 0,
-      currentBalance: 0,
-      isActive: true,
-      createdAt: new Date().toISOString(),
-    },
-  ]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [customersError, setCustomersError] = useState<string | null>(null);
 
@@ -374,6 +319,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     inventoryLoadedRef.current = (inventory || []).length > 0;
   }, [inventory]);
 
+  // Mock data loading disabled - using real inventory data only
+
   // Dev-only: log provider mount so we can detect HMR / duplicate-context issues
   useEffect(() => {
     if (import.meta.env.MODE !== "production") {
@@ -381,6 +328,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       console.debug(
         `[DataContext] Provider mounted @ ${new Date().toISOString()}`
       );
+      console.log(`[DataContext] Inventory count: ${inventory.length}`);
       return () => {
         // eslint-disable-next-line no-console
         console.debug(
@@ -510,6 +458,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       return inventoryRef.current;
     }
 
+    // Use real inventory data from API or user-created data
+
     return runLoader("inventory", api.getInventory, (v) => {
       const raw = normalizeResponse(v) as unknown[];
       const mapped = (raw || []).map((it) => {
@@ -523,36 +473,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
         return {
           id: idNum,
-          serverId: idRaw ?? undefined,
           name: o.name ?? o.itemName ?? o.item_name ?? "",
-          code: o.sku ?? o.code ?? o.itemCode ?? String(idRaw ?? idNum),
-          sku: o.sku ?? o.code ?? o.itemCode ?? String(idRaw ?? idNum),
           category: o.category ?? o.categoryName ?? o.cat ?? "",
-          supplier: o.supplier ?? o.brand ?? "",
           unit: o.unit ?? o.unitType ?? "ft",
           color: o.color ?? "",
-          colorId: o.colorId ?? o.color_id ?? undefined,
-          length: o.length ?? (o.metadata && o.metadata.length) ?? "",
-          thickness: o.thickness ?? (o.metadata && o.metadata.thickness) ?? "",
-          msl: undefined,
-
-          // server may use salesRate or sellingPrice — map to both fields
-          sellingPrice: o.sellingPrice ?? o.price ?? o.selling_price ?? 0,
+          thickness: o.thickness ?? (o.metadata && o.metadata.thickness) ?? 0,
           salesRate: (o.salesRate ??
             o.sellingPrice ??
             o.price ??
             o.selling_price) as number,
-
-          // stock aliases
-          stock: o.stock ?? o.quantity ?? o.openingStock ?? 0,
-          openingStock: o.openingStock ?? o.quantity ?? o.stock ?? 0,
-          minStock: o.minStock ?? o.minimumStock ?? 0,
+          stock: o.stock ?? o.quantity ?? 0,
+          openingStock: o.openingStock ?? o.quantity ?? 0,
           minimumStockLevel:
             o.minimumStockLevel ?? o.minimumStock ?? o.minStock ?? 0,
-          maxStock: o.maxStock ?? 0,
-
           description: o.description ?? o.remarks ?? "",
-
           lastUpdated: o.updatedAt ?? o.lastUpdated ?? new Date().toISOString(),
         } as InventoryItem;
       });
@@ -589,7 +523,29 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       return customers;
     }
     return runLoader("customers", api.getCustomers, (v) => {
-      setCustomers(normalizeResponse(v) as Customer[]);
+      const raw = normalizeResponse(v) as unknown[];
+      const mapped = (raw || []).map((it) => {
+        const o = (it || {}) as any;
+        const idRaw = o.id ?? o._id ?? (o._id && o._id.$oid) ?? undefined;
+        let customerId = "";
+        if (typeof idRaw === "string") customerId = idRaw;
+        else if (typeof idRaw === "number") customerId = String(idRaw);
+        else customerId = String(Date.now() + Math.random()); // fallback unique ID
+        
+        return {
+          id: customerId,
+          name: o.name || "Unnamed Customer",
+          phone: o.phone || "",
+          address: o.address || "",
+          city: o.city || "",
+          openingAmount: Number(o.openingAmount || 0),
+          creditLimit: Number(o.creditLimit || 0),
+          paymentType: o.paymentType || "credit",
+          createdAt: o.createdAt || new Date().toISOString(),
+        } as Customer;
+      });
+      console.log("Loaded customers from API:", mapped);
+      setCustomers(mapped);
     });
   }, [runLoader, customers]);
 
@@ -637,8 +593,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         const created = await api.createInventory(payload);
         const item = {
           ...created,
-          id: created.id ?? Date.now(),
-          serverId: (created as any)._id ?? created.id,
+          id: (created as any).id ?? Date.now(),
+          name: (created as any).itemName ?? payload.itemName ?? "Unnamed Item",
         } as unknown as InventoryItem;
 
         setInventory((prev) => [item, ...prev]);
@@ -681,7 +637,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         const item = {
           ...updated,
           id: idNum,
-          serverId: (updated as any)._id ?? (updated as any).id ?? id,
         } as unknown as InventoryItem;
 
         setInventory((prev) => prev.map((p) => (p.id === idNum ? item : p)));
@@ -1560,7 +1515,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     setInventory((prev) =>
       prev.map((item) => {
         const found = grn.items.find(
-          (gi) => String(gi.sku) === String(item.sku)
+          (gi) => String(gi.sku) === String(item.name) || String(gi.sku) === String(item.id)
         );
         if (found) {
           return {

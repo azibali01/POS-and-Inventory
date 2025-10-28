@@ -17,7 +17,6 @@ import Table from "../../../lib/AppTable";
 // inline table used instead of PurchaseLineItemsTable
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
-import { mockSuppliers, mockGRNs } from "../../../lib/mock-data";
 import { useEffect } from "react";
 import { useDataContext } from "../../Context/DataContext";
 import { Trash2 } from "lucide-react";
@@ -33,8 +32,8 @@ export type POFormPayload = {
   status?: string;
 };
 
-const suppliers = mockSuppliers;
-const grns = mockGRNs;
+const suppliers: any[] = [];
+const grns: any[] = [];
 
 export function PurchaseOrderForm({
   onSubmit,
@@ -60,7 +59,6 @@ export function PurchaseOrderForm({
       quantity: 1,
       rate: 0,
       rateSource: "manual",
-      colorId: undefined,
       color: undefined,
       thickness: undefined,
       length: undefined,
@@ -95,9 +93,9 @@ export function PurchaseOrderForm({
           const prod = inventory.find(
             (p) => String(p.id) === String(i.productId)
           );
-          const rate = i.rate ?? prod?.costPrice ?? prod?.sellingPrice ?? 0;
+          const rate = i.rate ?? (prod as any)?.salesRate ?? 0;
           const productName = prod?.name ?? i.productName ?? "";
-          const code = prod?.code ?? undefined;
+          const code = undefined;
           const unit = prod?.unit ?? i.unit ?? "pcs";
           const qty = i.quantity ?? 1;
           const gross = qty * rate;
@@ -114,7 +112,6 @@ export function PurchaseOrderForm({
             quantity: qty,
             rate,
             rateSource: "manual",
-            colorId: undefined,
             color: undefined,
             thickness: undefined,
             length: undefined,
@@ -160,7 +157,7 @@ export function PurchaseOrderForm({
     onSubmit?.(payload);
     showNotification({
       title: "Purchase Order",
-      message: "Purchase Order saved (mock)",
+      message: "Purchase Order saved successfully",
       color: "green",
     });
   }
@@ -373,14 +370,9 @@ export function PurchaseOrderForm({
                                   colorId?: string;
                                 };
                                 const mappedRate = Number(
-                                  prod.newPrice ??
-                                    prod.oldPrice ??
-                                    prod.sellingPrice ??
-                                    0
+                                  (prod as any).salesRate ?? 0
                                 );
-                                const mappedRateSource = prod.newPrice
-                                  ? "new"
-                                  : "old";
+                                const mappedRateSource = "old";
                                 setItems((prev) =>
                                   prev.map((row) =>
                                     row.id === it.id
@@ -388,16 +380,11 @@ export function PurchaseOrderForm({
                                           ...row,
                                           productId: String(prod.id),
                                           productName: prod.name,
-                                          code: prod.code,
                                           unit: prod.unit || "pcs",
                                           rate: mappedRate,
                                           rateSource: mappedRateSource as
                                             | "old"
                                             | "new",
-                                          colorId:
-                                            prod.colorId ??
-                                            prod.color ??
-                                            undefined,
                                           color: prod.color ?? undefined,
                                           thickness:
                                             ext.thickness ??
@@ -413,7 +400,6 @@ export function PurchaseOrderForm({
                                               : undefined,
                                           length:
                                             ext.length ??
-                                            prod.length ??
                                             undefined,
                                           grossAmount:
                                             mappedRate * (row.quantity || 0),
@@ -450,20 +436,17 @@ export function PurchaseOrderForm({
                           <Select
                             placeholder="Color"
                             data={colors.map((c) => ({
-                              value: c.id,
+                              value: c.name,
                               label: c.name,
                             }))}
-                            value={it.colorId}
+                            value={it.color}
                             onChange={(v) =>
                               setItems((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? {
                                         ...row,
-                                        colorId: v ?? undefined,
-                                        color: colors.find(
-                                          (c) => c.id === (v ?? undefined)
-                                        )?.name,
+                                        color: v ?? undefined,
                                       }
                                     : row
                                 )
@@ -514,10 +497,7 @@ export function PurchaseOrderForm({
                                 (p) => String(p.id) === String(it.productId)
                               );
                               if (prod) {
-                                const chosen =
-                                  source === "old"
-                                    ? prod.oldPrice ?? prod.sellingPrice
-                                    : prod.newPrice ?? prod.sellingPrice;
+                                const chosen = (prod as any).salesRate ?? 0;
                                 setItems((prev) =>
                                   prev.map((row) =>
                                     row.id === it.id

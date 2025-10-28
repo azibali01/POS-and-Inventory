@@ -9,7 +9,6 @@ export type PurchaseLineItem = {
   // price source for the per-line price (old/new/manual)
   rateSource?: "old" | "new" | "manual";
   // per-line metadata requested by user
-  colorId?: string;
   color?: string;
   thickness?: string;
   length?: string | number;

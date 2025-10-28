@@ -225,7 +225,7 @@ export default function SalesDocShell({
                 readOnly
                 value={
                   selectedCustomer
-                    ? `${selectedCustomer.name}\n${selectedCustomer.address}\n${selectedCustomer.city}\nGST: ${selectedCustomer.gstNumber}`
+                    ? `${selectedCustomer.name}\n${selectedCustomer.address}\n${selectedCustomer.city}`
                     : ""
                 }
                 minRows={4}
@@ -317,7 +317,7 @@ export default function SalesDocShell({
             style={{ fontSize: 13, color: "var(--mantine-color-dimmed, #666)" }}
           >
             Date: {new Date(docDate).toLocaleDateString()} • Customer Balance:{" "}
-            {Number(selectedCustomer?.currentBalance ?? 0).toLocaleString()}
+            {selectedCustomer?.paymentType === "debit" ? "-" : ""}{Number(selectedCustomer?.openingAmount ?? 0).toLocaleString()}
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 12, color: "#888" }}>Subtotal</div>

@@ -21,18 +21,6 @@ import SalesDocShell, {
 } from "../../../components/sales/SalesDocShell";
 import { showNotification } from "@mantine/notifications";
 
-// Small fallback mock
-const fallbackQuotes: SaleRecord[] = [
-  {
-    id: "1",
-    date: new Date().toISOString(),
-    customer: "Walk-in",
-    items: [],
-    total: 1200,
-    status: "pending",
-  },
-];
-
 export default function QuotationsPage() {
   const {
     sales,
@@ -67,9 +55,7 @@ export default function QuotationsPage() {
 
   // form state for creating quotation
 
-  const quotes = (
-    sales && sales.length ? sales : fallbackQuotes
-  ) as Partial<SaleRecord>[];
+  const quotes = (sales || []) as Partial<SaleRecord>[];
 
   // optimistic create handler: accepts payload from SalesDocShell
   async function handleCreate(payload: {

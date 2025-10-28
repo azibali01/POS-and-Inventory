@@ -19,23 +19,9 @@ function formatDate(iso?: string) {
   return d.toLocaleString();
 }
 
-const mockSuppliers: Supplier[] = [
-  {
-    id: "s1",
-    supplierCode: "SUP-001",
-    name: "Aluminium Co",
-    city: "Lahore",
-    gstNumber: "GST-111",
-    phone: "0300123456",
-    createdAt: new Date().toISOString(),
-    openingBalance: 1000,
-    currentBalance: -2500,
-  },
-];
-
 export default function SuppliersPage() {
   const [q, setQ] = useState("");
-  const [data, setData] = useState<Supplier[]>(mockSuppliers);
+  const [data, setData] = useState<Supplier[]>([]);
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Supplier | undefined>(undefined);
 

@@ -11,7 +11,6 @@ import {
 import { PurchaseLineItemsTable } from "./line-items-table-purchase";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
-import { mockSuppliers } from "../../../lib/mock-data";
 import { useDataContext } from "../../Context/DataContext";
 
 export type GRNFormPayload = {
@@ -29,7 +28,7 @@ export function GRNForm({
 }: {
   onSubmit?: (p: GRNFormPayload) => void;
 }) {
-  const suppliers = mockSuppliers;
+  const suppliers: any[] = [];
   // read purchases from global data store when importing PO into GRN
   const [grnNumber, setGrnNumber] = useState("");
   const [grnDate, setGrnDate] = useState<string>(
@@ -51,7 +50,6 @@ export function GRNForm({
       quantity: 1,
       rate: 0,
       rateSource: "old",
-      colorId: undefined,
       color: undefined,
       thickness: undefined,
       length: undefined,
@@ -141,7 +139,6 @@ export function GRNForm({
       quantity: Number(it.quantity || 1),
       rate: Number(it.price || 0),
       rateSource: "old" as const,
-      colorId: undefined,
       color: undefined,
       thickness: undefined,
       length: undefined,

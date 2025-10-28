@@ -5,11 +5,12 @@ import {
   TextInput,
   Textarea,
   NumberInput,
-  Switch,
   Select,
 } from "@mantine/core";
+import { showNotification } from "@mantine/notifications";
 import { useDataContext } from "../../Dashboard/Context/DataContext";
 import type { Customer } from "../../Dashboard/Context/DataContext";
+import { createCustomer, updateCustomer } from "../../lib/api";
 
 export function CustomerForm({
   customer,
@@ -21,63 +22,95 @@ export function CustomerForm({
   const { setCustomers } = useDataContext();
 
   const [form, setForm] = useState<Customer>(() => ({
-    id: customer?.id || Date.now(),
-    customerCode: customer?.customerCode || `CUST-${Date.now()}`,
+    id: customer?.id || String(Date.now()),
     name: customer?.name || "",
     phone: customer?.phone || "",
-    email: customer?.email || "",
     address: customer?.address || "",
     city: customer?.city || "",
-    gstNumber: customer?.gstNumber || "",
-    openingBalance: customer?.openingBalance ?? 0,
-    creditLimit: customer?.creditLimit ?? 0,
-    currentBalance: customer?.currentBalance ?? customer?.openingBalance ?? 0,
-    isActive: customer?.isActive ?? true,
+    openingAmount: customer?.openingAmount || 0,
+    creditLimit: customer?.creditLimit || 0,
+    paymentType: customer?.paymentType || "credit",
     createdAt: customer?.createdAt || new Date().toISOString(),
   }));
 
   // Local UI state: keep opening amount positive and a type (credit/debit)
-  const initialOpening = customer?.openingBalance ?? 0;
+  const initialOpening = customer?.openingAmount ?? 0;
   const [openingAmount, setOpeningAmount] = useState<number>(
     Math.abs(initialOpening)
   );
-  const [balanceType, setBalanceType] = useState<"credit" | "debit">(
-    initialOpening < 0 ? "debit" : "credit"
+  const [paymentType, setPaymentType] = useState<"credit" | "debit">(
+    customer?.paymentType || "credit"
   );
+  const [loading, setLoading] = useState(false);
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    // compute signed balance according to type
-    const signed =
-      balanceType === "debit"
-        ? -Math.abs(openingAmount)
-        : Math.abs(openingAmount);
-    const toSave = {
-      ...form,
-      openingBalance: signed,
-      currentBalance: signed,
-    } as Customer;
-    if (customer) {
-      setCustomers((prev) =>
-        prev.map((c) => (c.id === toSave.id ? toSave : c))
-      );
-    } else {
-      setCustomers((prev) => [toSave, ...prev]);
+    setLoading(true);
+    
+    try {
+      const customerData = {
+        name: form.name,
+        phone: form.phone || "",
+        address: form.address || "",
+        city: form.city || "",
+        openingAmount: openingAmount,
+        paymentType: paymentType,
+        creditLimit: form.creditLimit || 0,
+        createdAt: form.createdAt,
+      };
+
+      if (customer) {
+        // Update existing customer
+        await updateCustomer(customer.id, customerData);
+        const updatedCustomer = {
+          ...form,
+          openingAmount: openingAmount,
+          paymentType: paymentType,
+        } as Customer;
+        setCustomers((prev) =>
+          prev.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c))
+        );
+        showNotification({
+          title: "Success",
+          message: "Customer updated successfully",
+          color: "green",
+        });
+      } else {
+        // Create new customer
+        const newCustomer = await createCustomer(customerData);
+        console.log("Created customer response:", newCustomer);
+        
+        // Ensure we have a valid MongoDB ID (string)
+        const customerId = newCustomer.id || newCustomer._id || String(Date.now());
+        const customerWithId = {
+          ...form,
+          id: String(customerId), // Ensure ID is always a string
+          openingAmount: openingAmount,
+          paymentType: paymentType,
+        } as Customer;
+        setCustomers((prev) => [customerWithId, ...prev]);
+        showNotification({
+          title: "Success", 
+          message: "Customer created successfully",
+          color: "green",
+        });
+      }
+      onClose();
+    } catch (error) {
+      console.error("Error saving customer:", error);
+      showNotification({
+        title: "Error",
+        message: "Failed to save customer",
+        color: "red",
+      });
+    } finally {
+      setLoading(false);
     }
-    onClose();
   }
 
   return (
     <form onSubmit={submit} style={{ display: "grid", gap: 12 }}>
       <Group grow>
-        <TextInput
-          label="Customer Code"
-          value={form.customerCode}
-          onChange={(e) =>
-            setForm({ ...form, customerCode: e.currentTarget.value })
-          }
-          placeholder="Auto/Manual"
-        />
         <TextInput
           label="Name"
           required
@@ -85,21 +118,11 @@ export function CustomerForm({
           onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
           placeholder="Customer name"
         />
-      </Group>
-
-      <Group grow>
         <TextInput
           label="Phone"
           value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.currentTarget.value })}
-          placeholder="+91 ..."
-        />
-        <TextInput
-          label="Email"
-          type="email"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.currentTarget.value })}
-          placeholder="email@company.com"
+          placeholder="+92 ..."
         />
       </Group>
 
@@ -110,21 +133,11 @@ export function CustomerForm({
         onChange={(e) => setForm({ ...form, address: e.currentTarget.value })}
       />
 
-      <Group grow>
-        <TextInput
-          label="City"
-          value={form.city}
-          onChange={(e) => setForm({ ...form, city: e.currentTarget.value })}
-        />
-        <TextInput
-          label="GST Number"
-          value={form.gstNumber}
-          onChange={(e) =>
-            setForm({ ...form, gstNumber: e.currentTarget.value })
-          }
-          placeholder="27ABCDE1234F1Z5"
-        />
-      </Group>
+      <TextInput
+        label="City"
+        value={form.city}
+        onChange={(e) => setForm({ ...form, city: e.currentTarget.value })}
+      />
 
       <Group grow>
         <NumberInput
@@ -141,13 +154,13 @@ export function CustomerForm({
         />
         <Select
           label="Type"
-          value={balanceType}
+          value={paymentType}
           data={[
             { value: "credit", label: "Credit" },
             { value: "debit", label: "Debit" },
           ]}
           onChange={(v) =>
-            setBalanceType((v as "credit" | "debit") || "credit")
+            setPaymentType((v as "credit" | "debit") || "credit")
           }
           style={{ width: 150 }}
         />
@@ -160,21 +173,13 @@ export function CustomerForm({
         />
       </Group>
 
-      <Group style={{ alignItems: "center" }}>
-        <Switch
-          checked={!!form.isActive}
-          onChange={(e) =>
-            setForm({ ...form, isActive: e.currentTarget.checked })
-          }
-        />
-        <div>Active</div>
-      </Group>
-
       <Group style={{ justifyContent: "flex-end" }}>
-        <Button variant="outline" onClick={onClose} type="button">
+        <Button variant="outline" onClick={onClose} type="button" disabled={loading}>
           Cancel
         </Button>
-        <Button type="submit">{customer ? "Update" : "Save"}</Button>
+        <Button type="submit" loading={loading}>
+          {customer ? "Update" : "Save"}
+        </Button>
       </Group>
     </form>
   );

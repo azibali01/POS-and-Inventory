@@ -25,7 +25,7 @@ import {
   IconEye,
   IconCheck,
   IconX,
-  IconAlertCircle,
+
 } from "@tabler/icons-react";
 import { useDataContext } from "../../Context/DataContext";
 import type { InventoryItem } from "../../Context/DataContext";
@@ -40,7 +40,7 @@ function formatNumber(n?: number | null) {
 
 function formatCurrency(n?: number | null) {
   if (typeof n !== "number" || !Number.isFinite(n)) return "-";
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+  return n.toLocaleString("en-PK", { style: "currency", currency: "PKR" });
 }
 
 export default function ProductMaster() {
@@ -112,7 +112,7 @@ export default function ProductMaster() {
 
   const getStockStatus = (item: InventoryItem) => {
     const stock = (item as any).openingStock ?? item.stock;
-    const min = (item as any).minimumStockLevel ?? item.minStock;
+    const min = (item as any).minimumStockLevel;
     if (stock < 0) return <Badge color="red">Negative</Badge>;
     if (stock <= (min ?? 0)) return <Badge color="yellow">Low Stock</Badge>;
     return <Badge color="green">In Stock</Badge>;
@@ -133,12 +133,7 @@ export default function ProductMaster() {
   async function performDelete(id: number) {
     setDeleteLoading(true);
     try {
-      // Prefer serverId (raw backend id) for DELETE. If not available, fall
-      // back to the client-side numeric id — servers that expect Mongo ids will
-      // likely fail for synthetic numeric ids.
-      const item = inventory.find((x) => x.id === id);
-      const targetId = (item && (item as any).serverId) ?? id;
-      await deleteInventoryItem(targetId as string | number);
+      await deleteInventoryItem(id);
       showNotification({
         title: "Deleted",
         message: `Product ${id} deleted`,
@@ -184,7 +179,7 @@ export default function ProductMaster() {
         </Group>
       </Box>
 
-      <Card shadow="sm">
+      <Card shadow="sm" p="sm">
         <Group justify="space-between" style={{ marginBottom: 12 }}>
           <div>
             <Title order={4}>All Products</Title>
@@ -208,36 +203,41 @@ export default function ProductMaster() {
               value={selectedCategory ?? undefined}
               onChange={(v) => setSelectedCategory(v ?? null)}
               clearable
-              style={{ width: 180 }}
+              style={{ width: 250 }}
             />
           </div>
         </Group>
 
         <ScrollArea>
-          <Table verticalSpacing="sm" withColumnBorders withRowBorders>
+          <Table 
+            withColumnBorders 
+            withRowBorders 
+            highlightOnHover
+          >
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Item Code</Table.Th>
-                <Table.Th>Item Name</Table.Th>
-                <Table.Th>Category</Table.Th>
-                <Table.Th>Color</Table.Th>
-                <Table.Th style={{ textAlign: "right" }}>
-                  Current Stock
+                <Table.Th style={{ width: "40px", padding: "8px" }}>Sr No.</Table.Th>
+                <Table.Th style={{ width: "250px", padding: "8px" }}>Item Name</Table.Th>
+                <Table.Th style={{ padding: "8px" }}>Category</Table.Th>
+                <Table.Th style={{ padding: "8px" }}>Color</Table.Th>
+                <Table.Th style={{ width: "100px", padding: "8px" }}>
+                  Opening Stock
                 </Table.Th>
-                <Table.Th style={{ textAlign: "right" }}>Sale Rate</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th style={{ textAlign: "right" }}>Actions</Table.Th>
+                <Table.Th style={{ padding: "8px" }}>Sale Rate</Table.Th>
+                <Table.Th style={{ width: "120px", padding: "8px" }}>Status</Table.Th>
+                <Table.Th style={{ width: "120px", padding: "8px" }}>Actions</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {filtered.map((p) => (
-                <Table.Tr key={p.id}>
-                  <Table.Td style={{ fontFamily: "monospace" }}>
-                    {p.code || p.sku || String(p.id) || "-"}
+              {filtered.map((p, index) => (
+                <Table.Tr key={(p as any).id}>
+                  <Table.Td style={{ padding: "8px" }}>
+                    {index + 1}
                   </Table.Td>
-                  <Table.Td>{p.name || "-"}</Table.Td>
-                  <Table.Td>
+                  <Table.Td style={{ padding: "8px" }}>{(p as any).name || "-"}</Table.Td>
+                  <Table.Td style={{ padding: "8px" }}>
                     <Badge
+                      size="sm"
                       style={{ cursor: "pointer" }}
                       onClick={() => setSelectedCategory(p.category || null)}
                     >
@@ -245,41 +245,40 @@ export default function ProductMaster() {
                     </Badge>
                   </Table.Td>
 
-                  <Table.Td>{p.color ?? "-"}</Table.Td>
-                  <Table.Td style={{ textAlign: "right", fontWeight: 600 }}>
-                    {formatNumber((p as any).openingStock ?? p.stock)} {p.unit}
+                  <Table.Td style={{ padding: "8px" }}>{p.color ?? "-"}</Table.Td>
+                  <Table.Td style={{ padding: "8px" }}>
+                    {formatNumber((p as any).openingStock ?? p.stock)} 
                   </Table.Td>
-                  <Table.Td style={{ textAlign: "right" }}>
-                    {formatCurrency((p as any).salesRate ?? p.sellingPrice)}
+                  <Table.Td style={{ padding: "8px" }}>
+                    {formatCurrency((p as any).salesRate ?? null)}
                   </Table.Td>
-                  <Table.Td>{getStockStatus(p)}</Table.Td>
-                  <Table.Td style={{ textAlign: "right" }}>
-                    <Group justify="flex-end">
+                  <Table.Td style={{ padding: "8px" }}>{getStockStatus(p)}</Table.Td>
+                  <Table.Td style={{ padding: "8px" }}>
+                    <Group gap={0} grow>
                       <Button
                         variant="subtle"
+                         leftSection={<IconEye size={16} />}
                         onClick={() => {
                           setSelectedProduct(p);
                           setIsViewOpen(true);
                         }}
-                      >
-                        <IconEye />
-                      </Button>
+                      />
+                     
                       <Button
                         variant="subtle"
+                        leftSection={<IconEdit size={16} />}
                         onClick={() => {
                           setSelectedProduct(p);
                           setIsEditOpen(true);
                         }}
-                      >
-                        <IconEdit />
-                      </Button>
+                      />
                       <Button
                         variant="subtle"
+                        leftSection={<IconTrash size={18} />}
                         color="red"
-                        onClick={() => handleDeleteRequest(p.id)}
-                      >
-                        <IconTrash />
-                      </Button>
+                        onClick={() => handleDeleteRequest((p as any).id)}
+                        
+                      />
                     </Group>
                   </Table.Td>
                 </Table.Tr>
@@ -310,15 +309,7 @@ export default function ProductMaster() {
       >
         {selectedProduct && (
           <ProductForm
-            product={{
-              ...selectedProduct,
-              id: String(selectedProduct.id),
-              itemName: selectedProduct.name ?? "",
-              salesRate: (selectedProduct as InventoryItem).salesRate ?? selectedProduct.sellingPrice ?? 0,
-              openingStock: (selectedProduct as InventoryItem).openingStock ?? selectedProduct.stock ?? 0,
-              minimumStockLevel: (selectedProduct as InventoryItem).minimumStockLevel ?? selectedProduct.minStock ?? 0,
-              thickness: (selectedProduct as any).thickness ?? 0,
-            }}
+            product={selectedProduct}
             onClose={() => setIsEditOpen(false)}
           />
         )}
@@ -371,7 +362,7 @@ export default function ProductMaster() {
                         (p) => p.id === r.matchedProductId
                       );
                       const oldPrice = matched
-                        ? matched.newPrice ?? matched.sellingPrice ?? 0
+                        ? (matched as any).salesRate ?? 0
                         : 0;
                       const newPrice =
                         typeof r.newPrice === "number" ? r.newPrice : null;
@@ -706,7 +697,7 @@ export default function ProductMaster() {
                   const prod = inventory.find((p) => p.id === id);
                   snap.set(
                     id,
-                    prod ? prod.newPrice ?? prod.sellingPrice ?? 0 : 0
+                    prod ? (prod as any).salesRate ?? 0 : 0
                   );
                 }
                 setUndoSnapshot(snap);

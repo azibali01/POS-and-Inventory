@@ -160,7 +160,7 @@ export default function SalesDocShell({
       const prod = products.find((p) => String(p.id) === String(it.productId));
       if (!prod) missing.push(it);
       else {
-        const current = prod.newPrice ?? prod.sellingPrice ?? 0;
+        const current = prod.salesRate ?? 0;
         if (Number.isFinite(current) && current !== it.rate) {
           priceDiffs.push({ item: it, currentPrice: current });
         }
@@ -370,15 +370,15 @@ export default function SalesDocShell({
                   </div>
                   <div style={{ marginTop: 8, display: "flex", gap: 16 }}>
                     <div>
-                      <div style={{ fontSize: 12, color: "#888" }}>Opening</div>
-                      <div style={{ fontWeight: 700 }}>
-                        {formatCurrency(selectedCustomer.openingBalance ?? 0)}
+                      <div style={{ fontSize: 12, color: "#888" }}>Opening Amount</div>
+                      <div style={{ fontWeight: 600 }}>
+                        {formatCurrency(selectedCustomer.openingAmount ?? 0)}
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 12, color: "#888" }}>Current</div>
+                      <div style={{ fontSize: 12, color: "#888" }}>Payment Type</div>
                       <div style={{ fontWeight: 700 }}>
-                        {formatCurrency(selectedCustomer.currentBalance ?? 0)}
+                        {selectedCustomer.paymentType === "debit" ? "Debit" : "Credit"}
                       </div>
                     </div>
                     <div>
@@ -389,19 +389,13 @@ export default function SalesDocShell({
                         style={{
                           fontWeight: 700,
                           color:
-                            (selectedCustomer.currentBalance ?? 0) < 0
+                            selectedCustomer.paymentType === "debit"
                               ? "red"
                               : "green",
                         }}
                       >
-                        {Math.abs(selectedCustomer.currentBalance ?? 0) > 0
-                          ? `${
-                              (selectedCustomer.currentBalance ?? 0) < 0
-                                ? "Debit"
-                                : "Credit"
-                            } ${formatCurrency(
-                              Math.abs(selectedCustomer.currentBalance ?? 0)
-                            )}`
+                        {(selectedCustomer.openingAmount ?? 0) > 0
+                          ? `${selectedCustomer.paymentType === "debit" ? "Debit" : "Credit"} ${formatCurrency(selectedCustomer.openingAmount ?? 0)}`
                           : "Nil"}
                       </div>
                     </div>
@@ -497,7 +491,7 @@ export default function SalesDocShell({
             style={{ fontSize: 13, color: "var(--mantine-color-dimmed, #666)" }}
           >
             Date: {new Date(docDate).toLocaleDateString()} • Customer Balance:{" "}
-            {Number(selectedCustomer?.currentBalance ?? 0).toLocaleString()}
+            {selectedCustomer?.paymentType === "debit" ? "-" : ""}{Number(selectedCustomer?.openingAmount ?? 0).toLocaleString()}
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 12, color: "#888" }}>Subtotal</div>
