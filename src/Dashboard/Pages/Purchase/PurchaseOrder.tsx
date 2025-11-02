@@ -164,10 +164,7 @@ export default function PurchaseOrdersPage() {
 
   async function handleCreate(payload: POFormPayload) {
     const products = (payload.products || []) as PurchaseLineItem[];
-    const subTotal =
-      payload.subTotal ??
-      products.reduce((s, it) => s + (it.quantity || 0) * (it.rate || 0), 0);
-    // You may want to call createPurchase({ ...payload, total: payload.total ?? subTotal }) here, if needed.
+    // You may want to call createPurchase({ ...payload, total: payload.total ?? (payload.subTotal ?? products.reduce((s, it) => s + (it.quantity || 0) * (it.rate || 0), 0)) }) here, if needed.
   }
 
   // (Removed duplicate JSX block before return statement)
