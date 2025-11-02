@@ -541,18 +541,23 @@ function ReturnForm({
       return initialValues.items.map(
         (it: {
           sku?: string;
+          productId?: string;
           productName?: string;
           quantity?: number;
           price?: number;
           rate?: number;
+          unit?: string | number;
           color?: string;
           thickness?: string | number;
           length?: string | number;
         }) => ({
           id: `${Math.random()}`,
+          productId: it.productId ?? "",
           productName: it.sku || it.productName || "",
           quantity: it.quantity || 0,
           rate: it.price ?? it.rate ?? 0,
+          unit:
+            typeof it.unit === "string" ? it.unit : String(it.unit ?? "pcs"),
           color: it.color,
           thickness:
             typeof it.thickness === "number"
@@ -570,23 +575,25 @@ function ReturnForm({
     // fallback to PO
     const po = purchases[0];
     if (!po) return [];
-    const poLineItems: PurchaseLineItem[] = (po.products || []).filter(
-      (it: PurchaseLineItem) => !!it.productName
-    );
-    return poLineItems.map((it: PurchaseLineItem) => ({
-      id: `${Math.random()}`,
-      productName: it.productName,
-      quantity: 0,
-      rate: it.rate ?? 0,
-      color: it.color,
-      thickness: it.thickness,
-      length: it.length,
-      grossAmount: 0,
-      percent: 0,
-      discountAmount: 0,
-      netAmount: 0,
-      amount: 0,
-    }));
+    const poLineItems: PurchaseLineItem[] = (po.products || [])
+      .filter((it) => !!it.productName)
+      .map((it: any) => ({
+        id: `${Math.random()}`,
+        productId: it.productId ?? "",
+        productName: it.productName,
+        quantity: 0,
+        rate: it.rate ?? 0,
+        unit: typeof it.unit === "string" ? it.unit : String(it.unit ?? "pcs"),
+        color: it.color,
+        thickness: it.thickness,
+        length: it.length,
+        grossAmount: 0,
+        percent: 0,
+        discountAmount: 0,
+        netAmount: 0,
+        amount: 0,
+      }));
+    return poLineItems;
   });
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -607,27 +614,25 @@ function ReturnForm({
     } else if (typeof po.supplier === "string") {
       setSupplierId(po.supplier);
     }
-    const poLineItems: PurchaseLineItem[] = (po.products || []).filter(
-      (it: PurchaseLineItem) => !!it.productName
-    );
-    setItems(
-      poLineItems.map((it: PurchaseLineItem) => {
-        return {
-          id: `${Math.random()}`,
-          productName: it.productName,
-          quantity: 0,
-          rate: it.rate ?? 0,
-          color: it.color,
-          thickness: it.thickness,
-          length: it.length,
-          grossAmount: 0,
-          percent: 0,
-          discountAmount: 0,
-          netAmount: 0,
-          amount: 0,
-        };
-      })
-    );
+    const poLineItems: PurchaseLineItem[] = (po.products || [])
+      .filter((it) => !!it.productName)
+      .map((it: any) => ({
+        id: `${Math.random()}`,
+        productId: it.productId ?? "",
+        productName: it.productName,
+        quantity: 0,
+        rate: it.rate ?? 0,
+        unit: it.unit ?? "",
+        color: it.color,
+        thickness: it.thickness,
+        length: it.length,
+        grossAmount: 0,
+        percent: 0,
+        discountAmount: 0,
+        netAmount: 0,
+        amount: 0,
+      }));
+    setItems(poLineItems);
   }, [linkedPoId, purchases]);
 
   const totals = useMemo(() => {

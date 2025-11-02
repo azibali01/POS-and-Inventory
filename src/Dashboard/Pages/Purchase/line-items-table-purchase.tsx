@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo } from "react";
 import { Button, NumberInput, TextInput, Select } from "@mantine/core";
 import SafeSelect from "../../../lib/SafeSelect";
@@ -17,7 +18,7 @@ export function PurchaseLineItemsTable({
   const { inventory, colors } = useDataContext();
 
   const products = inventory.map((p) => ({
-    id: String(p.id),
+    id: String((p as any)._id ?? (p as any).id ?? ""),
     name: (p as any).itemName ?? (p as any).name ?? "",
     unit: p.unit,
     salesRate: p.salesRate || 0,
@@ -84,7 +85,7 @@ export function PurchaseLineItemsTable({
           0,
           next.grossAmount - (next.discountAmount || 0)
         );
-        next.amount = Number((next.netAmount || 0) || 0);
+        next.amount = Number(next.netAmount || 0 || 0);
         return next;
       })
     );
@@ -119,7 +120,7 @@ export function PurchaseLineItemsTable({
               <Table.Th style={{ textAlign: "left", padding: 8, width: 100 }}>
                 Length
               </Table.Th>
-              
+
               <Table.Th style={{ textAlign: "right", padding: 8, width: 80 }}>
                 Qty
               </Table.Th>
@@ -164,7 +165,9 @@ export function PurchaseLineItemsTable({
                         (x) => String(x.id) === String(productId)
                       );
                       const prod = inventory.find(
-                        (inv) => String(inv.id) === String(productId)
+                        (inv) =>
+                          String((inv as any)._id ?? (inv as any).id ?? "") ===
+                          String(productId)
                       );
                       if (prod) {
                         // Use salesRate from the current inventory interface
@@ -180,13 +183,15 @@ export function PurchaseLineItemsTable({
                         };
 
                         updateRow(row.id, {
-                          productId: String(prod.id),
+                          productId: String(
+                            (prod as any)._id ?? (prod as any).id ?? ""
+                          ),
                           productName:
                             (prod as any).itemName ?? (prod as any).name ?? "",
                           code: undefined,
                           unit: prod.unit || "pcs",
                           rate: mappedRate,
-                          
+
                           color: prod.color ?? undefined,
                           thickness:
                             ext.thickness ?? ext.weight ?? ext.msl ?? ext.length
@@ -241,7 +246,7 @@ export function PurchaseLineItemsTable({
                     placeholder="Length"
                   />
                 </Table.Td>
-                
+
                 <Table.Td style={{ padding: 8, textAlign: "right" }}>
                   <NumberInput
                     value={row.quantity}

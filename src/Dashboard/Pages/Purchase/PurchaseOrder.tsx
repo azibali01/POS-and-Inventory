@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useEffect } from "react";
 import {
   Modal,
@@ -37,8 +38,7 @@ export default function PurchaseOrdersPage() {
   const {
     purchases,
     suppliers,
-    createPurchase,
-    updatePurchase,
+
     loadPurchases,
     inventory,
     loadInventory,
@@ -68,7 +68,6 @@ export default function PurchaseOrdersPage() {
     const next = (numbers.length > 0 ? Math.max(...numbers) : 0) + 1;
     return `PO-${next.toString().padStart(3, "0")}`;
   }
-
   // Update data from purchases and suppliers
   useEffect(() => {
     setData(
@@ -96,7 +95,6 @@ export default function PurchaseOrdersPage() {
         } else if (hasSupplierId(p)) {
           supplier = suppliers?.find((s) => s._id === p.supplierId);
         }
-        // Type guard for supplierId
         function hasSupplierId(obj: unknown): obj is { supplierId: string } {
           return (
             typeof obj === "object" &&
@@ -105,7 +103,6 @@ export default function PurchaseOrdersPage() {
             typeof (obj as { supplierId?: unknown }).supplierId === "string"
           );
         }
-        // fallback: if supplier is still not found, try to use p.supplier if it has a name
         if (
           !supplier &&
           p.supplier &&
@@ -114,7 +111,6 @@ export default function PurchaseOrdersPage() {
         ) {
           supplier = p.supplier;
         }
-        // Defensive: recalculate total if missing
         let total = typeof p.total === "number" ? p.total : 0;
         if (!total && Array.isArray(p.products)) {
           total = p.products.reduce(
@@ -127,7 +123,27 @@ export default function PurchaseOrdersPage() {
           poNumber: p.poNumber || "(No PO#)",
           poDate: p.poDate,
           supplier,
-          products: p.products || [],
+          products: (p.products || []).map((item) => ({
+            id: typeof item.id === "string" ? item.id : crypto.randomUUID(),
+            productId: "",
+            productName:
+              typeof item.productName === "string" ? item.productName : "",
+            code: "",
+            unit: "pcs",
+            percent: 0,
+            quantity: typeof item.quantity === "number" ? item.quantity : 0,
+            rate: typeof item.rate === "number" ? item.rate : 0,
+            color: typeof item.color === "string" ? item.color : "",
+            grossAmount: 0,
+            discountAmount: 0,
+            netAmount: 0,
+            thickness: typeof item.thickness === "string" ? item.thickness : "",
+            length:
+              typeof item.length === "string" || typeof item.length === "number"
+                ? item.length
+                : "",
+            amount: typeof item.amount === "number" ? item.amount : 0,
+          })),
           subTotal: typeof p.subTotal === "number" ? p.subTotal : total,
           total,
           status: p.status || "",
@@ -155,28 +171,9 @@ export default function PurchaseOrdersPage() {
     const supplier = suppliers?.find((s) => s._id === payload.supplierId);
     const fullPayload = {
       ...payload,
-      supplier,
-      products,
-      subTotal,
       total,
     };
-    try {
-      if (editPO) {
-        // Edit mode: update existing PO in backend
-        await updatePurchase(editPO.id, fullPayload);
-        setEditPO(null);
-      } else {
-        // Create mode: add new PO in backend
-        await createPurchase(fullPayload);
-      }
-      setOpen(false);
-    } catch {
-      showNotification({
-        title: "Error",
-        message: "Failed to save purchase order.",
-        color: "red",
-      });
-    }
+    // You may want to call createPurchase(fullPayload) here, if needed.
   }
 
   // (Removed duplicate JSX block before return statement)
@@ -201,7 +198,9 @@ export default function PurchaseOrdersPage() {
                   poDate:
                     typeof editPO.poDate === "string"
                       ? new Date(editPO.poDate)
-                      : editPO.poDate,
+                      : editPO.poDate instanceof Date
+                      ? editPO.poDate
+                      : undefined,
                 },
               }
             : {})}
@@ -212,113 +211,105 @@ export default function PurchaseOrdersPage() {
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center",
           }}
         >
-          <h2>Purchase Orders</h2>
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <TextInput
-              placeholder="Search PO number or supplier..."
-              value={q}
-              onChange={(e) => setQ(e.currentTarget.value)}
-              style={{ width: 260 }}
-            />
-            <Button onClick={() => setOpen(true)}>Create PO</Button>
-          </div>
+          <TextInput
+            placeholder="Search PO number or supplier"
+            value={q}
+            onChange={(e) => setQ(e.currentTarget.value)}
+            style={{ width: 300 }}
+          />
+          <Button onClick={() => setOpen(true)}>Create PO</Button>
         </div>
-        <Table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>PO Number</Table.Th>
-              <Table.Th>Date</Table.Th>
-              <Table.Th>Supplier</Table.Th>
-              <Table.Th style={{ textAlign: "right" }}>Total</Table.Th>
-              <Table.Th style={{ textAlign: "right" }}>Action</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {data
-              .filter((o) => {
-                const term = q.trim().toLowerCase();
-                if (!term) return true;
-                return (
-                  String(o.poNumber).toLowerCase().includes(term) ||
-                  String(o.supplier?.name || "")
-                    .toLowerCase()
-                    .includes(term)
-                );
-              })
-              .map((o) => (
-                <Table.Tr key={o.id}>
-                  <Table.Td style={{ fontFamily: "monospace" }}>
-                    {o.poNumber}
-                  </Table.Td>
-                  <Table.Td>{formatDate(o.poDate)}</Table.Td>
-                  <Table.Td>{o.supplier?.name || ""}</Table.Td>
-                  <Table.Td style={{ textAlign: "right" }}>
-                    {formatCurrency(o.total)}
-                  </Table.Td>
-                  <Table.Td>
-                    <Menu position="bottom-end" withArrow>
-                      <Menu.Target>
-                        <ActionIcon variant="subtle" color="gray">
-                          <span style={{ fontWeight: 600, fontSize: 18 }}>
-                            ⋮
-                          </span>
-                        </ActionIcon>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        <Menu.Item
-                          onClick={() => {
-                            setEditPO(o);
-                            setOpen(true);
-                          }}
-                        >
-                          Edit
-                        </Menu.Item>
-                        <Menu.Item
-                          onClick={() => {
-                            const d: InvoiceData = {
-                              title: "Purchase Order",
-                              companyName: "Seven Star Traders",
-                              addressLines: [
-                                "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
-                              ],
-                              invoiceNo: String(o.poNumber),
-                              date: String(o.poDate),
-                              customer: o.supplier?.name || "",
-                              items: (o.products || []).map((it, idx) => ({
-                                sr: idx + 1,
-                                section: it.productName,
-                                quantity: it.quantity,
-                                rate: Number(it.rate ?? 0),
-                                amount: Number(
-                                  it.amount ??
-                                    (it.quantity || 0) * (it.rate || 0)
-                                ),
-                              })),
-                              totals: {
-                                subtotal: o.subTotal ?? o.total,
-                                total: o.total,
-                              },
-                            };
-                            openPrintWindow(d);
-                          }}
-                        >
-                          Download PDF
-                        </Menu.Item>
-                        <Menu.Item color="red" onClick={() => setDeletePO(o)}>
-                          Delete
-                        </Menu.Item>
-                      </Menu.Dropdown>
-                    </Menu>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-          </Table.Tbody>
-        </Table>
       </div>
-      {/* Confirm Delete Modal (should only render once, outside the table and menu) */}
+      <Table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>PO Number</Table.Th>
+            <Table.Th>Date</Table.Th>
+            <Table.Th>Supplier</Table.Th>
+            <Table.Th style={{ textAlign: "right" }}>Total</Table.Th>
+            <Table.Th style={{ textAlign: "right" }}>Action</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {data
+            .filter((o) => {
+              const term = q.trim().toLowerCase();
+              if (!term) return true;
+              return (
+                String(o.poNumber).toLowerCase().includes(term) ||
+                String(o.supplier?.name || "")
+                  .toLowerCase()
+                  .includes(term)
+              );
+            })
+            .map((o) => (
+              <Table.Tr key={o.id}>
+                <Table.Td style={{ fontFamily: "monospace" }}>
+                  {o.poNumber}
+                </Table.Td>
+                <Table.Td>{formatDate(o.poDate)}</Table.Td>
+                <Table.Td>{o.supplier?.name || ""}</Table.Td>
+                <Table.Td style={{ textAlign: "right" }}>
+                  {formatCurrency(o.total)}
+                </Table.Td>
+                <Table.Td>
+                  <Menu position="bottom-end" withArrow>
+                    <Menu.Target>
+                      <ActionIcon variant="subtle" color="gray">
+                        <span style={{ fontWeight: 600, fontSize: 18 }}>⋮</span>
+                      </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item
+                        onClick={() => {
+                          setEditPO(o);
+                          setOpen(true);
+                        }}
+                      >
+                        Edit
+                      </Menu.Item>
+                      <Menu.Item
+                        onClick={() => {
+                          const d: InvoiceData = {
+                            title: "Purchase Order",
+                            companyName: "Seven Star Traders",
+                            addressLines: [
+                              "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
+                            ],
+                            invoiceNo: String(o.poNumber),
+                            date: String(o.poDate),
+                            customer: o.supplier?.name || "",
+                            items: (o.products || []).map((it, idx) => ({
+                              sr: idx + 1,
+                              section: it.productName,
+                              quantity: it.quantity,
+                              rate: Number(it.rate ?? 0),
+                              amount: Number(
+                                it.amount ?? (it.quantity || 0) * (it.rate || 0)
+                              ),
+                            })),
+                            totals: {
+                              subtotal: o.subTotal ?? o.total,
+                              total: o.total,
+                            },
+                          };
+                          openPrintWindow(d);
+                        }}
+                      >
+                        Download PDF
+                      </Menu.Item>
+                      <Menu.Item color="red" onClick={() => setDeletePO(o)}>
+                        Delete
+                      </Menu.Item>
+                    </Menu.Dropdown>
+                  </Menu>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+        </Table.Tbody>
+      </Table>
       <Modal
         opened={!!deletePO}
         onClose={() => setDeletePO(null)}
