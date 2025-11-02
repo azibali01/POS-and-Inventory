@@ -61,8 +61,8 @@ export function ReceiptForm({
       setVoucherDate(
         initialValues?.voucherDate
           ? typeof initialValues.voucherDate === "string"
-            ? initialValues.voucherDate.slice(0, 10)
-            : initialValues.voucherDate.toISOString().slice(0, 10)
+            ? (initialValues.voucherDate as string).slice(0, 10)
+            : (initialValues.voucherDate as Date).toISOString().slice(0, 10)
           : new Date().toISOString().slice(0, 10)
       );
       setReceivedFrom(initialValues?.receivedFrom ?? "");

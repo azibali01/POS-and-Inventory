@@ -54,7 +54,7 @@ export function CustomerForm({
         address: form.address || "",
         city: form.city || "",
         openingAmount: openingAmount,
-        paymentType: paymentType.toLowerCase() as "credit" | "debit",
+        paymentType: paymentType, // Use 'Credit' | 'Debit' (capitalized)
         creditLimit: form.creditLimit || 0,
         createdAt: form.createdAt,
       };
