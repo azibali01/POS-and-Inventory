@@ -301,8 +301,16 @@ export default function SalesDocShell({
   const [submitLocked, setSubmitLocked] = useState(false);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    console.log("=== SalesDocShell handleSubmit called ===");
     e.preventDefault();
-    if (submitting || submitLocked || saveDisabled) return;
+    if (submitting || submitLocked || saveDisabled) {
+      console.log("Submit blocked:", {
+        submitting,
+        submitLocked,
+        saveDisabled,
+      });
+      return;
+    }
     setSubmitting(true);
     setSubmitLocked(true);
     const payload: SalesPayload = {
@@ -340,6 +348,7 @@ export default function SalesDocShell({
     };
     console.log("[SalesDocShell] selectedCustomer:", selectedCustomer);
     console.log("[SalesDocShell] payload:", payload);
+    console.log("[SalesDocShell] Calling onSubmit with payload");
     const maybePromise = onSubmit?.(payload);
     Promise.resolve(maybePromise).finally(() => {
       setSubmitting(false);
@@ -655,7 +664,16 @@ export default function SalesDocShell({
         >
           Print
         </Button>
-        <Button type="submit" disabled={saveDisabled || submitting}>
+        <Button
+          type="submit"
+          disabled={saveDisabled || submitting}
+          onClick={() =>
+            console.log("=== Save button clicked ===", {
+              saveDisabled,
+              submitting,
+            })
+          }
+        >
           Save {mode}
         </Button>
       </div>

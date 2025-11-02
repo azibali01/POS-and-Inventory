@@ -300,11 +300,24 @@ function Quotation() {
 
   // Save from SalesDocShell: create or update depending on editingId
   async function saveFromShell(payload: SalesPayload) {
+    console.log("=== saveFromShell called ===");
+    console.log("Payload:", payload);
+    console.log("Creating state:", creating);
     if (creating) return; // Prevent concurrent submissions
     // build customer object and validate
-    const cust = customers.find(
-      (c) => String(c._id) === String(payload.customer)
-    );
+    console.log("Payload customer:", payload.customer);
+    console.log("Available customers:", customers);
+
+    let cust;
+    if (typeof payload.customer === "object" && payload.customer !== null) {
+      // payload.customer is already a customer object
+      cust = payload.customer;
+      console.log("Using customer object directly:", cust);
+    } else {
+      // payload.customer is an ID, find the full customer object
+      cust = customers.find((c) => String(c._id) === String(payload.customer));
+      console.log("Found customer by ID:", cust);
+    }
     if (!cust) {
       showNotification({
         title: "Customer not found",
@@ -967,9 +980,8 @@ function Quotation() {
             submitting={creating}
             setSubmitting={setCreating}
             onSubmit={(payload: SalesPayload) => {
-              setOpen(false);
-              setInitialPayload(null);
-              setEditingId(null);
+              console.log("=== Quotation onSubmit called ===");
+              // Don't close modal immediately - let saveFromShell handle it
               saveFromShell(payload);
             }}
             saveDisabled={creating}

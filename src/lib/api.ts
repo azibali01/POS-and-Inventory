@@ -1,4 +1,6 @@
 import axios from "axios";
+
+
 // --- Journal Voucher endpoints ---
 export interface JournalVoucherPayload {
   voucherNumber: number | string;
@@ -281,32 +283,14 @@ export async function deletePurchaseInvoice(id: string | number) {
 // Base axios instance - configure via Vite env VITE_API_BASE_URL or default to /api
 export const api = axios.create({
   baseURL: "https://aluminium-backend.onrender.com/",
+  // baseURL: "http://localhost:3000",
+
 });
 
 // Dev-only request logger to help diagnose duplicate-request storms.
 // This logs method+url and a stack trace so we can see which component/effect
 // initiated the request. Disabled in production to avoid leaking internals.
-if (import.meta.env.MODE !== "production") {
-  try {
-    api.interceptors.request.use((config) => {
-      try {
-        // lightweight trace capture
-        const trace = new Error().stack || "";
 
-        console.debug(
-          `[api] ${config.method?.toUpperCase() || "GET"} ${config.url
-          } — trace:`,
-          trace.split("\n").slice(2, 8)
-        );
-      } catch (e) {
-        console.debug("[api] request logger error suppressed:", e);
-      }
-      return config;
-    });
-  } catch {
-    /* ignore */
-  }
-}
 
 
 
@@ -609,17 +593,30 @@ export async function createInventory(item: InventoryItemPayload) {
 }
 
 export async function createSale(payload: SaleRecordPayload) {
-  const { data } = await api.post("/sale-invoice", payload);
-  console.debug("createSale response data:", data);
-  return data;
+  console.log("createSale called with payload:", payload);
+  try {
+    const { data } = await api.post("/sale-invoice", payload);
+    console.log("createSale response data:", data);
+    return data;
+  } catch (error) {
+    console.error("createSale error:", error);
+    throw error;
+  }
 }
 
 // Create a quotation as a separate resource. Backends that support
 // quotations should expose a `/quotations` POST endpoint. We keep the
 // same payload shape as `createSale` for compatibility.
 export async function createQuotation(payload: QuotationRecordPayload) {
-  const { data } = await api.post("/quotations", payload);
-  return data;
+  console.log("createQuotation called with payload:", payload);
+  try {
+    const { data } = await api.post("/quotations", payload);
+    console.log("createQuotation response data:", data);
+    return data;
+  } catch (error) {
+    console.error("createQuotation error:", error);
+    throw error;
+  }
 }
 
 // Sale Return endpoints - uses dedicated /sale-return with invoiceNumber-based operations
