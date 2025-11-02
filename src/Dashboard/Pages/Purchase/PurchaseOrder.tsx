@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useEffect } from "react";
 import {
   Modal,
@@ -17,7 +16,6 @@ import { formatCurrency, formatDate } from "../../../lib/format-utils";
 import { deletePurchaseByNumber } from "../../../lib/api";
 import type { PurchaseLineItem } from "./types";
 import { PurchaseOrderForm as GeneratedPOForm } from "./PurchaseOrderForm.generated";
-import type { POFormPayload } from "./PurchaseOrderForm.generated";
 import { useDataContext } from "../../Context/DataContext";
 
 type PO = {
