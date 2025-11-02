@@ -308,7 +308,7 @@ function Quotation() {
   async function saveFromShell(payload: SalesPayload) {
     if (creating) return; // Prevent concurrent submissions
     // build customer object and validate
-    let cust = customers.find(
+    const cust = customers.find(
       (c) => String(c._id) === String(payload.customer)
     );
     if (!cust) {
@@ -322,8 +322,8 @@ function Quotation() {
     }
 
     const gross =
-      payload.products?.reduce(
-        (s, it: InventoryItemPayload) =>
+      (payload.products as InventoryItemPayload[] | undefined)?.reduce(
+        (s, it) =>
           s +
           (Number((it as InventoryItemPayload & { rate?: number }).rate) || 0) *
             (Number(
@@ -997,36 +997,50 @@ function Quotation() {
           <SalesDocShell
             mode="Quotation"
             customers={customers}
-            products={(inventory || []).map((p: InventoryItemPayload) => {
-              let unitVal = p.unit;
+            products={(inventory || []).map((p) => {
+              const item = p as InventoryItemPayload;
+              let unitVal = item.unit;
               if (typeof unitVal === "number") unitVal = String(unitVal);
               if (typeof unitVal !== "string") unitVal = undefined;
               return {
-                ...p,
-                _id: String(p._id ?? ""),
-                itemName: p.itemName || "",
+                ...item,
+                _id: String(item._id ?? ""),
+                itemName: item.itemName || "",
                 unit: unitVal,
+                discount: 0, // Always add discount for InventoryItemPayload
+                discountAmount:
+                  typeof item.discountAmount === "number"
+                    ? item.discountAmount
+                    : 0,
+                salesRate:
+                  typeof item.salesRate === "number" ? item.salesRate : 0,
+                openingStock:
+                  typeof item.openingStock === "number" ? item.openingStock : 0,
+                quantity: typeof item.quantity === "number" ? item.quantity : 0,
+                thickness:
+                  typeof item.thickness === "number" ? item.thickness : 0,
+                amount: typeof item.amount === "number" ? item.amount : 0,
+                length: typeof item.length === "number" ? item.length : 0,
+                totalGrossAmount:
+                  typeof item.totalGrossAmount === "number"
+                    ? item.totalGrossAmount
+                    : 0,
+                totalNetAmount:
+                  typeof item.totalNetAmount === "number"
+                    ? item.totalNetAmount
+                    : 0,
+                metadata: item.metadata ?? {},
               };
             })}
-            key={
-              editingId
-                ? `edit-${String(editingId)}`
-                : `new-${String(initialPayload?.docNo ?? "")}`
-            }
             initial={initialPayload ?? {}}
             submitting={creating}
             setSubmitting={setCreating}
-            onSubmit={(() => {
-              let called = false;
-              return (payload: SalesPayload) => {
-                if (called) return;
-                called = true;
-                setOpen(false); // Close modal immediately
-                setInitialPayload(null);
-                setEditingId(null);
-                saveFromShell(payload);
-              };
-            })()}
+            onSubmit={(payload: SalesPayload) => {
+              setOpen(false);
+              setInitialPayload(null);
+              setEditingId(null);
+              saveFromShell(payload);
+            }}
             saveDisabled={creating}
           />
         </Box>

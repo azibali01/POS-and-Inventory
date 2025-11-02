@@ -99,7 +99,7 @@ export default function CashBookPage() {
         .filter((s) => s.paymentMethod?.toLowerCase() === "cash")
         .map((s) => ({
           date: s.invoiceDate ?? "",
-          particulars: (s.customer && s.customer[0]?.name) || "Sale Invoice",
+          particulars: (s.customer && s.customer.name) || "Sale Invoice",
           receipt: s.totalNetAmount || s.totalGrossAmount || s.subTotal || 0,
           payment: 0,
           type: "Receipt",

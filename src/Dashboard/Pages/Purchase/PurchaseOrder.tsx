@@ -194,7 +194,17 @@ export default function PurchaseOrdersPage() {
         <GeneratedPOForm
           onSubmit={handleCreate}
           defaultPONumber={editPO ? editPO.poNumber : getNextPONumber()}
-          {...(editPO ? { initialValues: editPO } : {})}
+          {...(editPO
+            ? {
+                initialValues: {
+                  ...editPO,
+                  poDate:
+                    typeof editPO.poDate === "string"
+                      ? new Date(editPO.poDate)
+                      : editPO.poDate,
+                },
+              }
+            : {})}
         />
       </Modal>
       <div style={{ marginTop: 16 }}>

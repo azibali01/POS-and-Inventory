@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
@@ -301,7 +303,7 @@ export default function PaymentVouchersPage() {
             ? { voucherNumber: nextVoucherNumber }
             : undefined)
         }
-        onSave={async (payload: PaymentVoucher) => {
+        onSave={async (payload) => {
           let dateStr = "";
           if (payload.voucherDate instanceof Date) {
             dateStr = payload.voucherDate.toISOString();

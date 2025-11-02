@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState } from "react";
 import { showNotification } from "@mantine/notifications";
 import {
@@ -46,7 +47,23 @@ export default function PurchaseReturnPage() {
       try {
         const api = await import("../../../lib/api");
         const returns = await api.getPurchaseReturns();
-        setFetchedReturns(Array.isArray(returns) ? returns : []);
+        setFetchedReturns(
+          Array.isArray(returns)
+            ? returns.map((r: any) => ({
+                ...r,
+                id: String(r.id ?? r.returnNumber ?? `pret-${Date.now()}`),
+                returnNumber: r.returnNumber ?? r.id ?? "",
+                returnDate: r.returnDate ?? r.date ?? "",
+                subtotal: r.subtotal ?? r.total ?? 0,
+                total: r.total ?? r.subtotal ?? 0,
+                supplier: r.supplier ?? "",
+                supplierId: r.supplierId ?? "",
+                items: Array.isArray(r.items) ? r.items : [],
+                reason: r.reason ?? "",
+                linkedPoId: r.linkedPoId ?? "",
+              }))
+            : []
+        );
       } catch (err) {
         showNotification({
           title: "Failed to fetch purchase returns",
@@ -263,7 +280,7 @@ export default function PurchaseReturnPage() {
                             color="red"
                             onClick={() => {
                               setDeleteTarget({
-                                id: r.id,
+                                id: r.id as string,
                                 returnNumber: r.returnNumber,
                               });
                             }}
@@ -633,10 +650,10 @@ function ReturnForm({
               ? initialValues.id
               : stringReturnNumber
           ) || stringReturnNumber
-        : typeof crypto !== "undefined" &&
+        : (typeof crypto !== "undefined" &&
           typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : stringReturnNumber,
+            ? crypto.randomUUID()
+            : stringReturnNumber) || stringReturnNumber,
       returnNumber: stringReturnNumber!,
       returnDate,
       supplier:
@@ -644,8 +661,8 @@ function ReturnForm({
           ?.name ||
         initialValues?.supplier ||
         "",
-      supplierId: supplierId || initialValues?.supplierId || undefined,
-      linkedPoId: linkedPoId || initialValues?.linkedPoId || undefined,
+      supplierId: supplierId || initialValues?.supplierId || "",
+      linkedPoId: linkedPoId || initialValues?.linkedPoId || "",
       items: (items || [])
         .filter((i) => (i.quantity || 0) > 0)
         .map((it) => ({
@@ -654,6 +671,7 @@ function ReturnForm({
           salesRate: it.rate,
           color: it.color,
           thickness: it.thickness ? Number(it.thickness) : undefined,
+          discount: 0, // Add default discount value or map from it.discount if available
         })),
       subtotal: totals.sub,
       total: totals.total,

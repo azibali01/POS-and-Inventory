@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useMemo, useEffect } from "react";
 import {
   Modal,
@@ -27,7 +29,7 @@ import type { SaleRecordPayload } from "../../../lib/api";
 
 // Extend SaleRecord type to include items, id, and date for edit logic compatibility
 export type SaleRecordWithItems = SaleRecordPayload & {
-  items?: any[];
+  items?: SaleItem[];
   id?: string | number;
   date?: string;
 };
@@ -156,7 +158,7 @@ export default function SaleInvoice() {
             ? payload.customer._id
             : String(payload.customer.name);
         cust = {
-          _id: id,
+          _id: typeof id === "string" ? id : String(id),
           name: payload.customer.name,
         };
       } else {
@@ -200,11 +202,16 @@ export default function SaleInvoice() {
             ? undefined
             : Number(item.thickness)
           : item.thickness,
+      discount: item.discount ?? 0,
+      discountAmount: item.discountAmount ?? 0,
+      quantity: item.quantity ?? 0,
+      salesRate: item.salesRate ?? 0,
+      totalGrossAmount: item.totalGrossAmount ?? 0,
+      totalNetAmount: item.totalNetAmount ?? 0,
     }));
     const apiPayload: SaleRecordPayload = {
       invoiceNumber,
       invoiceDate,
-      products: mappedProducts,
       items: mappedProducts, // send as items too
       subTotal: payload.totals?.subTotal ?? 0,
       totalGrossAmount: payload.totals?.totalGrossAmount ?? 0,
@@ -212,7 +219,7 @@ export default function SaleInvoice() {
       discount: 0,
       totalDiscount: payload.totals?.totalDiscountAmount ?? 0,
       quotationDate: invoiceDate,
-      customer: cust ?? null,
+      customer: cust ?? undefined,
       paymentMethod: undefined,
       length: payload.items?.length ?? 0,
       metadata: { source: "quotation-import" },
@@ -635,7 +642,37 @@ export default function SaleInvoice() {
                       size="xs"
                       onClick={() => {
                         // Convert quotation to SalesPayload-compatible import form
-                        const items = (q.products ?? []).map((it, idx) => {
+                        // Robustly find the full customer object, fallback to minimal if not found
+                        let cust = customers.find(
+                          (c) => String(c._id) === String(q.customer)
+                        );
+                        if (!cust && q.customer) {
+                          if (
+                            typeof q.customer === "object" &&
+                            q.customer !== null &&
+                            "name" in q.customer
+                          ) {
+                            const id =
+                              typeof (q.customer as { _id?: unknown })._id ===
+                              "string"
+                                ? (q.customer as { _id?: string })._id
+                                : String(
+                                    (q.customer as { name: unknown }).name
+                                  );
+                            cust = {
+                              _id: id ?? "",
+                              name: String(
+                                (q.customer as { name: unknown }).name
+                              ),
+                            };
+                          } else {
+                            cust = {
+                              _id: String(q.customer),
+                              name: String(q.customer),
+                            };
+                          }
+                        }
+                        const items = (q.products ?? []).map((it) => {
                           function getProp<TResult = unknown>(
                             obj: Record<string, unknown>,
                             ...keys: string[]
@@ -654,24 +691,31 @@ export default function SaleInvoice() {
                           let lengthValue: number | undefined;
                           const rawLength = getProp<
                             string | number | undefined
-                          >(it as Record<string, unknown>, "length");
+                          >(it as unknown as Record<string, unknown>, "length");
                           if (typeof rawLength === "string") {
                             const parsed = Number(rawLength);
                             lengthValue = isNaN(parsed) ? undefined : parsed;
                           } else if (typeof rawLength === "number") {
                             lengthValue = rawLength;
                           }
+                          const quantity = Number(it.quantity ?? 0);
+                          const salesRate = Number(it.salesRate ?? 0);
                           return {
                             // Map fields as needed, add any missing fields with sensible defaults
                             ...it,
                             id: it._id, // ensure id is present
-                            quantity: Number(it.quantity ?? 0),
-                            salesRate: Number(it.salesRate ?? 0),
+                            quantity,
+                            salesRate,
                             discount: Number(it.discount ?? 0),
                             discountAmount: Number(it.discountAmount ?? 0),
                             length: lengthValue,
                             totalGrossAmount: Number(it.totalGrossAmount ?? 0),
                             totalNetAmount: Number(it.totalNetAmount ?? 0),
+                            amount: quantity * salesRate,
+                            unit:
+                              typeof it.unit === "string"
+                                ? it.unit
+                                : String(it.unit ?? ""),
                             metadata: {
                               // Ensure metadata is always an object
                               ...(it.metadata ?? {}),
@@ -696,10 +740,7 @@ export default function SaleInvoice() {
                           },
                           remarks: q.remarks ?? "",
                           terms: "",
-                          customer: null, // Set customer to null or a default value
-                          paymentMethod: undefined,
-                          length: items.length,
-                          metadata: { source: "quotation-import" },
+                          customer: cust ?? undefined,
                         };
                         console.log(
                           "Importing quotation as SalePayload:",

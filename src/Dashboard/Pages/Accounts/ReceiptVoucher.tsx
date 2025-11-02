@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
@@ -293,10 +295,23 @@ export default function ReceiptsPage() {
           if (!v) setEditVoucher(null);
         }}
         initialValues={
-          editVoucher ||
-          (!editVoucher && open
+          editVoucher
+            ? {
+                ...editVoucher,
+                voucherDate:
+                  typeof editVoucher.voucherDate === "string"
+                    ? new Date(editVoucher.voucherDate)
+                    : editVoucher.voucherDate,
+                paymentMode: editVoucher.paymentMode as
+                  | "Cash"
+                  | "Card"
+                  | "UPI"
+                  | "Cheque"
+                  | undefined,
+              }
+            : !editVoucher && open
             ? { voucherNumber: nextVoucherNumber }
-            : undefined)
+            : undefined
         }
         onSave={async (payload: ReceiptVoucher) => {
           let dateStr = "";

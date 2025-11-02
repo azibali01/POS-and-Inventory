@@ -458,7 +458,20 @@ export default function PurchaseInvoicesPage() {
         >
           <PurchaseInvoiceForm
             onSubmit={handleCreate}
-            initialValues={initialPayload}
+            initialValues={{
+              ...initialPayload,
+              invoiceDate:
+                initialPayload.invoiceDate instanceof Date
+                  ? initialPayload.invoiceDate
+                  : initialPayload.invoiceDate
+                  ? new Date(initialPayload.invoiceDate)
+                  : undefined,
+              expectedDelivery: !initialPayload.expectedDelivery
+                ? undefined
+                : initialPayload.expectedDelivery instanceof Date
+                ? initialPayload.expectedDelivery
+                : new Date(initialPayload.expectedDelivery),
+            }}
             defaultInvoiceNumber={initialPayload.purchaseInvoiceNumber}
           />
         </Modal>

@@ -397,7 +397,13 @@ export interface InventoryItemPayload {
   thickness?: number;
   costPrice?: number;
   salesRate?: number;
+  discountAmount?: number;
+  totalGrossAmount?: number;
+  totalNetAmount?: number;
   color?: string;
+  discount: number;
+  length?: number;
+  amount?: number;
   openingStock?: number;
   quantity?: number;
   minimumStockLevel?: number;
@@ -431,6 +437,7 @@ export interface QuotationRecordPayload {
   totalGrossAmount?: number;
   totalNetAmount?: number;
   discount?: number;
+  amount?: number
   totalDiscount?: number;
   quotationDate?: string;
   customer?: CustomerPayload[];

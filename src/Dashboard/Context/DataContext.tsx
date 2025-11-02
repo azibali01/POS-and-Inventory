@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, {
   useContext,
   useState,
@@ -104,7 +106,7 @@ export interface GRNRecord {
 }
 
 export interface PurchaseReturnRecord {
-  id: string;
+  id: string | undefined;
   returnNumber: string;
   returnDate: string;
   items: InventoryItemPayload[];
@@ -834,6 +836,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
               : payload.quotationDate instanceof Date
               ? payload.quotationDate.toISOString()
               : undefined,
+          customer:
+            Array.isArray((payload as any).customer) &&
+            (payload as any).customer.length > 0
+              ? (payload as any).customer[0]
+              : typeof (payload as any).customer === "object" &&
+                (payload as any).customer !== null
+              ? (payload as any).customer
+              : undefined,
         };
         const created = await api.createSale(apiPayload);
 
@@ -1191,7 +1201,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   const createExpense = useCallback(async (payload: ExpenseInput) => {
     setExpensesLoading(true);
     try {
-      const created = await api.createExpense(payload);
+      // Map categoryType to allowed union values
+      const allowedCategories = [
+        "Rent",
+        "Utilities",
+        "Transportation",
+        "Salary",
+        "Maintenance",
+        "Other",
+      ] as const;
+      const mappedCategory =
+        allowedCategories.find(
+          (cat) =>
+            cat.toLowerCase() === payload.categoryType.trim().toLowerCase()
+        ) || "Other";
+      const mappedPayload = {
+        ...payload,
+        categoryType: mappedCategory,
+      };
+      const created = await api.createExpense(mappedPayload);
       const expense = {
         ...created,
         id: created.id ?? `exp-${Date.now()}`,
@@ -1222,7 +1250,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     async (id: string, payload: Partial<Expense>) => {
       setExpensesLoading(true);
       try {
-        const updated = await api.updateExpense(id, payload);
+        // Map categoryType to allowed union values if present
+        const allowedCategories = [
+          "Rent",
+          "Utilities",
+          "Transportation",
+          "Salary",
+          "Maintenance",
+          "Other",
+        ] as const;
+        let mappedCategoryType: (typeof allowedCategories)[number] | undefined =
+          undefined;
+        if (payload.categoryType !== undefined) {
+          mappedCategoryType =
+            allowedCategories.find(
+              (cat) =>
+                cat.toLowerCase() ===
+                payload.categoryType?.toString().trim().toLowerCase()
+            ) || "Other";
+        }
+        const mappedPayload = {
+          ...payload,
+          ...(payload.categoryType !== undefined && {
+            categoryType: mappedCategoryType,
+          }),
+        } as Partial<import("../../lib/api").ExpensePayload>;
+
+        const updated = await api.updateExpense(id, mappedPayload);
         const expense = {
           ...updated,
           id: updated.id ?? id,
@@ -1478,7 +1532,24 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     // attempt to persist to backend if available
     (async () => {
       try {
-        const created = await api.createExpense(e as ExpenseInput);
+        // Map categoryType to allowed union values
+        const allowedCategories = [
+          "Rent",
+          "Utilities",
+          "Transportation",
+          "Salary",
+          "Maintenance",
+          "Other",
+        ] as const;
+        const mappedCategory =
+          allowedCategories.find(
+            (cat) => cat.toLowerCase() === e.categoryType.trim().toLowerCase()
+          ) || "Other";
+        const mappedPayload = {
+          ...e,
+          categoryType: mappedCategory,
+        };
+        const created = await api.createExpense(mappedPayload);
         // replace optimistic record with server-supplied record if it returns an id
         setExpenses((prev) => [
           created,
