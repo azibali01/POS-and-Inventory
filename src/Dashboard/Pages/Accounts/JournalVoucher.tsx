@@ -137,7 +137,7 @@ export default function JournalVouchersPage() {
       setDebitAccount("");
       setCreditAccount("");
       setAmount(0);
-    } catch (e) {
+    } catch {
       notifications.show({
         color: "red",
         title: "Error",
