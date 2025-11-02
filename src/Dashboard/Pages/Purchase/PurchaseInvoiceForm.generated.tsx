@@ -99,16 +99,26 @@ export function PurchaseInvoiceForm({
       ? initialValues.products.map((p) => ({
           ...p,
           id: p.id || crypto.randomUUID(),
+          productId: p.productId ?? "",
+          unit: typeof p.unit === "string" ? p.unit : "pcs",
+          grossAmount: typeof p.grossAmount === "number" ? p.grossAmount : 0,
+          netAmount: typeof p.netAmount === "number" ? p.netAmount : 0,
         }))
       : [
           {
             id: crypto.randomUUID(),
+            productId: "",
             productName: "Select product",
             quantity: 1,
             rate: 0,
+            unit: "pcs",
             color: "",
             thickness: "",
             length: 0,
+            grossAmount: 0,
+            percent: 0,
+            discountAmount: 0,
+            netAmount: 0,
             amount: 0,
           },
         ]
@@ -139,13 +149,23 @@ export function PurchaseInvoiceForm({
       supplierId,
       products: products.map((p) => ({
         id: p.id,
+        productId:
+          p.productId ??
+          inventory.find((inv) => inv.itemName === p.productName)?._id ??
+          "",
         productName: p.productName,
         quantity: Number(p.quantity) || 0,
         rate: Number(p.rate) || 0,
+        unit: typeof p.unit === "string" ? p.unit : "pcs",
         color: p.color,
         thickness: p.thickness,
         length: p.length,
-        amount: p.amount,
+        grossAmount: typeof p.grossAmount === "number" ? p.grossAmount : 0,
+        netAmount: typeof p.netAmount === "number" ? p.netAmount : 0,
+        percent: typeof p.percent === "number" ? p.percent : 0,
+        discountAmount:
+          typeof p.discountAmount === "number" ? p.discountAmount : 0,
+        amount: typeof p.amount === "number" ? p.amount : 0,
         inventoryId: inventory.find((inv) => inv.itemName === p.productName)
           ?._id,
       })),
@@ -340,12 +360,18 @@ export function PurchaseInvoiceForm({
                     ...prev,
                     {
                       id: crypto.randomUUID(),
+                      productId: "",
                       productName: "Select product",
                       quantity: 1,
                       rate: 0,
-                      color: undefined,
-                      thickness: undefined,
-                      length: undefined,
+                      unit: "pcs",
+                      color: "",
+                      thickness: "",
+                      length: 0,
+                      grossAmount: 0,
+                      percent: 0,
+                      discountAmount: 0,
+                      netAmount: 0,
                       amount: 0,
                     },
                   ])
