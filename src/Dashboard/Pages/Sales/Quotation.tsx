@@ -63,7 +63,6 @@ import openPrintWindow, {
 function Quotation() {
   const {
     sales,
-    setSales,
     quotations,
     setQuotations,
     loadSales,
@@ -187,10 +186,8 @@ function Quotation() {
 
   // form state for creating quotation
 
-  // Prefer dedicated quotations state; fall back to sales for older data
-  const quotes = (
-    quotations && quotations.length ? quotations : sales || []
-  ) as QuotationRecordPayload[];
+  // Only show actual quotations, not sales invoices
+  const quotes = (quotations || []) as QuotationRecordPayload[];
 
   // Generate next human-friendly quotation number like Quo-0001
   function generateNextQuotationNumber(
@@ -257,9 +254,6 @@ function Quotation() {
           : "") as string,
       items: ((q.items ?? q.products) || []).map(
         (it: InventoryItemPayload, idx: number) => {
-          // Debug: log products to verify data
-          // eslint-disable-next-line no-console
-          console.log("Edit modal q.products:", q.products);
           return {
             sr: idx + 1,
             section:
@@ -425,22 +419,6 @@ function Quotation() {
       if (!editingId) {
         if (typeof setQuotations === "function") {
           setQuotations((prev) => [tempRow, ...prev]);
-        } else if (typeof setSales === "function") {
-          setSales((prev) => [
-            {
-              date: apiPayload.quotationDate ?? new Date().toISOString(),
-              quotationDate:
-                apiPayload.quotationDate ?? new Date().toISOString(),
-              customerId: String(payload.customer ?? ""),
-              total: apiPayload.totalGrossAmount ?? apiPayload.subTotal ?? 0,
-              status: "quotation",
-              id: tempId,
-              quotationNumber: assignedQuotationNumber,
-              remarks: apiPayload.remarks,
-              products: apiPayload.products,
-            },
-            ...prev,
-          ]);
         }
       }
 
@@ -456,7 +434,7 @@ function Quotation() {
         // prefer updating by quotationNumber
         const qNum = String(editingId);
         const updated = await updateQuotationByNumber(qNum, apiPayload);
-        // update quotations state if available, otherwise update sales
+        // update quotations state
         if (typeof setQuotations === "function") {
           setQuotations((prev) =>
             prev.map((s) =>
@@ -469,27 +447,6 @@ function Quotation() {
               String((s as QuotationRecordPayload & { _id?: string })._id) ===
                 qNum
                 ? (updated as QuotationRecordPayload)
-                : s
-            )
-          );
-        } else if (typeof setSales === "function") {
-          setSales((prev) =>
-            prev.map((s) =>
-              String((s as { id?: string | number }).id) === qNum ||
-              String((s as { quotationNumber?: string }).quotationNumber) ===
-                qNum
-                ? {
-                    ...s,
-                    date: updated.quotationDate ?? new Date().toISOString(),
-                    quotationDate:
-                      updated.quotationDate ?? new Date().toISOString(),
-                    customerId: String(payload.customer ?? ""),
-                    total: updated.totalGrossAmount ?? updated.subTotal ?? 0,
-                    status: "quotation",
-                    quotationNumber: updated.quotationNumber,
-                    remarks: updated.remarks,
-                    products: updated.products,
-                  }
                 : s
             )
           );
@@ -520,28 +477,6 @@ function Quotation() {
                   ) !== String(created.quotationNumber)
               ),
             ]);
-          } else if (typeof setSales === "function") {
-            setSales((prev) => [
-              {
-                date: created.quotationDate ?? new Date().toISOString(),
-                quotationDate:
-                  created.quotationDate ?? new Date().toISOString(),
-                customerId: String(payload.customer ?? ""),
-                total: created.totalGrossAmount ?? created.subTotal ?? 0,
-                status: "quotation",
-                id: created._id ?? created.quotationNumber ?? tempId,
-                quotationNumber: created.quotationNumber,
-                remarks: created.remarks,
-                products: created.products,
-              },
-              ...prev.filter(
-                (r) =>
-                  String(
-                    (r as { quotationNumber?: string; docNo?: string })
-                      .quotationNumber ?? (r as { docNo?: string }).docNo
-                  ) !== String(created.quotationNumber)
-              ),
-            ]);
           }
         } else {
           // If server returned nothing, leave the optimistic row but notify
@@ -566,10 +501,6 @@ function Quotation() {
               (r) =>
                 String((r as QuotationRecordPayload).quotationNumber) !== tempId
             )
-          );
-        } else if (typeof setSales === "function") {
-          setSales((prev) =>
-            prev.filter((r) => String((r as { id?: string }).id) !== tempId)
           );
         }
       }
