@@ -248,7 +248,6 @@ export default function JournalVouchersPage() {
               onChange={(value) => {
                 setSelectedCustomer(value || "");
                 setSelectedSupplier("");
-                // Set debit/credit account to include customer name for mapping
                 if (value) {
                   setDebitAccount(`Customer: ${value}`);
                   setCreditAccount("");

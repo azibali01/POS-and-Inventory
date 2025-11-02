@@ -280,7 +280,7 @@ export async function deletePurchaseInvoice(id: string | number) {
 
 // Base axios instance - configure via Vite env VITE_API_BASE_URL or default to /api
 export const api = axios.create({
-  baseURL: "http://localhost:3000/",
+  baseURL: "https://aluminium-backend.onrender.com/",
 });
 
 // Dev-only request logger to help diagnose duplicate-request storms.
