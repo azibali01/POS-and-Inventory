@@ -1,4 +1,5 @@
-export function formatCurrency(n: number) {
+export function formatCurrency(n?: number) {
+  if (n === undefined || n === null || Number.isNaN(n)) return "-";
   try {
     // Use Pakistani locale and PKR currency so formatting (symbol, grouping) matches PKR
     return new Intl.NumberFormat("en-PK", {

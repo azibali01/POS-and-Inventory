@@ -11,12 +11,6 @@ import {
   Button,
   Title,
   Stack,
-} from "@mantine/core";
-import Table from "../../../lib/AppTable";
-import { ReceiptForm } from "../../../components/accounts/receipt-form";
-import { formatCurrency, formatDate } from "../../../lib/format-utils";
-import { Plus, Search, MoreVertical } from "lucide-react";
-import {
   Menu,
   ActionIcon,
   Modal,
@@ -24,42 +18,49 @@ import {
   Group as MantineGroup,
   Button as MantineButton,
 } from "@mantine/core";
-
-import { createReceiptVoucher, getAllReceiptVouchers } from "../../../lib/api";
+import Table from "../../../lib/AppTable";
+import { formatCurrency, formatDate } from "../../../lib/format-utils";
+import { Plus, Search, MoreVertical } from "lucide-react";
 import { IconPencil, IconPrinter, IconTrash } from "@tabler/icons-react";
-// Fetch all receipt vouchers from backend
-async function fetchAllReceiptVouchers() {
-  return await getAllReceiptVouchers();
-}
+import openPrintWindow from "../../../components/print/printWindow";
+import type { InvoiceData } from "../../../components/print/printTemplate";
+import {
+  createPaymentVoucher,
+  getAllPaymentVouchers,
+  deletePaymentVoucher,
+  updatePaymentVoucher,
+} from "../../../lib/api";
+// Update the import path if the file exists elsewhere, for example:
+import { PaymentVoucherForm } from "../../../components/accounts/payment-voucher-form";
 
-interface ReceiptVoucher {
+interface PaymentVoucher {
   id: string;
   voucherNumber: string;
   voucherDate: string | Date;
-  receivedFrom: string;
+  paidTo: string;
   paymentMode: string;
   reference?: string;
   amount: number;
   remarks?: string;
 }
 
-import openPrintWindow from "../../../components/print/printWindow";
-import type { InvoiceData } from "../../../components/print/printTemplate";
-import { deleteReceiptVoucher, updateReceiptVoucher } from "../../../lib/api";
+// Fetch all payment vouchers from backend
+async function fetchAllPaymentVouchers() {
+  return await getAllPaymentVouchers();
+}
 
-export default function ReceiptsPage() {
+export default function PaymentVouchersPage() {
   const [q, setQ] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<ReceiptVoucher | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PaymentVoucher | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [data, setData] = useState<ReceiptVoucher[]>([]);
+  const [data, setData] = useState<PaymentVoucher[]>([]);
   const [open, setOpen] = useState(false);
-  const [editVoucher, setEditVoucher] = useState<ReceiptVoucher | null>(null);
-  const [nextVoucherNumber, setNextVoucherNumber] = useState("RV-0001");
+  const [editVoucher, setEditVoucher] = useState<PaymentVoucher | null>(null);
+  const [nextVoucherNumber, setNextVoucherNumber] = useState("PV-0001");
 
-  // Load all receipts on mount and calculate next voucher number
+  // Load all payment vouchers on mount and calculate next voucher number
   useEffect(() => {
-    fetchAllReceiptVouchers().then((vouchers) => {
-      console.log("Raw vouchers from backend:", vouchers);
+    fetchAllPaymentVouchers().then((vouchers) => {
       // Map backend fields to frontend fields (use correct names)
       const mapped = (vouchers || []).map((v: any) => ({
         id:
@@ -69,7 +70,7 @@ export default function ReceiptsPage() {
           Math.random().toString(36).slice(2),
         voucherNumber: v.voucherNumber,
         voucherDate: v.voucherDate,
-        receivedFrom: v.receivedFrom,
+        paidTo: v.paidTo,
         paymentMode: v.paymentMode,
         reference: v.referenceNumber,
         amount: v.amount,
@@ -77,10 +78,10 @@ export default function ReceiptsPage() {
       }));
       setData(mapped);
       // Find the highest voucher number and increment
-      const maxNum = mapped.reduce((max: number, r: ReceiptVoucher) => {
+      const maxNum = mapped.reduce((max: number, r: PaymentVoucher) => {
         const match =
           typeof r.voucherNumber === "string" &&
-          r.voucherNumber.match(/^RV-(\d{4})$/);
+          r.voucherNumber.match(/^PV-(\d{4})$/);
         if (match) {
           const num = parseInt(match[1], 10);
           return num > max ? num : max;
@@ -88,7 +89,7 @@ export default function ReceiptsPage() {
         return max;
       }, 0);
       const nextNum = (maxNum + 1).toString().padStart(4, "0");
-      setNextVoucherNumber(`RV-${nextNum}`);
+      setNextVoucherNumber(`PV-${nextNum}`);
     });
   }, []);
 
@@ -98,7 +99,7 @@ export default function ReceiptsPage() {
     return data.filter(
       (v) =>
         v.voucherNumber.toLowerCase().includes(t) ||
-        v.receivedFrom.toLowerCase().includes(t) ||
+        v.paidTo.toLowerCase().includes(t) ||
         v.paymentMode.toLowerCase().includes(t) ||
         (v.reference ?? "").toLowerCase().includes(t)
     );
@@ -108,9 +109,9 @@ export default function ReceiptsPage() {
     <div style={{ display: "grid", gap: 20 }}>
       <Group justify="apart" align="center">
         <div>
-          <Title order={2}>Receipts</Title>
+          <Title order={2}>Payment Vouchers</Title>
           <Text size="sm" color="dimmed">
-            Record money received from customers and others
+            Record money paid to suppliers and others
           </Text>
         </div>
       </Group>
@@ -119,7 +120,7 @@ export default function ReceiptsPage() {
         {/* LEFT SIDE */}
         <Group>
           <Stack gap={0}>
-            <Text fw={600}>All Receipts</Text>
+            <Text fw={600}>All Payments</Text>
             <Text size="sm" c="dimmed">
               {filtered.length} found
             </Text>
@@ -129,7 +130,7 @@ export default function ReceiptsPage() {
         {/* RIGHT SIDE */}
         <Group>
           <TextInput
-            placeholder="Search receipts..."
+            placeholder="Search payments..."
             value={q}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               setQ(e.currentTarget.value)
@@ -137,8 +138,8 @@ export default function ReceiptsPage() {
             leftSection={<Search size={16} style={{ color: "gray" }} />}
           />
 
-          <Button leftSection={<Plus />} w={160} onClick={() => setOpen(true)}>
-            Add Receipt
+          <Button leftSection={<Plus />} w={180} onClick={() => setOpen(true)}>
+            Add Payment
           </Button>
         </Group>
       </Group>
@@ -158,7 +159,7 @@ export default function ReceiptsPage() {
                 <tr>
                   <th>Voucher No</th>
                   <th>Date</th>
-                  <th>Received From</th>
+                  <th>Paid To</th>
                   <th>Mode</th>
                   <th>Reference</th>
                   <th style={{ textAlign: "right" }}>Amount</th>
@@ -172,7 +173,7 @@ export default function ReceiptsPage() {
                       {v.voucherNumber}
                     </td>
                     <td>{formatDate(v.voucherDate)}</td>
-                    <td style={{ fontWeight: 600 }}>{v.receivedFrom}</td>
+                    <td style={{ fontWeight: 600 }}>{v.paidTo}</td>
                     <td style={{ color: "var(--mantine-color-dimmed)" }}>
                       {v.paymentMode}
                     </td>
@@ -201,7 +202,7 @@ export default function ReceiptsPage() {
                             onClick={() => {
                               // Print logic
                               const invoiceData: InvoiceData = {
-                                title: "Receipt Voucher",
+                                title: "Payment Voucher",
                                 companyName: "Seven Star Traders",
                                 addressLines: [
                                   "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
@@ -214,13 +215,13 @@ export default function ReceiptsPage() {
                                 items: [
                                   {
                                     sr: 1,
-                                    section: `Received From: ${v.receivedFrom}`,
+                                    section: `Paid To: ${v.paidTo}`,
                                     amount: v.amount,
                                   },
                                 ],
                                 totals: { total: v.amount },
                                 footerNotes: [
-                                  "Receipt generated by Aluminium POS",
+                                  "Payment generated by Aluminium POS",
                                 ],
                               };
                               openPrintWindow(invoiceData);
@@ -254,7 +255,7 @@ export default function ReceiptsPage() {
         centered
       >
         <MantineText>
-          Are you sure you want to delete this receipt voucher?
+          Are you sure you want to delete this payment voucher?
         </MantineText>
         <MantineGroup justify="flex-end" mt="md">
           <MantineButton
@@ -271,9 +272,11 @@ export default function ReceiptsPage() {
               if (!deleteTarget) return;
               setDeleteLoading(true);
               try {
-                await deleteReceiptVoucher(deleteTarget.id);
+                await deletePaymentVoucher(deleteTarget.voucherNumber);
                 setData((prev) =>
-                  prev.filter((item) => item.id !== deleteTarget.id)
+                  prev.filter(
+                    (item) => item.voucherNumber !== deleteTarget.voucherNumber
+                  )
                 );
                 setDeleteTarget(null);
               } finally {
@@ -286,7 +289,7 @@ export default function ReceiptsPage() {
         </MantineGroup>
       </Modal>
 
-      <ReceiptForm
+      <PaymentVoucherForm
         open={open || !!editVoucher}
         onOpenChange={(v) => {
           setOpen(v);
@@ -298,7 +301,7 @@ export default function ReceiptsPage() {
             ? { voucherNumber: nextVoucherNumber }
             : undefined)
         }
-        onSave={async (payload: ReceiptVoucher) => {
+        onSave={async (payload: PaymentVoucher) => {
           let dateStr = "";
           if (payload.voucherDate instanceof Date) {
             dateStr = payload.voucherDate.toISOString();
@@ -313,7 +316,7 @@ export default function ReceiptsPage() {
           const apiPayload = {
             voucherNumber: String(payload.voucherNumber),
             voucherDate: dateStr,
-            receivedFrom: payload.receivedFrom || "Unknown",
+            paidTo: payload.paidTo || "Unknown",
             amount: payload.amount,
             referenceNumber: payload.reference ? String(payload.reference) : "",
             paymentMode: payload.paymentMode,
@@ -321,23 +324,27 @@ export default function ReceiptsPage() {
           };
           try {
             if (editVoucher) {
-              await updateReceiptVoucher(editVoucher.id, apiPayload);
+              await updatePaymentVoucher(editVoucher.voucherNumber, apiPayload);
               setData((prev) =>
                 prev.map((item) =>
-                  item.id === editVoucher.id
-                    ? { ...payload, id: editVoucher.id }
+                  item.voucherNumber === editVoucher.voucherNumber
+                    ? {
+                        ...payload,
+                        voucherNumber: editVoucher.voucherNumber,
+                        id: item.id,
+                      }
                     : item
                 )
               );
             } else {
-              await createReceiptVoucher(apiPayload);
-              // Optimistically add new receipt to the table
+              await createPaymentVoucher(apiPayload);
+              // Optimistically add new payment to the table
               setData((prev) => [
                 {
                   id: Math.random().toString(36).slice(2),
                   voucherNumber: payload.voucherNumber,
                   voucherDate: payload.voucherDate,
-                  receivedFrom: payload.receivedFrom,
+                  paidTo: payload.paidTo,
                   paymentMode: payload.paymentMode,
                   reference: payload.reference,
                   amount: payload.amount,

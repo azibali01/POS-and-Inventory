@@ -9,15 +9,20 @@ import QuotationsPage from "../Pages/Sales/Quotation";
 import SalesInvoicePage from "../Pages/Sales/SaleInvoice";
 import SuppliersPage from "../Pages/Purchase/Supplier";
 import PurchaseOrderPage from "../Pages/Purchase/PurchaseOrder";
-import GRNPage from "../Pages/Purchase/GRN";
+
 import PurchaseInvoicePage from "../Pages/Purchase/PurchaseInvoice";
 import PurchaseReturnPage from "../Pages/Purchase/PurchaseReturn";
 import ExpensesPage from "../Pages/Expenses";
-import ReceiptsPage from "../Pages/Accounts/ReceiptVoucher";
+
+import CashBookPage from "../Pages/Accounts/CashBook";
+import BankBookPage from "../Pages/Accounts/BankBook";
 
 import ProfitLoss from "../Pages/Reports/Profit&Loss";
-import Stocksummary from "../Pages/Reports/Stocksummary";
+
 import CategoryPage from "../Pages/Products/Category";
+import JournalVouchersPage from "../Pages/Accounts/JournalVoucher";
+import PaymentVouchersPage from "../Pages/Accounts/PaymentVoucher";
+import ReceiptsPage from "../Pages/Accounts/ReceiptVoucher";
 
 const routes: RouteObject[] = [
   {
@@ -67,10 +72,7 @@ const routes: RouteObject[] = [
         path: "/purchase/orders",
         element: <PurchaseOrderPage />,
       },
-      {
-        path: "/purchase/grn",
-        element: <GRNPage />,
-      },
+
       {
         path: "/purchase/invoices",
         element: <PurchaseInvoicePage />,
@@ -89,11 +91,23 @@ const routes: RouteObject[] = [
         path: "/accounts/receipts",
         element: <ReceiptsPage />,
       },
-      //---------------------Reports-----------------//
       {
-        path: "/reports/stock-summary",
-        element: <Stocksummary />,
+        path: "/accounts/payments",
+        element: <PaymentVouchersPage />,
       },
+      {
+        path: "/accounts/journal",
+        element: <JournalVouchersPage />,
+      },
+      {
+        path: "/accounts/cash-book",
+        element: <CashBookPage />,
+      },
+      {
+        path: "/accounts/bank-book",
+        element: <BankBookPage />,
+      },
+      //---------------------Reports-----------------//
 
       {
         path: "/reports/profit-loss",

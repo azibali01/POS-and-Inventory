@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useMemo, useState, useEffect } from "react";
 import {
   Card,
@@ -18,30 +16,12 @@ import type {
   Customer,
   InventoryItem,
 } from "../../Dashboard/Context/DataContext";
-import { useDataContext } from "../..//Dashboard/Context/DataContext";
 import openPrintWindow from "../print/printWindow";
 import type { InvoiceData } from "../print/printTemplate";
-
-export interface SalesPayload {
-  mode: "Quotation" | "Invoice";
-  docNo: string;
-  docDate: string;
-  validUntil?: string;
-  customerId: string | number;
-  items: LineItem[];
-  totals: { sub: number; tax: number; total: number };
-  remarks: string;
-  terms: string;
-  // optional metadata tracked for quotations/invoices
-  status?: string;
-  sourceQuotationId?: string | number;
-  convertedInvoiceId?: string | number;
-  convertedAt?: string;
-}
+import type { CustomerPayload } from "../../lib/api";
 
 function generateId() {
   try {
-    // use crypto.randomUUID when available
     return typeof crypto !== "undefined" &&
       typeof (crypto as Crypto & { randomUUID?: () => string }).randomUUID ===
         "function"
@@ -52,69 +32,119 @@ function generateId() {
   }
 }
 
+export interface SalesPayload {
+  mode: "Quotation" | "Invoice";
+  docNo: string;
+  docDate: string;
+  invoiceDate?: string;
+  products?: InventoryItem[];
+  items?: LineItem[];
+  customer?: CustomerPayload;
+  totals: {
+    total: number;
+    amount: number;
+    totalGrossAmount: number;
+    totalDiscountAmount: number;
+    totalNetAmount: number;
+    subTotal: number;
+  };
+  remarks: string;
+  terms: string;
+  status?: string;
+  sourceQuotationId?: string | number;
+  convertedInvoiceId?: string | number;
+  convertedAt?: string;
+}
+
 export default function SalesDocShell({
   mode,
-  onSubmit,
-  customers: propCustomers,
-  products: propProducts,
   initial,
-  showImportIssues = true,
+  onSubmit,
+  customers,
+  products,
+  submitting,
+  setSubmitting,
+  saveDisabled,
 }: {
   mode: "Quotation" | "Invoice";
-  onSubmit?: (payload: SalesPayload) => void;
-  customers?: Customer[];
-  products?: InventoryItem[];
-  initial?: Partial<SalesPayload> & { sourceQuotationId?: string | number };
-  showImportIssues?: boolean;
+  initial?: Partial<SalesPayload>;
+  onSubmit?: (payload: SalesPayload) => void | Promise<void>;
+  customers: Customer[];
+  products: InventoryItem[];
+  submitting: boolean;
+  setSubmitting: (submitting: boolean) => void;
+  saveDisabled?: boolean;
 }) {
-  // fallback to central DataContext when props are not provided
-  const ctx = useDataContext();
-  const customers = useMemo(
-    () => propCustomers ?? ctx.customers ?? [],
-    [propCustomers, ctx.customers]
-  );
-  const products = useMemo(
-    () => propProducts ?? ctx.inventory ?? [],
-    [propProducts, ctx.inventory]
-  );
-
-  const [docNo, setDocNo] = useState("");
+  const [docNo, setDocNo] = useState<string>(initial?.docNo ?? "");
   const [docDate, setDocDate] = useState<string>(
-    (initial?.docDate as string) ?? new Date().toISOString().slice(0, 10)
-  );
-  const [validUntil, setValidUntil] = useState<string>(
-    initial?.validUntil ?? ""
-  );
-  const [customerId, setCustomerId] = useState<string>(
-    String(initial?.customerId ?? customers[0]?.id ?? "")
-  );
-  const [remarks, setRemarks] = useState("");
-  const [terms, setTerms] = useState(
-    "Prices valid for 15 days.\nPayment terms: Due on receipt."
+    initial?.docDate
+      ? String(initial.docDate)
+      : new Date().toISOString().slice(0, 10)
   );
 
+  const [customerId, setCustomerId] = useState<string>(
+    initial?.customer != null
+      ? String(initial.customer.name)
+      : customers.length > 0
+      ? String(customers[0]._id)
+      : ""
+  );
+  const [remarks, setRemarks] = useState<string>(
+    initial && typeof initial.remarks === "string" ? initial.remarks : ""
+  );
+  const [terms, setTerms] = useState<string>(
+    initial && typeof initial.terms === "string"
+      ? initial.terms
+      : "Prices valid for 15 days.\nPayment terms: Due on receipt."
+  );
   const [items, setItems] = useState<LineItem[]>(
-    (initial?.items as LineItem[] | undefined) ?? [
-      {
-        id: generateId(),
-        productId: "",
-        productName: "",
-        unit: "pcs",
-        quantity: 1,
-        rate: 0,
-        discount: 0,
-        taxRate: 18,
-        amount: 0,
-      },
-    ]
+    (initial?.items as LineItem[] | undefined)?.map((it) => ({
+      _id:
+        it._id ?? products.find((p) => p.itemName === it.itemName)?._id ?? "",
+      itemName: it.itemName ?? "",
+      invoiceNumber: it._id ?? generateId(),
+      unit: it.unit ?? "",
+      quantity: Number(it.quantity ?? 0),
+      salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
+      discount: it.discount ?? 0,
+      amount:
+        Number(it.quantity ?? 0) * Number(it.salesRate ?? it.salesRate ?? 0),
+      color: it.color ?? "",
+      openingStock: it.openingStock ?? 0,
+      thickness: it.thickness ?? 0,
+      length: it.length ?? 0,
+      totalGrossAmount: it.totalGrossAmount ?? 0,
+      totalNetAmount: it.totalNetAmount ?? 0,
+      discountAmount: it.discountAmount ?? 0,
+    })) ||
+      (initial?.products as LineItem[] | undefined)?.map((it) => ({
+        _id:
+          it._id ?? products.find((p) => p.itemName === it.itemName)?._id ?? "",
+        itemName: it.itemName ?? "",
+        invoiceNumber: it._id ?? generateId(),
+        unit: it.unit ?? "",
+        quantity: Number(it.quantity ?? 0),
+        salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
+        discount: it.discount ?? 0,
+        amount:
+          Number(it.quantity ?? 0) * Number(it.salesRate ?? it.salesRate ?? 0),
+        color: it.color ?? "",
+        openingStock: it.openingStock ?? 0,
+        thickness: it.thickness ?? 0,
+        length: it.length ?? 0,
+        totalGrossAmount: it.totalGrossAmount ?? 0,
+        totalNetAmount: it.totalNetAmount ?? 0,
+        discountAmount: it.discountAmount ?? 0,
+      })) ||
+      []
   );
 
   const status = mode === "Quotation" ? "Draft" : "Confirmed";
 
   const totals = useMemo(() => {
-    // gross = sum(quantity * rate)
+    // gross = sum(amount) where amount = length * quantity * rate
     const totalGrossAmount = items.reduce(
-      (s, i) => s + (i.quantity || 0) * (i.rate || 0),
+      (s, i) => s + (typeof i.amount === "number" ? i.amount : 0),
       0
     );
     // discounts sum
@@ -141,53 +171,185 @@ export default function SalesDocShell({
     };
   }, [items]);
 
-  const selectedCustomer = customers.find(
-    (c) => String(c.id) === String(customerId)
+  const selectedCustomer = useMemo(
+    () => customers.find((c) => String(c._id) === String(customerId)),
+    [customers, customerId]
   );
 
   // If customers are loaded after mount, ensure we pick a sensible default
+  // When customers or initial.customerId changes, ensure customerId is valid
   useEffect(() => {
-    if ((customerId === "" || customerId == null) && customers?.length > 0) {
-      setCustomerId(String(customers[0].id));
-    }
-  }, [customers, customerId]);
-
-  // detect missing products and price diffs against current products
-  const detectIssues = () => {
-    const missing: LineItem[] = [];
-    const priceDiffs: Array<{ item: LineItem; currentPrice: number }> = [];
-    for (const it of items) {
-      const prod = products.find((p) => String(p.id) === String(it.productId));
-      if (!prod) missing.push(it);
-      else {
-        const current = prod.salesRate ?? 0;
-        if (Number.isFinite(current) && current !== it.rate) {
-          priceDiffs.push({ item: it, currentPrice: current });
-        }
+    if (
+      customers.length > 0 &&
+      (customerId === "" ||
+        customerId == null ||
+        !customers.some((c) => String(c._id) === String(customerId)))
+    ) {
+      const newId = String(customers[0]._id);
+      if (customerId !== newId) {
+        setCustomerId(newId);
       }
     }
-    return { missing, priceDiffs };
-  };
+  }, [customers, customerId, initial?.customer]);
 
-  function handleSubmit(e: React.FormEvent) {
+  // If initial.docNo changes (e.g., pre-filled by parent), sync it into local state
+  useEffect(() => {
+    if (initial?.docNo && initial.docNo !== docNo) {
+      setDocNo(String(initial.docNo));
+    }
+  }, [initial?.docNo, docNo]);
+
+  // When the parent provides a full initial payload (e.g., for editing),
+  // sync the relevant fields into local state so the form is pre-filled.
+  useEffect(() => {
+    if (!initial) return;
+    // Only update all local state when initial changes
+    setDocNo(initial.docNo ?? "");
+    setDocDate(
+      initial.docDate
+        ? String(initial.docDate)
+        : new Date().toISOString().slice(0, 10)
+    );
+
+    setCustomerId(
+      initial.customer?.id !== undefined && initial.customer?.id !== null
+        ? String(initial.customer.id)
+        : customers.length > 0
+        ? String(customers[0]._id)
+        : ""
+    );
+    setRemarks(typeof initial.remarks === "string" ? initial.remarks : "");
+    setTerms(
+      typeof initial.terms === "string"
+        ? initial.terms
+        : "Prices valid for 15 days.\nPayment terms: Due on receipt."
+    );
+    if (initial.items && Array.isArray(initial.items)) {
+      setItems(
+        (initial.items as LineItem[]).map((it) => ({
+          _id:
+            it._id ??
+            products.find((p) => p.itemName === it.itemName)?._id ??
+            "",
+          itemName: it.itemName ?? "",
+          invoiceNumber: it._id ?? generateId(),
+          unit: it.unit ?? "",
+          quantity: Number(it.quantity ?? 0),
+          salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
+          discount: it.discount ?? 0,
+          amount:
+            Number(it.quantity ?? 0) *
+            Number(it.salesRate ?? it.salesRate ?? 0),
+          price: it.salesRate ?? 0,
+          color: it.color ?? "",
+          openingStock: it.openingStock ?? 0,
+          thickness: it.thickness ?? 0,
+          length: it.length ?? 0,
+          totalGrossAmount: it.totalGrossAmount ?? 0,
+          totalNetAmount: it.totalNetAmount ?? 0,
+          discountAmount: it.discountAmount ?? 0,
+        }))
+      );
+    } else if (initial.products && Array.isArray(initial.products)) {
+      setItems(
+        (initial.products as LineItem[]).map((it) => ({
+          _id:
+            it._id ??
+            products.find((p) => p.itemName === it.itemName)?._id ??
+            "",
+          itemName: it.itemName ?? "",
+          invoiceNumber: it._id ?? generateId(),
+          unit: it.unit ?? "",
+          quantity: Number(it.quantity ?? 0),
+          salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
+          discount: it.discount ?? 0,
+          amount:
+            Number(it.quantity ?? 0) *
+            Number(it.salesRate ?? it.salesRate ?? 0),
+          price: it.salesRate ?? 0,
+          color: it.color ?? "",
+          openingStock: it.openingStock ?? 0,
+          thickness: it.thickness ?? 0,
+          length: it.length ?? 0,
+          totalGrossAmount: it.totalGrossAmount ?? 0,
+          totalNetAmount: it.totalNetAmount ?? 0,
+          discountAmount: it.discountAmount ?? 0,
+        }))
+      );
+    } else {
+      setItems([
+        {
+          _id: generateId(),
+          itemName: "",
+          unit: "",
+          quantity: 1,
+          salesRate: 0,
+          discount: 0,
+          amount: 0,
+          color: "",
+          openingStock: 0,
+          thickness: 0,
+          length: 0,
+          totalGrossAmount: 0,
+          totalNetAmount: 0,
+          discountAmount: 0,
+        },
+      ]);
+    }
+  }, [initial, customers]);
+
+  const [submitLocked, setSubmitLocked] = useState(false);
+
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (submitting || submitLocked || saveDisabled) return;
+    setSubmitting(true);
+    setSubmitLocked(true);
     const payload: SalesPayload = {
       mode,
       docNo,
       docDate,
-      validUntil: mode === "Quotation" ? validUntil : undefined,
-      customerId,
-      items,
-      totals,
+      customer: selectedCustomer
+        ? {
+            id: selectedCustomer._id,
+            name: selectedCustomer.name,
+            address: selectedCustomer.address,
+            city: selectedCustomer.city,
+            openingAmount: selectedCustomer.openingAmount,
+            paymentType: selectedCustomer.paymentType,
+          }
+        : undefined,
+      products: items.map((item) => ({
+        ...item,
+        _id: String(item._id ?? generateId()),
+      })),
+      items: items.map((item) => ({
+        ...item,
+        _id: String(item._id ?? generateId()),
+      })),
+      totals: {
+        subTotal: totals.sub,
+        total: totals.total ?? totals.totalNetAmount,
+        totalGrossAmount: totals.totalGrossAmount,
+        totalDiscountAmount: totals.totalDiscountAmount,
+        totalNetAmount: totals.totalNetAmount,
+        amount: totals.total ?? totals.totalNetAmount,
+      },
       remarks,
       terms,
     };
-    onSubmit?.(payload);
+    console.log("[SalesDocShell] selectedCustomer:", selectedCustomer);
+    console.log("[SalesDocShell] payload:", payload);
+    const maybePromise = onSubmit?.(payload);
+    Promise.resolve(maybePromise).finally(() => {
+      setSubmitting(false);
+      setSubmitLocked(false);
+    });
   }
 
   return (
     <form onSubmit={handleSubmit}>
-      <Card>
+      <Card w={"100%"}>
         <Card.Section
           style={{
             display: "flex",
@@ -240,12 +402,6 @@ export default function SalesDocShell({
                 >
                   Valid Until
                 </Text>
-                <TextInput
-                  id="valid"
-                  type="date"
-                  value={validUntil}
-                  onChange={(e) => setValidUntil(e.target.value)}
-                />
               </div>
             ) : (
               <div>
@@ -254,86 +410,10 @@ export default function SalesDocShell({
                 >
                   Payment Method
                 </Text>
-                <Select
-                  data={["Cash", "Card", "UPI", "Cheque", "Credit"]}
-                  defaultValue="Cash"
-                />
+                <Select data={["Cash", "Card"]} defaultValue="Cash" />
               </div>
             )}
           </div>
-
-          {/* Issues panel: missing products / price diffs */}
-          {showImportIssues &&
-            (() => {
-              const issues = detectIssues();
-              if (issues.missing.length === 0 && issues.priceDiffs.length === 0)
-                return null;
-              return (
-                <div
-                  style={{
-                    marginTop: 8,
-                    padding: 8,
-                    border: "1px solid #ffd8a8",
-                    borderRadius: 6,
-                  }}
-                >
-                  <div style={{ fontWeight: 700 }}>Import Issues</div>
-                  {issues.missing.length > 0 && (
-                    <div style={{ marginTop: 8 }}>
-                      <div style={{ color: "#a60" }}>
-                        Missing products: {issues.missing.length}
-                      </div>
-                      <ul>
-                        {issues.missing.map((m) => (
-                          <li key={m.id}>{m.productName || m.productId}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {issues.priceDiffs.length > 0 && (
-                    <div style={{ marginTop: 8 }}>
-                      <div style={{ color: "#a60" }}>
-                        Price differences detected: {issues.priceDiffs.length}
-                      </div>
-                      <ul>
-                        {issues.priceDiffs.map((d) => (
-                          <li
-                            key={d.item.id}
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              gap: 12,
-                            }}
-                          >
-                            <div>
-                              {d.item.productName} — quoted: {d.item.rate} •
-                              current: {d.currentPrice}
-                            </div>
-                            <div>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => {
-                                  setItems((prev) =>
-                                    prev.map((it) =>
-                                      it.id === d.item.id
-                                        ? { ...it, rate: d.currentPrice }
-                                        : it
-                                    )
-                                  );
-                                }}
-                              >
-                                Apply current price
-                              </Button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
 
           <div
             style={{
@@ -350,10 +430,12 @@ export default function SalesDocShell({
               <Select
                 value={String(customerId)}
                 onChange={(v) => setCustomerId(String(v ?? ""))}
-                data={customers.map((c) => ({
-                  value: String(c.id),
-                  label: `${c.name} — ${c.city}`,
-                }))}
+                data={customers
+                  .filter((c) => c._id && c.name)
+                  .map((c) => ({
+                    value: String(c._id),
+                    label: `${c.name} — ${c.city ?? ""}`,
+                  }))}
               />
             </div>
             <div>
@@ -370,15 +452,21 @@ export default function SalesDocShell({
                   </div>
                   <div style={{ marginTop: 8, display: "flex", gap: 16 }}>
                     <div>
-                      <div style={{ fontSize: 12, color: "#888" }}>Opening Amount</div>
+                      <div style={{ fontSize: 12, color: "#888" }}>
+                        Opening Amount
+                      </div>
                       <div style={{ fontWeight: 600 }}>
                         {formatCurrency(selectedCustomer.openingAmount ?? 0)}
                       </div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 12, color: "#888" }}>Payment Type</div>
+                      <div style={{ fontSize: 12, color: "#888" }}>
+                        Payment Type
+                      </div>
                       <div style={{ fontWeight: 700 }}>
-                        {selectedCustomer.paymentType === "debit" ? "Debit" : "Credit"}
+                        {selectedCustomer.paymentType === "Debit"
+                          ? "Debit"
+                          : "Credit"}
                       </div>
                     </div>
                     <div>
@@ -389,13 +477,19 @@ export default function SalesDocShell({
                         style={{
                           fontWeight: 700,
                           color:
-                            selectedCustomer.paymentType === "debit"
+                            selectedCustomer.paymentType === "Debit"
                               ? "red"
                               : "green",
                         }}
                       >
                         {(selectedCustomer.openingAmount ?? 0) > 0
-                          ? `${selectedCustomer.paymentType === "debit" ? "Debit" : "Credit"} ${formatCurrency(selectedCustomer.openingAmount ?? 0)}`
+                          ? `${
+                              selectedCustomer.paymentType === "Debit"
+                                ? "Debit"
+                                : "Credit"
+                            } ${formatCurrency(
+                              selectedCustomer.openingAmount ?? 0
+                            )}`
                           : "Nil"}
                       </div>
                     </div>
@@ -424,15 +518,21 @@ export default function SalesDocShell({
                   setItems((prev) => [
                     ...prev,
                     {
-                      id: generateId(),
-                      productId: "",
-                      productName: "",
-                      unit: "pcs",
+                      invoiceNumber: generateId(),
+                      itemName: "",
+                      unit: "",
                       quantity: 1,
-                      rate: 0,
+                      salesRate: 0,
                       discount: 0,
-                      taxRate: 18,
                       amount: 0,
+                      price: 0,
+                      color: "",
+                      openingStock: 0,
+                      thickness: 0,
+                      length: 0,
+                      totalGrossAmount: 0,
+                      totalNetAmount: 0,
+                      discountAmount: 0,
                     },
                   ])
                 }
@@ -466,16 +566,6 @@ export default function SalesDocShell({
                 placeholder="Additional notes"
               />
             </div>
-            <div>
-              <Text style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-                Terms & Conditions
-              </Text>
-              <Textarea
-                value={terms}
-                onChange={(e) => setTerms(e.currentTarget.value)}
-                minRows={3}
-              />
-            </div>
           </div>
         </Card.Section>
 
@@ -491,7 +581,8 @@ export default function SalesDocShell({
             style={{ fontSize: 13, color: "var(--mantine-color-dimmed, #666)" }}
           >
             Date: {new Date(docDate).toLocaleDateString()} • Customer Balance:{" "}
-            {selectedCustomer?.paymentType === "debit" ? "-" : ""}{Number(selectedCustomer?.openingAmount ?? 0).toLocaleString()}
+            {selectedCustomer?.paymentType === "Debit" ? "-" : ""}
+            {Number(selectedCustomer?.openingAmount ?? 0).toLocaleString()}
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 12, color: "#888" }}>Subtotal</div>
@@ -534,48 +625,6 @@ export default function SalesDocShell({
           variant="outline"
           onClick={() => {
             try {
-              // find GRNs that contain any of the SKUs in this invoice
-              const allGrns = (ctx.grns || []) as any[];
-              const skuSet = new Set(items.map((it) => String(it.productId)));
-              const matched = allGrns.filter((g) =>
-                (g.items || []).some((gi: any) => skuSet.has(String(gi.sku)))
-              );
-
-              const grnList = Array.from(
-                new Set(matched.map((g) => g.grnNumber))
-              ).filter(Boolean);
-
-              const invoiceItems = items.map((it, idx) => ({
-                sr: idx + 1,
-                section: it.productName || it.productId,
-                color: (it as any).color ?? undefined,
-                thickness: (it as any).thickness ?? undefined,
-                sizeFt: (it as any).length ?? undefined,
-                lengths: it.quantity,
-                totalFeet: undefined,
-                rate: it.rate,
-                amount: it.amount ?? (it.quantity || 0) * (it.rate || 0),
-              }));
-
-              // optionally append GRN reference rows
-              const grnRows = matched.flatMap((g) => [
-                {
-                  sr: undefined,
-                  section: `GRN: ${g.grnNumber} — ${g.supplierName ?? ""}`,
-                },
-                ...(g.items || []).map((gi: any) => ({
-                  sr: undefined,
-                  section: `  ${gi.sku ?? gi.description ?? ""}`,
-                  color: gi.color ?? undefined,
-                  thickness: gi.thickness ?? undefined,
-                  sizeFt: gi.size ?? undefined,
-                  lengths: gi.quantity,
-                  totalFeet: gi.totalFeet ?? undefined,
-                  rate: gi.price ?? undefined,
-                  amount: (gi.quantity || 0) * (gi.price || 0),
-                })),
-              ]);
-
               const data: InvoiceData = {
                 title: mode === "Invoice" ? "Sales Invoice" : "Quotation",
                 companyName: "Seven Star Traders",
@@ -586,13 +635,11 @@ export default function SalesDocShell({
                 date: docDate,
                 ms: selectedCustomer?.name ?? undefined,
                 customer: selectedCustomer?.name ?? undefined,
-                grn: grnList.length ? grnList.join(", ") : null,
-                items: [...invoiceItems, ...grnRows],
+                grn: null,
+                items: items,
                 totals: {
                   subtotal: totals.sub,
-                  tax: (totals as any).tax ?? 0,
-                  total:
-                    (totals as any).total ?? (totals as any).totalNetAmount,
+                  total: totals.total ?? totals.totalNetAmount,
                 },
                 footerNotes: [
                   "Extrusion & Powder Coating",
@@ -608,7 +655,9 @@ export default function SalesDocShell({
         >
           Print
         </Button>
-        <Button type="submit">Save {mode}</Button>
+        <Button type="submit" disabled={saveDisabled || submitting}>
+          Save {mode}
+        </Button>
       </div>
     </form>
   );

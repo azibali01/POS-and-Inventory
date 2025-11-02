@@ -7,33 +7,79 @@ import {
   ScrollArea,
   Text,
   Title,
-  Badge,
+  // Badge, // removed unused import
   Modal,
+  Menu,
+  ActionIcon,
 } from "@mantine/core";
 import Table from "../../../lib/AppTable";
-import { IconFileText, IconPlus } from "@tabler/icons-react";
-import openPrintWindow from "../../../components/print/printWindow";
+import {
+  IconPlus,
+  IconDotsVertical,
+  IconPrinter,
+  IconTrash,
+  IconFile,
+} from "@tabler/icons-react";
+
+// openPrintWindow already imported above
 import type { InvoiceData } from "../../../components/print/printTemplate";
 import { useDataContext } from "../../Context/DataContext";
-import type { SaleRecord } from "../../Context/DataContext";
+// SaleRecord type not used in this file anymore
 import SalesDocShell, {
   type SalesPayload,
 } from "../../../components/sales/SalesDocShell";
+// import ProductMaster from "../Products/ProductMaster";
 import { showNotification } from "@mantine/notifications";
+import {
+  createQuotation,
+  updateQuotationByNumber,
+  deleteQuotationByNumber,
+  type QuotationRecordPayload,
+  type InventoryItemPayload,
+  type CustomerPayload,
+} from "../../../lib/api";
 
-export default function QuotationsPage() {
+// Use LineItem type for strict item mapping
+export type LineItem = {
+  _id?: string | number;
+  itemName?: string;
+  unit: string;
+  discount?: number;
+  discountAmount?: number;
+  salesRate?: number;
+  color?: string;
+  openingStock?: number;
+  quantity?: number;
+  thickness?: number;
+  amount: number;
+  length?: number;
+  totalGrossAmount: number;
+  totalNetAmount: number;
+};
+import openPrintWindow, {
+  downloadInvoicePdf,
+} from "../../../components/print/printWindow";
+
+function Quotation() {
   const {
     sales,
     setSales,
+    quotations,
+    setQuotations,
     loadSales,
+    loadQuotations,
     customers,
-    inventory,
     loadCustomers,
     loadInventory,
+    inventory,
   } = useDataContext();
 
+  // Products are always sourced from DataContext inventory, which ProductMaster keeps in sync.
+
+  // Only run data loading on initial mount
+  // Filter out any temp rows (with temp- prefix) to avoid showing duplicates after optimistic insert
+  // (quotes is declared below with correct filtering, so this block is removed)
   useEffect(() => {
-    // load sales/customers/inventory lazily when this page mounts (if not already loaded)
     if ((!sales || sales.length === 0) && typeof loadSales === "function") {
       loadSales().catch(() => {});
     }
@@ -49,89 +95,496 @@ export default function QuotationsPage() {
     ) {
       loadInventory().catch(() => {});
     }
-  }, [loadSales, loadCustomers, loadInventory]);
+    if (typeof loadQuotations === "function") {
+      loadQuotations().catch(() => {});
+    }
+  }, [
+    loadSales,
+    loadCustomers,
+    loadInventory,
+    loadQuotations,
+    customers,
+    inventory,
+    sales,
+  ]);
   const [open, setOpen] = useState(false);
-  const [, setCreating] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [initialPayload, setInitialPayload] =
+    useState<Partial<SalesPayload> | null>(null);
+  const [editingId, setEditingId] = useState<string | number | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | number | null>(
+    null
+  );
+  const [deleteTargetDisplay, setDeleteTargetDisplay] = useState<string | null>(
+    null
+  );
 
-  // form state for creating quotation
-
-  const quotes = (sales || []) as Partial<SaleRecord>[];
-
-  // optimistic create handler: accepts payload from SalesDocShell
-  async function handleCreate(payload: {
-    customer: string;
-    items: { sku: string; quantity: number; price: number }[];
-    total: number;
-    status?: string;
-  }) {
-    if (!payload.customer || payload.total == null) {
-      showNotification({
-        title: "Validation",
-        message: "Customer and total are required",
-        color: "red",
-      });
+  async function confirmDelete() {
+    const id = deleteTarget;
+    if (!id) {
+      setDeleteModalOpen(false);
       return;
     }
-
-    const tempId = `temp-${Date.now()}`;
-    const temp: SaleRecord = {
-      id: tempId,
-      date: new Date().toISOString(),
-      customer: payload.customer,
-      items: payload.items || [],
-      total: payload.total,
-      status:
-        payload.status === "pending" ||
-        payload.status === "paid" ||
-        payload.status === "overdue"
-          ? payload.status
-          : "pending",
-    };
-
-    // optimistic UI
-    setSales((prev) => [temp, ...prev]);
-    setCreating(true);
     try {
-      const res = await fetch("/api/quotations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Server returned ${res.status}: ${text}`);
+      // Find the correct unique identifier for deletion (prefer _id, then quotationNumber)
+      let qNum = String(id);
+      const toDelete = (quotations || []).find(
+        (q) =>
+          String(q.quotationNumber) === qNum ||
+          String((q as { _id?: string })._id) === qNum ||
+          String(
+            (q as Partial<QuotationRecordPayload> & { id?: string }).id
+          ) === qNum ||
+          String(
+            (q as Partial<QuotationRecordPayload> & { docNo?: string }).docNo
+          ) === qNum
+      );
+      if (toDelete && (toDelete as QuotationRecordPayload).quotationNumber) {
+        qNum = String((toDelete as QuotationRecordPayload).quotationNumber);
+      } else if (toDelete && toDelete.quotationNumber) {
+        qNum = String(toDelete.quotationNumber);
       }
-      const created: SaleRecord = await res.json();
-
-      // replace temp with created response
-      setSales((prev) => prev.map((s) => (s.id === tempId ? created : s)));
-      setOpen(false);
+      await deleteQuotationByNumber(qNum);
+      // Immediately update UI for instant feedback
+      if (typeof setQuotations === "function") {
+        setQuotations((prev) =>
+          prev.filter(
+            (q) =>
+              String(q.quotationNumber) !== qNum &&
+              String((q as { _id?: string })._id) !== qNum &&
+              String(
+                (q as Partial<QuotationRecordPayload> & { id?: string }).id
+              ) !== qNum &&
+              String(
+                (q as Partial<QuotationRecordPayload> & { docNo?: string })
+                  .docNo
+              ) !== qNum
+          )
+        );
+      }
+      // Then reload from server to ensure backend sync
+      if (typeof loadQuotations === "function") {
+        await loadQuotations();
+      }
       showNotification({
-        title: "Success",
-        message: "Quotation created",
-        color: "green",
+        title: "Deleted",
+        message: "Quotation deleted",
+        color: "orange",
       });
     } catch (err: unknown) {
       showNotification({
-        title: "Create Quotation Failed",
+        title: "Delete Failed",
         message: String(err),
         color: "red",
       });
-      // rollback optimistic record
-      setSales((prev) => prev.filter((s) => s.id !== tempId));
-      const message = err instanceof Error ? err.message : String(err);
+    } finally {
+      setDeleteModalOpen(false);
+      setDeleteTarget(null);
+      setDeleteTargetDisplay(null);
+    }
+  }
+
+  // form state for creating quotation
+
+  // Prefer dedicated quotations state; fall back to sales for older data
+  const quotes = (
+    quotations && quotations.length ? quotations : sales || []
+  ) as QuotationRecordPayload[];
+
+  // Generate next human-friendly quotation number like Quo-0001
+  function generateNextQuotationNumber(
+    existing: QuotationRecordPayload[]
+  ): string {
+    // Pick the smallest positive integer not already used so we can fill gaps
+    try {
+      const nums = (existing || [])
+        .map(
+          (q: QuotationRecordPayload | Partial<QuotationRecordPayload>) =>
+            q.quotationNumber ?? (q as { docNo?: string }).docNo ?? null
+        )
+        .filter(Boolean)
+        .map((s: string | null) => {
+          const m = String(s).match(/(\d+)$/);
+          return m ? Number(m[1]) : NaN;
+        })
+        .filter(
+          (n: number) => !Number.isNaN(n) && Number.isFinite(n) && Number(n) > 0
+        )
+        .sort((a: number, b: number) => a - b);
+
+      // If nothing exists, start at 1
+      if (!nums.length) return `Quo-${String(1).padStart(4, "0")}`;
+
+      // Create a set for O(1) lookups and find the smallest missing positive integer
+      const used = new Set(nums);
+      let candidate = 1;
+      while (used.has(candidate)) candidate += 1;
+      return `Quo-${String(candidate).padStart(4, "0")}`;
+    } catch {
+      return `Quo-0001`;
+    }
+  }
+
+  type QuotationLike = QuotationRecordPayload & {
+    quotationNumber?: string;
+    docNo?: string;
+    docDate?: string;
+    id?: string;
+    customer?: CustomerPayload[];
+    products?: InventoryItemPayload[];
+    items?: InventoryItemPayload[];
+    total?: number;
+    quotationDate?: string;
+  };
+
+  function buildInvoiceDataFromQuotation(q: QuotationLike): InvoiceData {
+    return {
+      title: "Quotation",
+      companyName: "Seven Star Traders",
+      addressLines: ["Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan"],
+      // support legacy docNo/docDate while preferring new fields
+      invoiceNo: String(q.docNo ?? q.id ?? q.quotationNumber),
+      date: (q.docDate ?? q.quotationDate) as string,
+      customer:
+        // Use customerName if present (for legacy/compatibility), otherwise extract from customer array or string
+        ("customerName" in q
+          ? (q as { customerName: string }).customerName
+          : Array.isArray(q.customer) && q.customer[0] && q.customer[0].name
+          ? q.customer[0].name
+          : typeof q.customer === "string"
+          ? q.customer
+          : "") as string,
+      items: ((q.items ?? q.products) || []).map(
+        (it: InventoryItemPayload, idx: number) => {
+          // Debug: log products to verify data
+          // eslint-disable-next-line no-console
+          console.log("Edit modal q.products:", q.products);
+          return {
+            sr: idx + 1,
+            section:
+              (it.metadata && String(it.metadata.sku)) ||
+              String(it.itemName) ||
+              "",
+            rate: Number(
+              (
+                it as InventoryItemPayload & {
+                  price?: number;
+                  rate?: number;
+                  unitPrice?: number;
+                }
+              ).price ??
+                (it as InventoryItemPayload & { rate?: number }).rate ??
+                (it as InventoryItemPayload & { unitPrice?: number })
+                  .unitPrice ??
+                0
+            ),
+            amount:
+              ((it as InventoryItemPayload & { quantity?: number }).quantity ||
+                0) *
+              Number(
+                (
+                  it as InventoryItemPayload & {
+                    price?: number;
+                    rate?: number;
+                    unitPrice?: number;
+                  }
+                ).price ??
+                  (it as InventoryItemPayload & { rate?: number }).rate ??
+                  (it as InventoryItemPayload & { unitPrice?: number })
+                    .unitPrice ??
+                  0
+              ),
+          };
+        }
+      ),
+      totals: { total: Number(q.total ?? 0) },
+    };
+  }
+
+  // previous quick-create handler removed — creation now goes through SalesDocShell -> saveFromShell
+
+  // Save from SalesDocShell: create or update depending on editingId
+  async function saveFromShell(payload: SalesPayload) {
+    if (creating) return; // Prevent concurrent submissions
+    // build customer object and validate
+    let cust = customers.find(
+      (c) => String(c._id) === String(payload.customer)
+    );
+    if (!cust) {
       showNotification({
-        title: "Error",
-        message: message || "Failed to create quotation",
+        title: "Customer not found",
+        message: "Please select a valid customer before saving the quotation.",
+        color: "red",
+      });
+      setCreating(false);
+      return;
+    }
+
+    const gross =
+      payload.products?.reduce(
+        (s, it: InventoryItemPayload) =>
+          s +
+          (Number((it as InventoryItemPayload & { rate?: number }).rate) || 0) *
+            (Number(
+              (it as InventoryItemPayload & { quantity?: number }).quantity
+            ) || 0),
+        0
+      ) ?? 0;
+    const apiPayload: QuotationRecordPayload = {
+      products:
+        payload.products?.map((it) => ({
+          _id: it._id ?? "",
+          itemName: it.itemName ?? "",
+          unit: it.unit ?? "",
+          discount:
+            typeof (it as { discount?: unknown }).discount === "number"
+              ? Number((it as { discount?: number }).discount)
+              : 0,
+          discountAmount:
+            typeof (it as { discountAmount?: unknown }).discountAmount ===
+            "number"
+              ? Number((it as { discountAmount?: number }).discountAmount)
+              : 0,
+          salesRate: it.salesRate ?? 0,
+          color: it.color ?? "",
+          openingStock: it.openingStock ?? 0,
+          quantity: it.quantity ?? 0,
+          thickness: it.thickness ?? 0,
+          amount:
+            typeof (it as { amount?: unknown }).amount === "number"
+              ? Number((it as { amount?: number }).amount)
+              : 0,
+          length:
+            typeof (it as { length?: unknown }).length === "number"
+              ? Number((it as { length?: number }).length)
+              : 0,
+          totalGrossAmount:
+            typeof (it as { totalGrossAmount?: unknown }).totalGrossAmount ===
+            "number"
+              ? Number((it as { totalGrossAmount?: number }).totalGrossAmount)
+              : 0,
+          totalNetAmount:
+            typeof (it as { totalNetAmount?: unknown }).totalNetAmount ===
+            "number"
+              ? Number((it as { totalNetAmount?: number }).totalNetAmount)
+              : 0,
+        })) ?? [],
+      quotationDate: payload.docDate ?? new Date().toISOString(),
+      customer: cust ? [cust] : [],
+      remarks: payload.remarks ?? "",
+      subTotal: payload.totals?.subTotal ?? gross,
+      // Accept either spelling from various places: `totalGrossAmount` or `totalGrossAmmount`
+      totalGrossAmount:
+        (payload as SalesPayload & { totalGrossAmount?: number })
+          .totalGrossAmount ??
+        payload.totals?.total ??
+        gross,
+      // totalDiscount may be provided under different keys in different forms
+      totalDiscount:
+        (
+          payload as SalesPayload & {
+            totalDiscount?: number;
+            totalDiscountAmount?: number;
+          }
+        ).totalDiscount ??
+        (
+          payload as SalesPayload & {
+            totalDiscount?: number;
+            totalDiscountAmount?: number;
+          }
+        ).totalDiscountAmount ??
+        0,
+      length: payload.products?.length ?? 0,
+    };
+
+    setCreating(true);
+    // Build a lightweight display object for optimistic insert.
+    const tempId = `temp-${Date.now()}`;
+    // determine quotationNumber: prefer provided docNo, otherwise generate
+    const assignedQuotationNumber =
+      (payload as Partial<SalesPayload> & { docNo?: string }).docNo ??
+      generateNextQuotationNumber(quotes);
+
+    const tempRow: QuotationRecordPayload = {
+      quotationNumber: assignedQuotationNumber,
+      products: apiPayload.products,
+      quotationDate: apiPayload.quotationDate,
+      // Set customer as array for type compatibility, and store full customer object or fallback
+      customer: cust ? [cust] : [],
+
+      remarks: apiPayload.remarks,
+      subTotal: apiPayload.subTotal,
+      totalGrossAmount: apiPayload.totalGrossAmount,
+      totalDiscount: apiPayload.totalDiscount,
+      length: apiPayload.length,
+    };
+
+    // Optimistically insert into UI so user sees the new quotation immediately.
+    try {
+      if (!editingId) {
+        if (typeof setQuotations === "function") {
+          setQuotations((prev) => [tempRow, ...prev]);
+        } else if (typeof setSales === "function") {
+          setSales((prev) => [
+            {
+              date: apiPayload.quotationDate ?? new Date().toISOString(),
+              quotationDate:
+                apiPayload.quotationDate ?? new Date().toISOString(),
+              customerId: String(payload.customer ?? ""),
+              total: apiPayload.totalGrossAmount ?? apiPayload.subTotal ?? 0,
+              status: "quotation",
+              id: tempId,
+              quotationNumber: assignedQuotationNumber,
+              remarks: apiPayload.remarks,
+              products: apiPayload.products,
+            },
+            ...prev,
+          ]);
+        }
+      }
+
+      // Close modal immediately to show the new row; keep creating flag until server responds
+      setOpen(false);
+      setInitialPayload(null);
+      setEditingId(null);
+
+      // ensure payload includes a quotationNumber for create
+      if (!editingId) apiPayload.quotationNumber = assignedQuotationNumber;
+
+      if (editingId) {
+        // prefer updating by quotationNumber
+        const qNum = String(editingId);
+        const updated = await updateQuotationByNumber(qNum, apiPayload);
+        // update quotations state if available, otherwise update sales
+        if (typeof setQuotations === "function") {
+          setQuotations((prev) =>
+            prev.map((s) =>
+              String((s as QuotationRecordPayload).quotationNumber) === qNum ||
+              String(
+                (s as QuotationRecordPayload & { docNo?: string }).docNo
+              ) === qNum ||
+              String((s as QuotationRecordPayload & { id?: string }).id) ===
+                qNum ||
+              String((s as QuotationRecordPayload & { _id?: string })._id) ===
+                qNum
+                ? (updated as QuotationRecordPayload)
+                : s
+            )
+          );
+        } else if (typeof setSales === "function") {
+          setSales((prev) =>
+            prev.map((s) =>
+              String((s as { id?: string | number }).id) === qNum ||
+              String((s as { quotationNumber?: string }).quotationNumber) ===
+                qNum
+                ? {
+                    ...s,
+                    date: updated.quotationDate ?? new Date().toISOString(),
+                    quotationDate:
+                      updated.quotationDate ?? new Date().toISOString(),
+                    customerId: String(payload.customer ?? ""),
+                    total: updated.totalGrossAmount ?? updated.subTotal ?? 0,
+                    status: "quotation",
+                    quotationNumber: updated.quotationNumber,
+                    remarks: updated.remarks,
+                    products: updated.products,
+                  }
+                : s
+            )
+          );
+        }
+        showNotification({
+          title: "Quotation Updated",
+          message: "Quotation has been updated.",
+          color: "blue",
+        });
+      } else {
+        const created = await createQuotation(
+          apiPayload as QuotationRecordPayload
+        );
+        if (created) {
+          // Replace the temp row with server-provided record (match by quotationNumber)
+          if (typeof setQuotations === "function") {
+            setQuotations((prev) => [
+              created as QuotationRecordPayload,
+              ...prev.filter(
+                (
+                  r: QuotationRecordPayload & {
+                    quotationNumber?: string;
+                    docNo?: string;
+                  }
+                ) =>
+                  String(
+                    r.quotationNumber ?? (r as { docNo?: string }).docNo
+                  ) !== String(created.quotationNumber)
+              ),
+            ]);
+          } else if (typeof setSales === "function") {
+            setSales((prev) => [
+              {
+                date: created.quotationDate ?? new Date().toISOString(),
+                quotationDate:
+                  created.quotationDate ?? new Date().toISOString(),
+                customerId: String(payload.customer ?? ""),
+                total: created.totalGrossAmount ?? created.subTotal ?? 0,
+                status: "quotation",
+                id: created._id ?? created.quotationNumber ?? tempId,
+                quotationNumber: created.quotationNumber,
+                remarks: created.remarks,
+                products: created.products,
+              },
+              ...prev.filter(
+                (r) =>
+                  String(
+                    (r as { quotationNumber?: string; docNo?: string })
+                      .quotationNumber ?? (r as { docNo?: string }).docNo
+                  ) !== String(created.quotationNumber)
+              ),
+            ]);
+          }
+        } else {
+          // If server returned nothing, leave the optimistic row but notify
+          showNotification({
+            title: "Created (local)",
+            message: "Quotation added locally (server did not return data).",
+            color: "yellow",
+          });
+        }
+        showNotification({
+          title: "Quotation Created",
+          message: "Quotation created.",
+          color: "green",
+        });
+      }
+    } catch (err: unknown) {
+      // On error, remove optimistic row and notify
+      if (!editingId) {
+        if (typeof setQuotations === "function") {
+          setQuotations((prev) =>
+            prev.filter(
+              (r) =>
+                String((r as QuotationRecordPayload).quotationNumber) !== tempId
+            )
+          );
+        } else if (typeof setSales === "function") {
+          setSales((prev) =>
+            prev.filter((r) => String((r as { id?: string }).id) !== tempId)
+          );
+        }
+      }
+      showNotification({
+        title: editingId ? "Update Failed" : "Create Failed",
+        message: err instanceof Error ? err.message : String(err),
         color: "red",
       });
     } finally {
       setCreating(false);
     }
   }
+
   return (
-    <div>
+    <>
       <Box mb="md">
         <Group justify="space-between">
           <div>
@@ -141,7 +594,15 @@ export default function QuotationsPage() {
           <div>
             <Button
               leftSection={<IconPlus size={16} />}
-              onClick={() => setOpen(true)}
+              onClick={async () => {
+                // Always reload inventory before opening modal
+                if (typeof loadInventory === "function") {
+                  await loadInventory();
+                }
+                const gen = generateNextQuotationNumber(quotes);
+                setInitialPayload({ docNo: gen });
+                setOpen(true);
+              }}
             >
               New Quotation
             </Button>
@@ -165,104 +626,445 @@ export default function QuotationsPage() {
                   <Table.Th>Date</Table.Th>
                   <Table.Th>Customer</Table.Th>
                   <Table.Th style={{ textAlign: "right" }}>Amount</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th style={{ textAlign: "right" }}>Action</Table.Th>
+                  <Table.Th>Action</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {quotes.map((q: Partial<SaleRecord>) => (
-                  <Table.Tr key={q.id}>
-                    <Table.Td style={{ fontFamily: "monospace" }}>
-                      {q.id}
-                    </Table.Td>
-                    <Table.Td>
-                      {q.date ? new Date(q.date).toLocaleDateString() : ""}
-                    </Table.Td>
-                    <Table.Td>{q.customer ?? ""}</Table.Td>
-                    <Table.Td style={{ textAlign: "right" }}>
-                      {q.total ?? 0}
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge>{q.status ?? "Draft"}</Badge>
-                    </Table.Td>
-                    <Table.Td style={{ textAlign: "right" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "flex-end",
-                          gap: 6,
-                        }}
-                      >
-                        <Button variant="subtle">
-                          <IconFileText size={16} />
-                        </Button>
-                        <Button
-                          variant="subtle"
-                          onClick={() => {
-                            const d: InvoiceData = {
-                              title: "Quotation",
-                              companyName: "Seven Star Traders",
-                              addressLines: [
-                                "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
-                              ],
-                              invoiceNo: String(q.id),
-                              date: q.date as string,
-                              customer: q.customer as string,
-                              items: (q.items || []).map((it, idx) => ({
-                                sr: idx + 1,
-                                section: it.sku || "",
-                                amount: (it.quantity || 0) * (it.price || 0),
-                              })),
-                              totals: { total: (q.total as number) || 0 },
-                            };
-                            openPrintWindow(d);
+                {quotes.map((q: QuotationRecordPayload, idx: number) => {
+                  // ...existing code...
+                  const idVal =
+                    q &&
+                    (q.quotationNumber ??
+                      (q as QuotationRecordPayload & { id?: string })?.id ??
+                      (q as QuotationRecordPayload & { docNo?: string })
+                        ?.docNo);
+                  const dateVal = (q &&
+                    (q.quotationDate ??
+                      q.quotationDate ??
+                      (q as QuotationRecordPayload & { docDate?: string })
+                        ?.docDate)) as string | undefined;
+                  const amountVal = Number(
+                    q?.subTotal ??
+                      q?.totalGrossAmount ??
+                      q?.subTotal ??
+                      q?.totalNetAmount ??
+                      0
+                  );
+                  // Always resolve customer name from customer[0]?.name if available, fallback to customerId lookup for optimistic rows
+                  let customerDisplay = "";
+                  if (Array.isArray(q.customer) && q.customer.length > 0) {
+                    customerDisplay = q.customer[0]?.name || "";
+                  } else if (typeof q.customer === "string") {
+                    customerDisplay = q.customer;
+                  } else if (
+                    q.customer &&
+                    typeof q.customer === "object" &&
+                    "name" in q.customer
+                  ) {
+                    customerDisplay =
+                      (q.customer as { name?: string }).name || "";
+                  }
+                  // Fallback for optimistic rows: lookup customerId or customer[0]?.id in customers list
+                  if (!customerDisplay && Array.isArray(customers)) {
+                    let customerId = null;
+                    if (q.customer) {
+                      customerId = q.customer;
+                    } else if (
+                      Array.isArray(q.customer) &&
+                      q.customer[0] &&
+                      (q.customer[0] as { name?: string }).name
+                    ) {
+                      customerId = (q.customer[0] as { name?: string }).name;
+                    }
+                    if (customerId) {
+                      const found = customers.find(
+                        (c) => String(c._id) === String(customerId)
+                      );
+                      if (found && found.name) customerDisplay = found.name;
+                    }
+                  }
+
+                  // Prefer showing a human-friendly quotation number if available;
+                  // fall back to legacy docNo or the raw id when not present.
+                  const displayNumber =
+                    (q &&
+                      (q.quotationNumber ??
+                        (q as QuotationRecordPayload & { docNo?: string })
+                          .docNo ??
+                        idVal)) ??
+                    `quotation-${idx}`;
+                  const rowKey = idVal ?? `quotation-${idx}`;
+                  return (
+                    <Table.Tr key={rowKey}>
+                      <Table.Td>{String(displayNumber ?? "-")}</Table.Td>
+                      <Table.Td>
+                        {dateVal ? new Date(dateVal).toLocaleDateString() : ""}
+                      </Table.Td>
+                      <Table.Td>{customerDisplay ?? ""}</Table.Td>
+                      <Table.Td style={{ textAlign: "right" }}>
+                        {amountVal}
+                      </Table.Td>
+
+                      <Table.Td style={{ textAlign: "right" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            gap: 6,
                           }}
                         >
-                          Print
-                        </Button>
-                      </div>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
+                          {/* Action menu: Print (design), Edit, Delete */}
+                          <Menu>
+                            <Menu.Target>
+                              <ActionIcon variant="subtle">
+                                <IconDotsVertical />
+                              </ActionIcon>
+                            </Menu.Target>
+                            <Menu.Dropdown>
+                              <Menu.Item
+                                onClick={() => {
+                                  const d = buildInvoiceDataFromQuotation(q);
+                                  openPrintWindow(d);
+                                }}
+                              >
+                                <IconPrinter
+                                  size={14}
+                                  style={{ marginRight: 8 }}
+                                />
+                                Print
+                              </Menu.Item>
+                              <Menu.Item
+                                onClick={async () => {
+                                  const d = buildInvoiceDataFromQuotation(q);
+                                  // trigger client-side PDF generation and download
+                                  try {
+                                    await downloadInvoicePdf(
+                                      d,
+                                      `${String(
+                                        displayNumber ?? "quotation"
+                                      )}.pdf`
+                                    );
+                                  } catch {
+                                    // fallback to opening print window if PDF generation fails
+                                    const w = openPrintWindow(d) as
+                                      | Window
+                                      | undefined;
+                                    setTimeout(() => w?.print?.(), 600);
+                                  }
+                                }}
+                              >
+                                <IconFile
+                                  size={14}
+                                  style={{ marginRight: 8 }}
+                                />
+                                Download PDF
+                              </Menu.Item>
+                              <Menu.Item
+                                onClick={() => {
+                                  // edit
+                                  const existingNumber =
+                                    q.quotationNumber ??
+                                    (
+                                      q as QuotationRecordPayload & {
+                                        docNo?: string;
+                                      }
+                                    ).docNo ??
+                                    q.quotationNumber ??
+                                    (q as QuotationRecordPayload)
+                                      .quotationNumber;
+
+                                  // Resolve customerId robustly so SalesDocShell can preselect the customer
+                                  let resolvedCustomerId:
+                                    | string
+                                    | number
+                                    | undefined = undefined;
+                                  if (q && q.customer) {
+                                    if (
+                                      Array.isArray(q.customer) &&
+                                      q.customer[0]
+                                    ) {
+                                      resolvedCustomerId =
+                                        (q.customer[0] as CustomerPayload).id ??
+                                        (
+                                          q.customer[0] as CustomerPayload & {
+                                            customerId?: string;
+                                          }
+                                        ).customerId ??
+                                        (q.customer[0] as CustomerPayload)
+                                          .name ??
+                                        undefined;
+                                    } else if (typeof q.customer === "string") {
+                                      resolvedCustomerId = q.customer;
+                                    }
+                                  }
+                                  // If we only have a customerName, try to map it to an id from loaded customers
+                                  if (
+                                    !resolvedCustomerId &&
+                                    (q as { customerName?: string })
+                                      .customerName
+                                  ) {
+                                    const byName = (customers || []).find(
+                                      (c: CustomerPayload) =>
+                                        String(c.name).trim() ===
+                                        String(
+                                          (q as { customerName?: string })
+                                            .customerName
+                                        ).trim()
+                                    );
+                                    if (byName) resolvedCustomerId = byName._id;
+                                    else
+                                      resolvedCustomerId = (
+                                        q as { customerName?: string }
+                                      ).customerName;
+                                  }
+                                  if (!resolvedCustomerId)
+                                    resolvedCustomerId =
+                                      q.quotationNumber ?? "";
+
+                                  // Prefill all fields for edit modal
+                                  setInitialPayload({
+                                    docNo: existingNumber,
+                                    docDate: (q.quotationDate ?? "") as string,
+                                    customer:
+                                      Array.isArray(q.customer) &&
+                                      q.customer.length > 0
+                                        ? {
+                                            name:
+                                              q.customer[0]?.name ??
+                                              String(q.customer[0]),
+                                          }
+                                        : typeof q.customer === "string" ||
+                                          typeof q.customer === "number"
+                                        ? { name: String(q.customer) }
+                                        : typeof resolvedCustomerId ===
+                                            "string" ||
+                                          typeof resolvedCustomerId === "number"
+                                        ? { name: String(resolvedCustomerId) }
+                                        : { name: "" },
+                                    remarks: q.remarks ?? "",
+                                    totals: {
+                                      subTotal:
+                                        q.subTotal ?? q.totalGrossAmount ?? 0,
+                                      total:
+                                        q.totalGrossAmount ?? q.subTotal ?? 0,
+                                      amount:
+                                        q.subTotal ?? q.totalGrossAmount ?? 0,
+                                      totalGrossAmount: q.totalGrossAmount ?? 0,
+                                      totalDiscountAmount: q.totalDiscount ?? 0,
+                                      totalNetAmount: q.totalNetAmount ?? 0,
+                                    },
+                                    // Always provide 'items' for SalesDocShell prefill, mapped from q.products
+                                    items: (q.products ?? []).map(
+                                      (
+                                        item: InventoryItemPayload
+                                      ): LineItem => {
+                                        let unitVal = item.unit;
+                                        if (typeof unitVal === "number")
+                                          unitVal = String(unitVal);
+                                        if (typeof unitVal !== "string")
+                                          unitVal = "";
+                                        const quantity = Number(
+                                          item.quantity ?? 0
+                                        );
+                                        const salesRate = Number(
+                                          item.salesRate ?? 0
+                                        );
+                                        const discount =
+                                          typeof (
+                                            item as { discount?: unknown }
+                                          ).discount === "number"
+                                            ? Number(
+                                                (item as { discount?: number })
+                                                  .discount
+                                              )
+                                            : 0;
+                                        const discountAmount =
+                                          typeof (
+                                            item as { discountAmount?: unknown }
+                                          ).discountAmount === "number"
+                                            ? Number(
+                                                (
+                                                  item as {
+                                                    discountAmount?: number;
+                                                  }
+                                                ).discountAmount
+                                              )
+                                            : 0;
+                                        const length =
+                                          typeof (item as { length?: unknown })
+                                            .length === "number"
+                                            ? Number(
+                                                (item as { length?: number })
+                                                  .length
+                                              )
+                                            : 0;
+                                        const gross = quantity * salesRate;
+                                        return {
+                                          _id: String(item._id ?? ""),
+                                          itemName: item.itemName ?? "",
+                                          unit: unitVal,
+                                          discount,
+                                          discountAmount,
+                                          salesRate,
+                                          color: item.color ?? "",
+                                          openingStock: Number(
+                                            item.openingStock ?? 0
+                                          ),
+                                          quantity,
+                                          thickness: Number(
+                                            item.thickness ?? 0
+                                          ),
+                                          amount: gross,
+                                          length,
+                                          totalGrossAmount: gross,
+                                          totalNetAmount:
+                                            gross - discountAmount,
+                                        };
+                                      }
+                                    ),
+                                  });
+                                  setEditingId(existingNumber ?? "");
+                                  setOpen(true);
+                                }}
+                              >
+                                Edit
+                              </Menu.Item>
+                              <Menu.Item
+                                color="red"
+                                onClick={() => {
+                                  const id =
+                                    q.quotationNumber ??
+                                    (q as QuotationRecordPayload)
+                                      .quotationNumber ??
+                                    (
+                                      q as QuotationRecordPayload & {
+                                        docNo?: string;
+                                      }
+                                    ).docNo ??
+                                    "";
+                                  if (!id) return;
+                                  setDeleteTarget(id);
+                                  setDeleteTargetDisplay(
+                                    String(
+                                      q.quotationNumber ??
+                                        (q as QuotationRecordPayload)
+                                          .quotationNumber ??
+                                        displayNumber ??
+                                        id
+                                    )
+                                  );
+                                  setDeleteModalOpen(true);
+                                }}
+                              >
+                                <IconTrash
+                                  size={14}
+                                  style={{ marginRight: 8 }}
+                                />
+                                Delete
+                              </Menu.Item>
+                            </Menu.Dropdown>
+                          </Menu>
+                        </div>
+                      </Table.Td>
+                    </Table.Tr>
+                  );
+                })}
               </Table.Tbody>
             </Table>
           </ScrollArea>
         </Card.Section>
       </Card>
 
-      <Modal opened={open} onClose={() => setOpen(false)} size="100%">
+      {/* Main create/edit modal */}
+      <Modal
+        opened={open}
+        onClose={() => {
+          setOpen(false);
+          setInitialPayload(null);
+          setEditingId(null);
+        }}
+        size="100%"
+      >
         <Box p="md">
-          <Text fw={700}>Create Quotation</Text>
+          <Text fw={700}>
+            {editingId ? "Edit Quotation" : "Create Quotation"}
+          </Text>
+          {/* assignedNumber is now injected into the form's docNo; hide the separate display here */}
           <Text c="dimmed" mb="md">
             Quick create: enter customer and total. For full editor, replace
             with your SalesDocShell.
           </Text>
-
           <SalesDocShell
             mode="Quotation"
             customers={customers}
-            products={inventory}
-            showImportIssues={false}
-            onSubmit={(payload: SalesPayload) => {
-              const cust = customers.find(
-                (c) => String(c.id) === String(payload.customerId)
-              );
-              const customerName = cust
-                ? cust.name
-                : String(payload.customerId ?? "");
-              handleCreate({
-                customer: customerName,
-                items: (payload.items || []).map((it) => ({
-                  sku: it.productId || it.productName,
-                  quantity: it.quantity,
-                  price: it.rate,
-                })),
-                total: payload.totals.total,
-              });
-            }}
+            products={(inventory || []).map((p: InventoryItemPayload) => {
+              let unitVal = p.unit;
+              if (typeof unitVal === "number") unitVal = String(unitVal);
+              if (typeof unitVal !== "string") unitVal = undefined;
+              return {
+                ...p,
+                _id: String(p._id ?? ""),
+                itemName: p.itemName || "",
+                unit: unitVal,
+              };
+            })}
+            key={
+              editingId
+                ? `edit-${String(editingId)}`
+                : `new-${String(initialPayload?.docNo ?? "")}`
+            }
+            initial={initialPayload ?? {}}
+            submitting={creating}
+            setSubmitting={setCreating}
+            onSubmit={(() => {
+              let called = false;
+              return (payload: SalesPayload) => {
+                if (called) return;
+                called = true;
+                setOpen(false); // Close modal immediately
+                setInitialPayload(null);
+                setEditingId(null);
+                saveFromShell(payload);
+              };
+            })()}
+            saveDisabled={creating}
           />
         </Box>
       </Modal>
-    </div>
+
+      {/* Delete confirmation modal OUTSIDE main modal */}
+      <Modal
+        opened={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="Confirm delete"
+        centered
+        size="xs"
+      >
+        <Box>
+          <Text>
+            Are you sure you want to delete quotation{" "}
+            <strong>{deleteTargetDisplay ?? String(deleteTarget ?? "")}</strong>
+            ?
+          </Text>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8,
+              marginTop: 12,
+            }}
+          >
+            <Button variant="default" onClick={() => setDeleteModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button color="red" onClick={confirmDelete}>
+              Delete
+            </Button>
+          </div>
+        </Box>
+      </Modal>
+    </>
   );
 }
+
+export default Quotation;

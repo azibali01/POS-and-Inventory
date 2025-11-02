@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useDebouncedValue } from "@mantine/hooks";
+import api from "../../../lib/api";
 import {
   Card,
   Group,
@@ -25,8 +26,8 @@ import {
   IconEye,
   IconCheck,
   IconX,
-
 } from "@tabler/icons-react";
+
 import { useDataContext } from "../../Context/DataContext";
 import type { InventoryItem } from "../../Context/DataContext";
 
@@ -49,7 +50,7 @@ export default function ProductMaster() {
     code?: string;
     name?: string;
     newPrice?: number | null;
-    matchedProductId?: number | null;
+    matchedProductId?: string | null;
     matchedProductName?: string | null;
     selected?: boolean;
     priceInvalid?: boolean;
@@ -61,13 +62,14 @@ export default function ProductMaster() {
     include?: boolean;
   };
 
-  type ApplyResponse = { updated?: Array<{ id: number; newPrice?: number }> };
+  type ApplyResponse = { updated?: Array<{ _id: string; newPrice?: number }> };
   const {
-    inventory,
     categoriesForSelect = [],
-    loadInventory,
     deleteInventoryItem,
+    loadInventory,
+    setInventory: setGlobalInventory,
   } = useDataContext();
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch] = useDebouncedValue(searchTerm, 200);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -75,32 +77,46 @@ export default function ProductMaster() {
     null
   );
 
+  // Fetch all products from backend on mount
   useEffect(() => {
-    // Load inventory when this page mounts (if not already loaded).
-    // Do NOT include `refreshFromBackend` in deps — the provider recreates
-    // that function on state changes which would cause this effect to run
-    // repeatedly and trigger duplicate network requests (seen when modal
-    // does optimistic updates). Only depend on the stable `loadInventory`.
-    if (typeof loadInventory === "function") loadInventory().catch(() => {});
-  }, [loadInventory]);
+    async function fetchProducts() {
+      try {
+        const { data } = await api.get("products");
+        // console.log("Fetched products:", data);
+        setInventory(data);
+        setGlobalInventory(data);
+      } catch (err) {
+        console.error("Error fetching products:", err);
+        setInventory([]);
+        setGlobalInventory([]);
+        showNotification({
+          title: "Error",
+          message: "Failed to fetch products. Check backend connection.",
+          color: "red",
+        });
+      }
+    }
+    fetchProducts();
+  }, []);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [, setUploadFile] = useState<File | null>(null);
   const [uploadPreview, setUploadPreview] = useState<UploadPreviewRow[] | null>(
     null
   );
 
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [reviewRows, setReviewRows] = useState<ReviewRow[] | null>(null);
-  const [undoSnapshot, setUndoSnapshot] = useState<Map<number, number> | null>(
+  const [undoSnapshot, setUndoSnapshot] = useState<Map<string, number> | null>(
     null
   );
 
+  // console.log("inventory", inventory);
   const filtered = useMemo(() => {
     const term = (debouncedSearch || "").toLowerCase();
-    return (inventory || []).filter((p) => {
+    const arr = (inventory || []).filter((p) => {
       if (selectedCategory && (p.category || "") !== selectedCategory)
         return false;
       if (!term) return true;
@@ -108,35 +124,45 @@ export default function ProductMaster() {
         String(v).toLowerCase().includes(term)
       );
     });
+    return arr;
   }, [inventory, debouncedSearch, selectedCategory]);
 
   const getStockStatus = (item: InventoryItem) => {
-    const stock = (item as any).openingStock ?? item.stock;
-    const min = (item as any).minimumStockLevel;
+    const stock = item.openingStock ?? item.stock;
+    const min = item.minimumStockLevel;
+    if (stock == null) return <Badge color="gray">Unknown</Badge>;
     if (stock < 0) return <Badge color="red">Negative</Badge>;
     if (stock <= (min ?? 0)) return <Badge color="yellow">Low Stock</Badge>;
     return <Badge color="green">In Stock</Badge>;
   };
-
-  const { setInventory } = useDataContext();
+  // Removed setInventory from useDataContext; using local setInventory only
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  function handleDeleteRequest(id: number) {
+  function handleDeleteRequest(_id: string) {
     // open confirmation modal
-    setConfirmDeleteId(id);
+    setConfirmDeleteId(_id);
     setConfirmDeleteOpen(true);
   }
 
-  async function performDelete(id: number) {
+  async function performDelete(_id: string) {
     setDeleteLoading(true);
     try {
-      await deleteInventoryItem(id);
+      await deleteInventoryItem(_id);
+      setInventory((prev) => {
+        const updated = prev.filter((item) => String(item._id) !== String(_id));
+        setGlobalInventory(updated);
+        return updated;
+      });
+      if (typeof loadInventory === "function") {
+        const global = await loadInventory();
+        setGlobalInventory(global);
+      }
       showNotification({
         title: "Deleted",
-        message: `Product ${id} deleted`,
+        message: `Product ${_id} deleted`,
         color: "orange",
       });
     } catch (err) {
@@ -196,10 +222,12 @@ export default function ProductMaster() {
             />
             <Select
               placeholder="Filter by category"
-              data={(categoriesForSelect || []).map((c) => ({
-                value: c.value,
-                label: c.label,
-              }))}
+              data={(categoriesForSelect || [])
+                .filter((c) => c && c.value && c.label)
+                .map((c) => ({
+                  value: c.value,
+                  label: c.label,
+                }))}
               value={selectedCategory ?? undefined}
               onChange={(v) => setSelectedCategory(v ?? null)}
               clearable
@@ -209,32 +237,36 @@ export default function ProductMaster() {
         </Group>
 
         <ScrollArea>
-          <Table 
-            withColumnBorders 
-            withRowBorders 
-            highlightOnHover
-          >
+          <Table withColumnBorders withRowBorders highlightOnHover>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th style={{ width: "40px", padding: "8px" }}>Sr No.</Table.Th>
-                <Table.Th style={{ width: "250px", padding: "8px" }}>Item Name</Table.Th>
+                <Table.Th style={{ width: "40px", padding: "8px" }}>
+                  Sr No.
+                </Table.Th>
+                <Table.Th style={{ width: "250px", padding: "8px" }}>
+                  Item Name
+                </Table.Th>
                 <Table.Th style={{ padding: "8px" }}>Category</Table.Th>
                 <Table.Th style={{ padding: "8px" }}>Color</Table.Th>
                 <Table.Th style={{ width: "100px", padding: "8px" }}>
                   Opening Stock
                 </Table.Th>
                 <Table.Th style={{ padding: "8px" }}>Sale Rate</Table.Th>
-                <Table.Th style={{ width: "120px", padding: "8px" }}>Status</Table.Th>
-                <Table.Th style={{ width: "120px", padding: "8px" }}>Actions</Table.Th>
+                <Table.Th style={{ width: "120px", padding: "8px" }}>
+                  Status
+                </Table.Th>
+                <Table.Th style={{ width: "120px", padding: "8px" }}>
+                  Actions
+                </Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {filtered.map((p, index) => (
-                <Table.Tr key={(p as any).id}>
+                <Table.Tr key={p._id}>
+                  <Table.Td style={{ padding: "8px" }}>{index + 1}</Table.Td>
                   <Table.Td style={{ padding: "8px" }}>
-                    {index + 1}
+                    {p.itemName || "-"}
                   </Table.Td>
-                  <Table.Td style={{ padding: "8px" }}>{(p as any).name || "-"}</Table.Td>
                   <Table.Td style={{ padding: "8px" }}>
                     <Badge
                       size="sm"
@@ -245,25 +277,29 @@ export default function ProductMaster() {
                     </Badge>
                   </Table.Td>
 
-                  <Table.Td style={{ padding: "8px" }}>{p.color ?? "-"}</Table.Td>
                   <Table.Td style={{ padding: "8px" }}>
-                    {formatNumber((p as any).openingStock ?? p.stock)} 
+                    {p.color ?? "-"}
                   </Table.Td>
                   <Table.Td style={{ padding: "8px" }}>
-                    {formatCurrency((p as any).salesRate ?? null)}
+                    {formatNumber(p.openingStock ?? p.stock)}
                   </Table.Td>
-                  <Table.Td style={{ padding: "8px" }}>{getStockStatus(p)}</Table.Td>
+                  <Table.Td style={{ padding: "8px" }}>
+                    {formatCurrency(p.salesRate ?? null)}
+                  </Table.Td>
+                  <Table.Td style={{ padding: "8px" }}>
+                    {getStockStatus(p)}
+                  </Table.Td>
                   <Table.Td style={{ padding: "8px" }}>
                     <Group gap={0} grow>
                       <Button
                         variant="subtle"
-                         leftSection={<IconEye size={16} />}
+                        leftSection={<IconEye size={16} />}
                         onClick={() => {
                           setSelectedProduct(p);
                           setIsViewOpen(true);
                         }}
                       />
-                     
+
                       <Button
                         variant="subtle"
                         leftSection={<IconEdit size={16} />}
@@ -276,8 +312,7 @@ export default function ProductMaster() {
                         variant="subtle"
                         leftSection={<IconTrash size={18} />}
                         color="red"
-                        onClick={() => handleDeleteRequest((p as any).id)}
-                        
+                        onClick={() => handleDeleteRequest(String(p._id))}
                       />
                     </Group>
                   </Table.Td>
@@ -359,11 +394,9 @@ export default function ProductMaster() {
                     .filter((r) => r.selected)
                     .map((r) => {
                       const matched = inventory.find(
-                        (p) => p.id === r.matchedProductId
+                        (p) => String(p._id) === String(r.matchedProductId)
                       );
-                      const oldPrice = matched
-                        ? (matched as any).salesRate ?? 0
-                        : 0;
+                      const oldPrice = matched ? matched.salesRate ?? 0 : 0;
                       const newPrice =
                         typeof r.newPrice === "number" ? r.newPrice : null;
                       return {
@@ -495,19 +528,21 @@ export default function ProductMaster() {
                       if (updated.length) {
                         setInventory((prev) => {
                           const map = new Map(
-                            updated.map((u) => [u.id, u] as const)
+                            updated.map((u) => [String(u._id), u] as const)
                           );
-                          return prev.map((p) =>
-                            map.has(p.id)
+                          const newInv = prev.map((p) =>
+                            map.has(String(p._id))
                               ? {
                                   ...p,
-                                  ...(map.get(p.id) as {
-                                    id: number;
+                                  ...(map.get(String(p._id)) as {
+                                    _id: string;
                                     newPrice?: number;
                                   }),
                                 }
                               : p
                           );
+                          setGlobalInventory(newInv);
+                          return newInv;
                         });
                       }
                       setIsUploadOpen(false);
@@ -555,7 +590,7 @@ export default function ProductMaster() {
         title="Delete product"
       >
         <Text>
-          Are you sure you want to delete product with id '{confirmDeleteId}'?
+          Are you sure you want to delete product with _id '{confirmDeleteId}'?
           This action cannot be undone.
         </Text>
         <Group justify="flex-end" mt="md">
@@ -691,28 +726,29 @@ export default function ProductMaster() {
                   return;
                 }
                 // create undo snapshot
-                const snap = new Map<number, number>();
+                const snap = new Map<string, number>();
                 for (const r of toApply) {
                   const id = r.matchedProductId!;
-                  const prod = inventory.find((p) => p.id === id);
-                  snap.set(
-                    id,
-                    prod ? (prod as any).salesRate ?? 0 : 0
+                  const prod = inventory.find(
+                    (p) => String(p._id) === String(id)
                   );
+                  snap.set(id, prod ? prod.salesRate ?? 0 : 0);
                 }
                 setUndoSnapshot(snap);
                 // apply locally
-                setInventory((prev) =>
-                  prev.map((p) => {
-                    if (snap.has(p.id)) {
+                setInventory((prev) => {
+                  const newInv = prev.map((p) => {
+                    if (snap.has(String(p._id))) {
                       const newVal = toApply.find(
-                        (x) => x.matchedProductId === p.id
+                        (x) => String(x.matchedProductId) === String(p._id)
                       )!.newPrice!;
                       return { ...p, newPrice: newVal };
                     }
                     return p;
-                  })
-                );
+                  });
+                  setGlobalInventory(newInv);
+                  return newInv;
+                });
                 setIsReviewOpen(false);
                 setIsUploadOpen(false);
                 setUploadPreview(null);
@@ -738,13 +774,15 @@ export default function ProductMaster() {
               color="yellow"
               onClick={() => {
                 // rollback
-                setInventory((prev) =>
-                  prev.map((p) =>
-                    undoSnapshot.has(p.id)
-                      ? { ...p, newPrice: undoSnapshot.get(p.id)! }
+                setInventory((prev) => {
+                  const newInv = prev.map((p) =>
+                    undoSnapshot.has(String(p._id))
+                      ? { ...p, newPrice: undoSnapshot.get(String(p._id))! }
                       : p
-                  )
-                );
+                  );
+                  setGlobalInventory(newInv);
+                  return newInv;
+                });
                 setUndoSnapshot(null);
               }}
             >

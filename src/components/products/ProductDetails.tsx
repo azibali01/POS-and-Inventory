@@ -7,7 +7,6 @@ interface Props {
 }
 
 export function ProductDetails({ product }: Props) {
-    
   return (
     <div>
       <Card>
@@ -16,21 +15,25 @@ export function ProductDetails({ product }: Props) {
             <Text size="xs" c="dimmed">
               Item Name
             </Text>
-            <Text fw={600} size="lg">{product.name || "-"}</Text>
+            <Text fw={600} size="lg">
+              {product.itemName || "-"}
+            </Text>
           </Grid.Col>
 
           <Grid.Col span={6}>
             <Text size="xs" c="dimmed">
               Category
             </Text>
-            <Badge size="lg" mt={4}>{product.category || "-"}</Badge>
+            <Badge size="lg" mt={4}>
+              {product.category || "-"}
+            </Badge>
           </Grid.Col>
 
           <Grid.Col span={4}>
             <Text size="xs" c="dimmed">
               Thickness
             </Text>
-            <Text fw={600}>{(product as any).thickness ?? product.thickness ?? "-"}</Text>
+            <Text fw={600}>{product.thickness ?? "-"}</Text>
           </Grid.Col>
 
           <Grid.Col span={4}>
@@ -44,9 +47,7 @@ export function ProductDetails({ product }: Props) {
             <Text size="xs" c="dimmed">
               Color
             </Text>
-            <Text fw={600}>
-              {product.color ?? "-"}
-            </Text>
+            <Text fw={600}>{product.color ?? "-"}</Text>
           </Grid.Col>
 
           <Divider />
@@ -56,7 +57,7 @@ export function ProductDetails({ product }: Props) {
               Sales Rate
             </Text>
             <Text fw={600} size="lg">
-              {(product as any).salesRate ? formatCurrency((product as any).salesRate) : "-"}
+              {product.salesRate ? formatCurrency(product.salesRate) : "-"}
             </Text>
           </Grid.Col>
 
@@ -65,7 +66,7 @@ export function ProductDetails({ product }: Props) {
               Opening Stock
             </Text>
             <Text fw={600} size="lg">
-              {(product as any).openingStock ?? product.stock ?? "-"}
+              {product.openingStock ?? product.stock ?? "-"}
             </Text>
           </Grid.Col>
 
@@ -73,9 +74,7 @@ export function ProductDetails({ product }: Props) {
             <Text size="xs" c="dimmed">
               Minimum Stock Level
             </Text>
-            <Text fw={600}>
-              {(product as any).minimumStockLevel ?? "-"}
-            </Text>
+            <Text fw={600}>{product.minimumStockLevel ?? "-"}</Text>
           </Grid.Col>
 
           <Grid.Col span={12}>

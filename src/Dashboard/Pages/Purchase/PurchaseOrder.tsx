@@ -1,26 +1,32 @@
 import { useState, useEffect } from "react";
-import { Modal, Button, TextInput } from "@mantine/core";
+import {
+  Modal,
+  Button,
+  TextInput,
+  Menu,
+  ActionIcon,
+  Group,
+  Text,
+} from "@mantine/core";
 import openPrintWindow from "../../../components/print/printWindow";
 import type { InvoiceData } from "../../../components/print/printTemplate";
 import Table from "../../../lib/AppTable";
 import { showNotification } from "@mantine/notifications";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
+import { deletePurchaseByNumber } from "../../../lib/api";
 import type { PurchaseLineItem } from "./types";
 import { PurchaseOrderForm as GeneratedPOForm } from "./PurchaseOrderForm.generated";
 import type { POFormPayload } from "./PurchaseOrderForm.generated";
-// lucide icons not needed here
 import { useDataContext } from "../../Context/DataContext";
-import type { PurchaseRecord } from "../../Context/DataContext";
 
 type PO = {
   id: string;
   poNumber: string;
   poDate: string | Date;
-  supplierId?: string;
-  supplierName: string;
-  items: PurchaseLineItem[];
-  subtotal: number;
-  totalAmount: number;
+  supplier?: import("../../../components/purchase/SupplierForm").Supplier;
+  products: PurchaseLineItem[];
+  subTotal: number;
+  total: number;
   status: string;
   expectedDeliveryDate?: Date;
   remarks?: string;
@@ -28,118 +34,169 @@ type PO = {
 };
 
 export default function PurchaseOrdersPage() {
-  const { purchases, setPurchases, loadPurchases } = useDataContext();
+  const {
+    purchases,
+    suppliers,
+    createPurchase,
+    updatePurchase,
+    loadPurchases,
+    inventory,
+    loadInventory,
+  } = useDataContext();
 
+  // Ensure products (inventory) are loaded on mount
   useEffect(() => {
-    if (
-      (!purchases || purchases.length === 0) &&
-      typeof loadPurchases === "function"
-    ) {
-      loadPurchases().catch(() => {
-        /* ignore - UI will show optimistic/empty list */
-      });
+    if (!inventory || inventory.length === 0) {
+      loadInventory();
     }
-  }, [loadPurchases]);
-  // local view uses DataContext purchases mapped to PO type
-  const [data, setData] = useState<PO[]>(() =>
-    (purchases || []).map((p) => ({
-      id: p.id,
-      poNumber: p.id,
-      poDate: p.date,
-      supplierName: p.supplier,
-      items: [],
-      subtotal: p.total || 0,
-      totalAmount: p.total || 0,
-      status: p.status || "",
-    }))
-  );
+  }, [inventory, loadInventory]);
+  const [data, setData] = useState<PO[]>([]);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [editPO, setEditPO] = useState<PO | null>(null);
+  const [deletePO, setDeletePO] = useState<PO | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  function handleCreate(payload: POFormPayload) {
-    const items = (payload.items || []) as PurchaseLineItem[];
-    const subtotal = items.reduce((s, it) => s + (it.netAmount || 0), 0);
-    const tax = items.reduce(
-      (s, it) => s + ((it.taxRate || 0) * (it.netAmount || 0)) / 100,
-      0
-    );
-    const total = subtotal + tax;
-
-    // create a PurchaseRecord to persist in DataContext (simple shape)
-    const allowedStatus =
-      payload.status === "paid" ||
-      payload.status === "pending" ||
-      payload.status === "overdue"
-        ? (payload.status as PurchaseRecord["status"]) // narrow to union
-        : undefined;
-
-    const record: PurchaseRecord = {
-      id: crypto.randomUUID(),
-      date: payload.poDate || new Date().toISOString(),
-      supplier: String(payload.supplierId ?? "Supplier"),
-      items: (items || []).map((it) => ({
-        sku: it.productId || it.productName,
-        quantity: it.quantity || 0,
-        price: it.rate || 0,
-      })),
-      total,
-      status: allowedStatus,
-    };
-
-    if (typeof setPurchases === "function") {
-      // optimistic
-      setPurchases((prev) => [record, ...prev]);
-      (async () => {
-        try {
-          await (
-            await import("../../../lib/api")
-          ).createPurchase({
-            id: record.id,
-            items: record.items,
-            total: record.total,
-            date: record.date,
-            supplierId: record.supplier,
-          });
-        } catch (err) {
-          showNotification({
-            title: "Purchase Persist Failed",
-            message: String(err),
-            color: "red",
-          });
-        }
-      })();
-    }
-
-    // update local list too for immediate UI (optional)
-    setData((prev) => [
-      {
-        id: record.id,
-        poNumber: payload.poNumber || record.id,
-        poDate: record.date,
-        supplierId: payload.supplierId,
-        supplierName: record.supplier,
-        items: items as PurchaseLineItem[],
-        subtotal,
-        totalAmount: total,
-        status: record.status || "Draft",
-        expectedDeliveryDate: payload.expectedDelivery
-          ? new Date(payload.expectedDelivery)
-          : undefined,
-        remarks: payload.remarks,
-        createdAt: new Date(),
-      },
-      ...prev,
-    ]);
-
-    setOpen(false);
+  // Helper to get next PO number in format PO-0001, PO-0002, ...
+  function getNextPONumber(): string {
+    const numbers = (purchases || [])
+      .map((p) => {
+        const match = String(p.poNumber || "").match(/PO-(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter((n) => !isNaN(n));
+    const next = (numbers.length > 0 ? Math.max(...numbers) : 0) + 1;
+    return `PO-${next.toString().padStart(3, "0")}`;
   }
+
+  // Update data from purchases and suppliers
+  useEffect(() => {
+    setData(
+      (purchases || []).map((p) => {
+        let expectedDeliveryDate: Date | undefined = undefined;
+        if (p.expectedDelivery) {
+          if (p.expectedDelivery instanceof Date) {
+            expectedDeliveryDate = p.expectedDelivery;
+          } else if (typeof p.expectedDelivery === "string") {
+            const d = new Date(p.expectedDelivery);
+            expectedDeliveryDate = isNaN(d.getTime()) ? undefined : d;
+          }
+        }
+        // Robust supplier resolution: try _id, then supplierId (if present), fallback to supplier object
+        let supplier = undefined;
+        if (
+          p.supplier &&
+          typeof p.supplier === "object" &&
+          "_id" in p.supplier &&
+          typeof (p.supplier as { _id?: unknown })._id === "string"
+        ) {
+          supplier = suppliers?.find(
+            (s) => s._id === (p.supplier as { _id: string })._id
+          );
+        } else if (hasSupplierId(p)) {
+          supplier = suppliers?.find((s) => s._id === p.supplierId);
+        }
+        // Type guard for supplierId
+        function hasSupplierId(obj: unknown): obj is { supplierId: string } {
+          return (
+            typeof obj === "object" &&
+            obj !== null &&
+            "supplierId" in obj &&
+            typeof (obj as { supplierId?: unknown }).supplierId === "string"
+          );
+        }
+        // fallback: if supplier is still not found, try to use p.supplier if it has a name
+        if (
+          !supplier &&
+          p.supplier &&
+          typeof p.supplier === "object" &&
+          "name" in p.supplier
+        ) {
+          supplier = p.supplier;
+        }
+        // Defensive: recalculate total if missing
+        let total = typeof p.total === "number" ? p.total : 0;
+        if (!total && Array.isArray(p.products)) {
+          total = p.products.reduce(
+            (sum, it) => sum + (it.quantity || 0) * (it.rate || 0),
+            0
+          );
+        }
+        return {
+          id: p.id || p.poNumber || crypto.randomUUID(),
+          poNumber: p.poNumber || "(No PO#)",
+          poDate: p.poDate,
+          supplier,
+          products: p.products || [],
+          subTotal: typeof p.subTotal === "number" ? p.subTotal : total,
+          total,
+          status: p.status || "",
+          expectedDeliveryDate,
+          remarks: p.remarks,
+          createdAt: p.createdAt,
+        };
+      })
+    );
+  }, [purchases, suppliers]);
+
+  // On mount, load purchases if empty
+  useEffect(() => {
+    if (!purchases || purchases.length === 0) {
+      if (loadPurchases) loadPurchases();
+    }
+  }, [purchases, loadPurchases]);
+
+  async function handleCreate(payload: POFormPayload) {
+    const products = (payload.products || []) as PurchaseLineItem[];
+    const subTotal =
+      payload.subTotal ??
+      products.reduce((s, it) => s + (it.quantity || 0) * (it.rate || 0), 0);
+    const total = payload.total ?? subTotal;
+    const supplier = suppliers?.find((s) => s._id === payload.supplierId);
+    const fullPayload = {
+      ...payload,
+      supplier,
+      products,
+      subTotal,
+      total,
+    };
+    try {
+      if (editPO) {
+        // Edit mode: update existing PO in backend
+        await updatePurchase(editPO.id, fullPayload);
+        setEditPO(null);
+      } else {
+        // Create mode: add new PO in backend
+        await createPurchase(fullPayload);
+      }
+      setOpen(false);
+    } catch {
+      showNotification({
+        title: "Error",
+        message: "Failed to save purchase order.",
+        color: "red",
+      });
+    }
+  }
+
+  // (Removed duplicate JSX block before return statement)
 
   return (
     <div>
-      <Modal opened={open} onClose={() => setOpen(false)} size="80%">
-        <GeneratedPOForm onSubmit={handleCreate} />
+      <Modal
+        opened={open}
+        onClose={() => {
+          setOpen(false);
+          setEditPO(null);
+        }}
+        size="80%"
+      >
+        <GeneratedPOForm
+          onSubmit={handleCreate}
+          defaultPONumber={editPO ? editPO.poNumber : getNextPONumber()}
+          {...(editPO ? { initialValues: editPO } : {})}
+        />
       </Modal>
-
       <div style={{ marginTop: 16 }}>
         <div
           style={{
@@ -166,7 +223,6 @@ export default function PurchaseOrdersPage() {
               <Table.Th>Date</Table.Th>
               <Table.Th>Supplier</Table.Th>
               <Table.Th style={{ textAlign: "right" }}>Total</Table.Th>
-              <Table.Th>Status</Table.Th>
               <Table.Th style={{ textAlign: "right" }}>Action</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -177,7 +233,9 @@ export default function PurchaseOrdersPage() {
                 if (!term) return true;
                 return (
                   String(o.poNumber).toLowerCase().includes(term) ||
-                  String(o.supplierName).toLowerCase().includes(term)
+                  String(o.supplier?.name || "")
+                    .toLowerCase()
+                    .includes(term)
                 );
               })
               .map((o) => (
@@ -186,98 +244,132 @@ export default function PurchaseOrdersPage() {
                     {o.poNumber}
                   </Table.Td>
                   <Table.Td>{formatDate(o.poDate)}</Table.Td>
-                  <Table.Td>{o.supplierName}</Table.Td>
+                  <Table.Td>{o.supplier?.name || ""}</Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
-                    {formatCurrency(o.totalAmount)}
+                    {formatCurrency(o.total)}
                   </Table.Td>
-                  <Table.Td>{o.status}</Table.Td>
                   <Table.Td>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        justifyContent: "flex-end",
-                      }}
-                    >
-                      <Button
-                        variant="subtle"
-                        onClick={() => {
-                          const d: InvoiceData = {
-                            title: "Purchase Order",
-                            companyName: "Seven Star Traders",
-                            addressLines: [
-                              "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
-                            ],
-                            invoiceNo: String(o.poNumber),
-                            date: String(o.poDate),
-                            customer: o.supplierName,
-                            items: (o.items || []).map((it, idx) => {
-                              const p = it as PurchaseLineItem;
-                              const idLike =
-                                (
-                                  p as unknown as {
-                                    productId?: string;
-                                    sku?: string;
-                                  }
-                                ).productId ??
-                                (
-                                  p as unknown as {
-                                    productId?: string;
-                                    sku?: string;
-                                  }
-                                ).sku;
-                              const priceLike =
-                                (
-                                  p as unknown as {
-                                    rate?: number;
-                                    price?: number;
-                                  }
-                                ).rate ??
-                                (
-                                  p as unknown as {
-                                    rate?: number;
-                                    price?: number;
-                                  }
-                                ).price;
-                              const amountLike =
-                                (
-                                  p as unknown as {
-                                    netAmount?: number;
-                                    amount?: number;
-                                  }
-                                ).netAmount ??
-                                (
-                                  p as unknown as {
-                                    netAmount?: number;
-                                    amount?: number;
-                                  }
-                                ).amount;
-                              return {
+                    <Menu position="bottom-end" withArrow>
+                      <Menu.Target>
+                        <ActionIcon variant="subtle" color="gray">
+                          <span style={{ fontWeight: 600, fontSize: 18 }}>
+                            ⋮
+                          </span>
+                        </ActionIcon>
+                      </Menu.Target>
+                      <Menu.Dropdown>
+                        <Menu.Item
+                          onClick={() => {
+                            setEditPO(o);
+                            setOpen(true);
+                          }}
+                        >
+                          Edit
+                        </Menu.Item>
+                        <Menu.Item
+                          onClick={() => {
+                            const d: InvoiceData = {
+                              title: "Purchase Order",
+                              companyName: "Seven Star Traders",
+                              addressLines: [
+                                "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
+                              ],
+                              invoiceNo: String(o.poNumber),
+                              date: String(o.poDate),
+                              customer: o.supplier?.name || "",
+                              items: (o.products || []).map((it, idx) => ({
                                 sr: idx + 1,
-                                section: p.productName || String(idLike ?? ""),
-                                quantity: p.quantity,
-                                rate: Number(priceLike ?? 0),
-                                amount: Number(amountLike ?? 0),
-                              };
-                            }),
-                            totals: {
-                              subtotal: o.subtotal ?? o.totalAmount,
-                              tax: 0,
-                              total: o.totalAmount,
-                            },
-                          };
-                          openPrintWindow(d);
-                        }}
-                      >
-                        Print
-                      </Button>
-                    </div>
+                                section: it.productName,
+                                quantity: it.quantity,
+                                rate: Number(it.rate ?? 0),
+                                amount: Number(
+                                  it.amount ??
+                                    (it.quantity || 0) * (it.rate || 0)
+                                ),
+                              })),
+                              totals: {
+                                subtotal: o.subTotal ?? o.total,
+                                total: o.total,
+                              },
+                            };
+                            openPrintWindow(d);
+                          }}
+                        >
+                          Download PDF
+                        </Menu.Item>
+                        <Menu.Item color="red" onClick={() => setDeletePO(o)}>
+                          Delete
+                        </Menu.Item>
+                      </Menu.Dropdown>
+                    </Menu>
                   </Table.Td>
                 </Table.Tr>
               ))}
           </Table.Tbody>
         </Table>
       </div>
+      {/* Confirm Delete Modal (should only render once, outside the table and menu) */}
+      <Modal
+        opened={!!deletePO}
+        onClose={() => setDeletePO(null)}
+        title="Confirm Delete"
+        centered
+        withCloseButton
+      >
+        <Text>
+          Are you sure you want to delete Purchase Order{" "}
+          <b>{deletePO?.poNumber}</b>?
+        </Text>
+        <Group justify="right" mt="md">
+          <Button
+            variant="default"
+            onClick={() => setDeletePO(null)}
+            disabled={deleteLoading}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            loading={deleteLoading}
+            onClick={async () => {
+              if (!deletePO) return;
+              setDeleteLoading(true);
+              try {
+                await deletePurchaseByNumber(deletePO.poNumber);
+                setData((prev) =>
+                  prev.filter((po) => po.poNumber !== deletePO.poNumber)
+                );
+                showNotification({
+                  title: "Deleted",
+                  message: `Purchase Order ${deletePO.poNumber} deleted`,
+                  color: "red",
+                });
+                setDeletePO(null);
+              } catch (err) {
+                let msg = "Failed to delete purchase order.";
+                if (
+                  err &&
+                  typeof err === "object" &&
+                  err !== null &&
+                  "message" in err &&
+                  typeof (err as { message?: unknown }).message === "string"
+                ) {
+                  msg = (err as { message: string }).message;
+                }
+                showNotification({
+                  title: "Error",
+                  message: msg,
+                  color: "red",
+                });
+              } finally {
+                setDeleteLoading(false);
+              }
+            }}
+          >
+            Delete
+          </Button>
+        </Group>
+      </Modal>
     </div>
   );
 }

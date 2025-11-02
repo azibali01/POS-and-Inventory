@@ -24,7 +24,7 @@ export interface SalesPayload {
   validUntil?: string;
   customerId: string | number;
   items: LineItem[];
-  totals: { sub: number; tax: number; total: number };
+  totals: { sub: number; total: number };
   remarks: string;
   terms: string;
 }
@@ -65,9 +65,6 @@ export default function SalesDocShell({
     String(customers[0]?.id ?? "")
   );
   const [remarks, setRemarks] = useState("");
-  const [terms, setTerms] = useState(
-    "Prices valid for 15 days.\nPayment terms: Due on receipt."
-  );
 
   const [items, setItems] = useState<LineItem[]>([
     {
@@ -78,7 +75,6 @@ export default function SalesDocShell({
       quantity: 1,
       rate: 0,
       discount: 0,
-      taxRate: 18,
       amount: 0,
     },
   ]);
@@ -90,13 +86,7 @@ export default function SalesDocShell({
       (s, i) => s + i.quantity * i.rate - (i.discount || 0),
       0
     );
-    const tax = items.reduce(
-      (s, i) =>
-        s +
-        ((i.quantity * i.rate - (i.discount || 0)) * (i.taxRate || 0)) / 100,
-      0
-    );
-    return { sub, tax, total: sub + tax };
+    return { sub, total: sub };
   }, [items]);
 
   const selectedCustomer = customers.find(
@@ -257,7 +247,6 @@ export default function SalesDocShell({
                       quantity: 1,
                       rate: 0,
                       discount: 0,
-                      taxRate: 18,
                       amount: 0,
                     },
                   ])
@@ -292,16 +281,6 @@ export default function SalesDocShell({
                 placeholder="Additional notes"
               />
             </div>
-            <div>
-              <Text style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-                Terms & Conditions
-              </Text>
-              <Textarea
-                value={terms}
-                onChange={(e) => setTerms(e.currentTarget.value)}
-                minRows={3}
-              />
-            </div>
           </div>
         </Card.Section>
 
@@ -317,13 +296,13 @@ export default function SalesDocShell({
             style={{ fontSize: 13, color: "var(--mantine-color-dimmed, #666)" }}
           >
             Date: {new Date(docDate).toLocaleDateString()} • Customer Balance:{" "}
-            {selectedCustomer?.paymentType === "debit" ? "-" : ""}{Number(selectedCustomer?.openingAmount ?? 0).toLocaleString()}
+            {selectedCustomer?.paymentType === "debit" ? "-" : ""}
+            {Number(selectedCustomer?.openingAmount ?? 0).toLocaleString()}
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 12, color: "#888" }}>Subtotal</div>
             <div style={{ fontSize: 14 }}>{totals.sub.toFixed(2)}</div>
-            <div style={{ fontSize: 12, color: "#888", marginTop: 8 }}>GST</div>
-            <div style={{ fontSize: 14 }}>{totals.tax.toFixed(2)}</div>
+            {/* GST removed */}
             <div style={{ fontSize: 12, color: "#888", marginTop: 8 }}>
               Total
             </div>

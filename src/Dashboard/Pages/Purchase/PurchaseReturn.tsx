@@ -9,6 +9,8 @@ import {
   Select,
   Title,
   Modal,
+  Menu,
+  ActionIcon,
 } from "@mantine/core";
 import openPrintWindow from "../../../components/print/printWindow";
 import type { InvoiceData } from "../../../components/print/printTemplate";
@@ -19,41 +21,121 @@ import {
   type PurchaseRecord,
   type Customer,
 } from "../../Context/DataContext";
-import { PurchaseLineItemsTable } from "./line-items-table-purchase";
+import { LineItemsTableUniversal } from "./LineItemsTableUniversal";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
+import { IconDots } from "@tabler/icons-react";
 
 export default function PurchaseReturnPage() {
+  // State for editing
+  const [editReturn, setEditReturn] = useState<PurchaseReturnRecord | null>(
+    null
+  );
+  // Local state for fetched purchase returns
+  const [fetchedReturns, setFetchedReturns] = useState<
+    PurchaseReturnRecord[] | null
+  >(null);
+  // State for delete confirmation modal
+  const [deleteTarget, setDeleteTarget] = useState<null | {
+    id: string;
+    returnNumber: string;
+  }>(null);
+  // Fetch purchase return invoices from backend on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const api = await import("../../../lib/api");
+        const returns = await api.getPurchaseReturns();
+        setFetchedReturns(Array.isArray(returns) ? returns : []);
+      } catch (err) {
+        showNotification({
+          title: "Failed to fetch purchase returns",
+          message: String(err),
+          color: "red",
+        });
+      }
+    })();
+  }, []);
   const {
     purchases = [],
     customers = [],
     purchaseReturns = [],
     processPurchaseReturn,
+    inventory,
+    loadInventory,
   } = useDataContext();
+
+  // Ensure products (inventory) are loaded on mount
+  useEffect(() => {
+    if (!inventory || inventory.length === 0) {
+      loadInventory();
+    }
+  }, [inventory, loadInventory]);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
 
+  // Use fetchedReturns if available, otherwise context
   const data = useMemo(
     () =>
-      (purchaseReturns || []).map((r) => ({
+      (fetchedReturns ?? purchaseReturns ?? []).map((r) => ({
         id: r.id,
         returnNumber: r.returnNumber,
-        returnDate: r.returnDate,
-        supplier: r.supplier,
-        total: r.totalAmount,
+        date: r.returnDate,
+        supplier:
+          customers.find((s) => String(s._id) === String(r.supplierId))?.name ||
+          r.supplier ||
+          r.supplierId ||
+          "",
+        total: r.total ?? r.subtotal ?? r.total ?? 0,
         reason: r.reason,
+        items: r.items,
       })),
-    [purchaseReturns]
+    [fetchedReturns, purchaseReturns, customers]
   );
+
   const filtered = useMemo(() => {
     const term = q.toLowerCase().trim();
     if (!term) return data;
     return data.filter(
       (d) =>
         String(d.returnNumber).toLowerCase().includes(term) ||
-        String(d.supplier).toLowerCase().includes(term)
+        String(d.supplier).toLowerCase().includes(term) ||
+        String(d.reason || "")
+          .toLowerCase()
+          .includes(term)
     );
   }, [q, data]);
+
+  // Helper to update local fetchedReturns after a new return is created
+  function handleReturnSave(ret: PurchaseReturnRecord) {
+    setFetchedReturns((prev) => (prev ? [ret, ...prev] : [ret]));
+    // Also call context handler for any side effects
+    const res = processPurchaseReturn(ret);
+    if (!res.applied) {
+      showNotification({
+        title: "Return Not Applied",
+        message: res.message || "Return not applied",
+        color: "orange",
+      });
+    } else {
+      setOpen(false);
+    }
+  }
+
+  // Edit logic
+  function handleEditSave(updated: PurchaseReturnRecord) {
+    setFetchedReturns((prev) =>
+      prev ? prev.map((r) => (r.id === updated.id ? updated : r)) : [updated]
+    );
+    // Also call context handler for any side effects
+    processPurchaseReturn(updated);
+    setEditReturn(null);
+    showNotification({
+      title: "Updated",
+      message: "Purchase return updated",
+      color: "green",
+    });
+  }
 
   return (
     <div>
@@ -79,13 +161,18 @@ export default function PurchaseReturnPage() {
           <Button onClick={() => setOpen(true)}>New Return</Button>
         </div>
       </div>
-
       <Card>
         <div style={{ padding: 12 }}>
           <Title order={4}>Recent Returns</Title>
           <Text color="dimmed">Last {data.length} purchase returns</Text>
           <div style={{ marginTop: 12, overflowX: "auto" }}>
-            <Table>
+            <Table
+              withColumnBorders
+              withRowBorders
+              withTableBorder
+              highlightOnHover
+              bg={"gray.1"}
+            >
               <thead>
                 <tr>
                   <th>Return#</th>
@@ -101,59 +188,107 @@ export default function PurchaseReturnPage() {
                     <td style={{ fontFamily: "monospace" }}>
                       {r.returnNumber}
                     </td>
-                    <td>{formatDate(r.returnDate)}</td>
+                    <td>{formatDate(r.date)}</td>
                     <td>{r.supplier}</td>
                     <td style={{ textAlign: "right" }}>
                       {formatCurrency(r.total)}
                     </td>
                     <td style={{ textAlign: "right" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          justifyContent: "flex-end",
-                        }}
-                      >
-                        <Button
-                          variant="subtle"
-                          onClick={() => {
-                            // find the full return record from context
-                            const full = (purchaseReturns || []).find(
-                              (x) => x.id === r.id
-                            ) as PurchaseReturnRecord | undefined;
-                            const items = (full?.items || []).map(
-                              (it, idx) => ({
-                                sr: idx + 1,
-                                section: String(it.sku),
-                                quantity: it.quantity,
-                                rate: it.price,
-                                amount: (it.quantity || 0) * (it.price || 0),
-                              })
-                            );
-                            const payload: InvoiceData = {
-                              title: "Purchase Return",
-                              companyName: "Seven Star Traders",
-                              addressLines: [
-                                "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
-                              ],
-                              invoiceNo: r.returnNumber,
-                              date: String(r.returnDate),
-                              customer: r.supplier,
-                              items,
-                              totals: {
-                                subtotal: full?.subtotal ?? r.total,
-                                tax: 0,
-                                total: full?.totalAmount ?? r.total,
-                              },
-                              footerNotes: ["Purchase Return Document"],
-                            };
-                            openPrintWindow(payload);
-                          }}
-                        >
-                          Print
-                        </Button>
-                      </div>
+                      <Menu width={200} position="bottom-end" withArrow>
+                        <Menu.Target>
+                          <ActionIcon>
+                            <IconDots />
+                          </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Item
+                            onClick={() => {
+                              const full = (
+                                fetchedReturns ??
+                                purchaseReturns ??
+                                []
+                              ).find((x) => x.id === r.id) as
+                                | PurchaseReturnRecord
+                                | undefined;
+                              if (full) setEditReturn(full);
+                            }}
+                          >
+                            Edit
+                          </Menu.Item>
+                          <Menu.Item
+                            onClick={() => {
+                              const full = (
+                                fetchedReturns ??
+                                purchaseReturns ??
+                                []
+                              ).find((x) => x.id === r.id) as
+                                | PurchaseReturnRecord
+                                | undefined;
+                              const items = (full?.items || [])
+                                .filter(
+                                  (it) =>
+                                    typeof it.itemName === "string" &&
+                                    it.itemName.trim() !== ""
+                                )
+                                .map((it, idx) => ({
+                                  sr: idx + 1,
+                                  section: String(it.itemName),
+                                  quantity: it.quantity,
+                                  rate: it.salesRate || 0,
+                                  amount:
+                                    (it.quantity || 0) * (it.salesRate || 0),
+                                }));
+                              const payload: InvoiceData = {
+                                title: "Purchase Return",
+                                companyName: "Seven Star Traders",
+                                addressLines: [
+                                  "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
+                                ],
+                                invoiceNo: r.returnNumber,
+                                date: String(r.date),
+                                customer: r.supplier,
+                                items,
+                                totals: {
+                                  subtotal: full?.subtotal ?? r.total,
+                                  total: full?.total ?? r.total,
+                                },
+                                footerNotes: ["Purchase Return Document"],
+                              };
+                              openPrintWindow(payload);
+                            }}
+                          >
+                            Print
+                          </Menu.Item>
+                          <Menu.Item
+                            color="red"
+                            onClick={() => {
+                              setDeleteTarget({
+                                id: r.id,
+                                returnNumber: r.returnNumber,
+                              });
+                            }}
+                          >
+                            Delete
+                          </Menu.Item>
+                        </Menu.Dropdown>
+                      </Menu>
+                      {/* NOTE: delete modal removed from here and placed below (one shared modal) */}
                     </td>
+                    {/* Edit Modal (optional, for future: you can implement editing logic here) */}
+
+                    <Modal
+                      opened={!!editReturn}
+                      onClose={() => setEditReturn(null)}
+                      size="80%"
+                    >
+                      <ReturnForm
+                        purchases={purchases}
+                        suppliers={customers}
+                        onClose={() => setEditReturn(null)}
+                        onSave={handleEditSave}
+                        // Pass initial values for editing
+                      />
+                    </Modal>
                   </tr>
                 ))}
               </tbody>
@@ -162,26 +297,109 @@ export default function PurchaseReturnPage() {
         </div>
       </Card>
 
+      {/* ===== Shared Delete Confirmation Modal (moved outside map) ===== */}
+      <Modal
+        opened={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        size="sm"
+        title="Confirm Delete"
+        overlayProps={{ opacity: 0, blur: 0 }}
+      >
+        <div style={{ padding: 12 }}>
+          <Text c="red" fw={600}>
+            Are you sure you want to delete this purchase return?
+          </Text>
+          <Text mt={8}>
+            Return #: <b>{deleteTarget?.returnNumber}</b>
+          </Text>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8,
+              marginTop: 16,
+            }}
+          >
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="red"
+              onClick={async () => {
+                if (!deleteTarget) return;
+                try {
+                  const api = await import("../../../lib/api");
+                  await api.deletePurchaseReturn(deleteTarget.returnNumber);
+
+                  setFetchedReturns((prev) =>
+                    prev
+                      ? prev.filter(
+                          (x) =>
+                            String(x.id) !== String(deleteTarget.id) &&
+                            String(x.returnNumber) !==
+                              String(deleteTarget.returnNumber)
+                        )
+                      : prev
+                  );
+
+                  showNotification({
+                    title: "Deleted",
+                    message: "Purchase return deleted successfully",
+                    color: "green",
+                  });
+                } catch (err) {
+                  showNotification({
+                    title: "Delete Failed",
+                    message: String(err),
+                    color: "red",
+                  });
+                } finally {
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <Modal opened={open} onClose={() => setOpen(false)} size="80%">
         <ReturnForm
           purchases={purchases}
           suppliers={customers}
           onClose={() => setOpen(false)}
-          onSave={(ret) => {
-            // idempotent processing via DataContext
-            const res = processPurchaseReturn(ret);
-            if (res.applied) setOpen(false);
-            else
-              showNotification({
-                title: "Return Not Applied",
-                message: res.message || "Return not applied",
-                color: "orange",
-              });
-          }}
+          onSave={handleReturnSave}
+          setOpen={setOpen}
         />
+      </Modal>
+      {/* Edit Modal */}
+      <Modal
+        opened={!!editReturn}
+        onClose={() => setEditReturn(null)}
+        size="80%"
+      >
+        {editReturn && (
+          <ReturnForm
+            purchases={purchases}
+            suppliers={customers}
+            onClose={() => setEditReturn(null)}
+            onSave={handleEditSave}
+            initialValues={editReturn}
+          />
+        )}
       </Modal>
     </div>
   );
+}
+
+// (Old function signature removed; now using interface and new function signature below)
+interface ReturnFormProps {
+  purchases: PurchaseRecord[];
+  suppliers: Customer[];
+  onClose: () => void;
+  onSave: (r: PurchaseReturnRecord) => void;
+  initialValues?: Partial<PurchaseReturnRecord>;
 }
 
 function ReturnForm({
@@ -189,43 +407,167 @@ function ReturnForm({
   suppliers,
   onClose,
   onSave,
-}: {
-  purchases: PurchaseRecord[];
-  suppliers: Customer[];
-  onClose: () => void;
-  onSave: (r: PurchaseReturnRecord) => void;
-}) {
-  const [returnNumber, setReturnNumber] = useState(`pret-${Date.now()}`);
-  const [returnDate, setReturnDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
+  initialValues,
+  setOpen,
+}: ReturnFormProps & { setOpen?: (open: boolean) => void }) {
+  const {
+    inventory = [],
+    colors = [],
+    purchaseReturns = [],
+  } = useDataContext();
+
+  // Helper to get next return number in PRET-0001, PRET-0002... format
+  function getNextReturnNumber(): string {
+    // Gather all return numbers from context and fetchedReturns
+    const allReturns: Array<{ returnNumber?: string }> = [
+      ...(purchaseReturns || []),
+    ];
+    // Extract numbers in PRET-XXXX format
+    const nums = allReturns
+      .map((r) => {
+        const match = String(r.returnNumber || "").match(/PRET-(\d{4})/i);
+        return match ? parseInt(match[1], 10) : null;
+      })
+      .filter((n): n is number => n !== null);
+    const max = nums.length > 0 ? Math.max(...nums) : 0;
+    const next = max + 1;
+    return `PRET-${next.toString().padStart(4, "0")}`;
+  }
+
+  const [returnNumber, setReturnNumber] = useState(
+    initialValues?.returnNumber || getNextReturnNumber()
   );
+  const [returnDate, setReturnDate] = useState<string>(
+    initialValues?.returnDate || new Date().toISOString().slice(0, 10)
+  );
+  // Memoized options for Selects, always valid and unique
+  const poOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return (purchases || [])
+      .filter((p) => typeof p.poNumber === "string" && p.poNumber.trim() !== "")
+      .map((p) => {
+        const poNum = p.poNumber;
+        if (seen.has(poNum)) return undefined;
+        seen.add(poNum);
+        // Try to get supplier name (if p.supplier is an object, use .name, else use as string)
+        let supplierName = "";
+        if (
+          typeof p.supplier === "object" &&
+          p.supplier &&
+          "name" in p.supplier
+        ) {
+          supplierName = p.supplier.name;
+        } else if (typeof p.supplier === "string") {
+          supplierName = p.supplier;
+        }
+        return {
+          value: poNum,
+          label: `${poNum} — ${supplierName}`,
+        };
+      })
+      .filter((x): x is { value: string; label: string } => !!x);
+  }, [purchases]);
+
+  const supplierOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return (suppliers || [])
+      .filter(
+        (s) =>
+          (typeof s._id === "string" || typeof s._id === "number") &&
+          s._id !== undefined &&
+          s._id !== null &&
+          String(s._id).trim() !== ""
+      )
+      .map((s) => {
+        const idStr = String(s._id);
+        if (seen.has(idStr)) return undefined;
+        seen.add(idStr);
+        return {
+          value: idStr,
+          label: `${s.name ?? ""} — ${s.city ?? ""}`,
+        };
+      })
+      .filter((x): x is { value: string; label: string } => !!x);
+  }, [suppliers]);
+
   const [linkedPoId, setLinkedPoId] = useState<string>(
-    purchases[0] ? String(purchases[0].id) : ""
+    initialValues?.linkedPoId ? String(initialValues.linkedPoId) : ""
   );
   const [supplierId, setSupplierId] = useState<string>(
-    suppliers[0] ? String(suppliers[0].id) : ""
+    initialValues?.supplierId ? String(initialValues.supplierId) : ""
   );
-  const [reason, setReason] = useState<string>("");
+
+  // Keep Select value in sync with available options
+  useEffect(() => {
+    if (poOptions.length > 0) {
+      if (!poOptions.some((opt) => opt.value === linkedPoId)) {
+        setLinkedPoId(poOptions[0]!.value);
+      }
+    } else if (linkedPoId !== "") {
+      setLinkedPoId("");
+    }
+  }, [poOptions, linkedPoId]);
+
+  useEffect(() => {
+    if (supplierOptions.length > 0) {
+      if (!supplierOptions.some((opt) => opt.value === supplierId)) {
+        setSupplierId(supplierOptions[0]!.value);
+      }
+    } else if (supplierId !== "") {
+      setSupplierId("");
+    }
+  }, [supplierOptions, supplierId]);
+  const [reason, setReason] = useState<string>(initialValues?.reason || "");
   const [items, setItems] = useState<PurchaseLineItem[]>(() => {
-    // initialize from first PO if available
+    if (initialValues?.items && initialValues.items.length > 0) {
+      // Map backend items to PurchaseLineItem shape if needed
+      return initialValues.items.map(
+        (it: {
+          sku?: string;
+          productName?: string;
+          quantity?: number;
+          price?: number;
+          rate?: number;
+          color?: string;
+          thickness?: string | number;
+          length?: string | number;
+        }) => ({
+          id: `${Math.random()}`,
+          productName: it.sku || it.productName || "",
+          quantity: it.quantity || 0,
+          rate: it.price ?? it.rate ?? 0,
+          color: it.color,
+          thickness:
+            typeof it.thickness === "number"
+              ? String(it.thickness)
+              : it.thickness,
+          length: typeof it.length === "number" ? String(it.length) : it.length,
+          grossAmount: 0,
+          percent: 0,
+          discountAmount: 0,
+          netAmount: 0,
+          amount: (it.quantity || 0) * (it.price ?? it.rate ?? 0),
+        })
+      );
+    }
+    // fallback to PO
     const po = purchases[0];
     if (!po) return [];
-    return (po.items || []).map((it) => ({
+    const poLineItems: PurchaseLineItem[] = (po.products || []).filter(
+      (it: PurchaseLineItem) => !!it.productName
+    );
+    return poLineItems.map((it: PurchaseLineItem) => ({
       id: `${Math.random()}`,
-      productId: it.sku,
-      productName: it.sku,
-      unit: "pcs",
+      productName: it.productName,
       quantity: 0,
-      rate: it.price || 0,
-      rateSource: "old" as const,
-      color: undefined,
-      thickness: undefined,
-      length: undefined,
+      rate: it.rate ?? 0,
+      color: it.color,
+      thickness: it.thickness,
+      length: it.length,
       grossAmount: 0,
       percent: 0,
       discountAmount: 0,
       netAmount: 0,
-      taxRate: 18,
       amount: 0,
     }));
   });
@@ -235,31 +577,36 @@ function ReturnForm({
     useState<PurchaseReturnRecord | null>(null);
 
   useEffect(() => {
-    if (!linkedPoId) return;
-    const po = (purchases || []).find(
-      (p) => String(p.id) === String(linkedPoId)
-    );
+    if (!linkedPoId) return; // If not selected, do nothing (keep manual entry)
+    const po = purchases.find((p) => p.poNumber === linkedPoId);
     if (!po) return;
-    setSupplierId(String(po.supplier));
+    // Set supplierId if possible
+    if (
+      typeof po.supplier === "object" &&
+      po.supplier &&
+      "_id" in po.supplier
+    ) {
+      setSupplierId(String(po.supplier._id));
+    } else if (typeof po.supplier === "string") {
+      setSupplierId(po.supplier);
+    }
+    const poLineItems: PurchaseLineItem[] = (po.products || []).filter(
+      (it: PurchaseLineItem) => !!it.productName
+    );
     setItems(
-      (po.items || []).map((it) => {
-        const remaining = Math.max(0, (it.quantity || 0) - (it.received || 0));
+      poLineItems.map((it: PurchaseLineItem) => {
         return {
           id: `${Math.random()}`,
-          productId: it.sku,
-          productName: `${it.sku} (remaining: ${remaining})`,
-          unit: "pcs",
+          productName: it.productName,
           quantity: 0,
-          rate: it.price || 0,
-          rateSource: "old" as const,
-          color: undefined,
-          thickness: undefined,
-          length: undefined,
+          rate: it.rate ?? 0,
+          color: it.color,
+          thickness: it.thickness,
+          length: it.length,
           grossAmount: 0,
           percent: 0,
           discountAmount: 0,
           netAmount: 0,
-          taxRate: 18,
           amount: 0,
         };
       })
@@ -267,47 +614,51 @@ function ReturnForm({
   }, [linkedPoId, purchases]);
 
   const totals = useMemo(() => {
-    const sub = items.reduce((s, i) => s + (i.grossAmount || 0), 0);
-    const tax = items.reduce(
-      (s, i) => s + ((i.netAmount || 0) * (i.taxRate || 0)) / 100,
-      0
-    );
-    return {
-      sub,
-      tax,
-      total: sub - items.reduce((s, i) => s + (i.discountAmount || 0), 0) + tax,
-    };
+    const sub = items.reduce((s, i) => s + (i.amount || 0), 0);
+    // If you want to support discounts, add a discount property to PurchaseLineItem and use it here
+    const total = sub; // No discountAmount property exists
+    return { sub, total };
   }, [items]);
 
   function handleSave() {
+    // For edit, keep the same id/returnNumber; for new, generate
+    const isEdit = !!initialValues?.id;
+    const stringReturnNumber = isEdit
+      ? initialValues.returnNumber
+      : `pret-${Date.now()}`;
     const record: PurchaseReturnRecord = {
-      id:
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : `pret-${Date.now()}`,
-      returnNumber,
-      returnDate,
-      supplier: supplierId
+      id: isEdit
         ? String(
-            (suppliers || []).find((s) => String(s.id) === String(supplierId))
-              ?.name ?? supplierId
-          )
-        : "",
-      supplierId: supplierId || undefined,
-      linkedPoId: linkedPoId || undefined,
+            initialValues.id !== undefined && initialValues.id !== null
+              ? initialValues.id
+              : stringReturnNumber
+          ) || stringReturnNumber
+        : typeof crypto !== "undefined" &&
+          typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : stringReturnNumber,
+      returnNumber: stringReturnNumber!,
+      returnDate,
+      supplier:
+        (suppliers || []).find((s) => String(s._id) === String(supplierId))
+          ?.name ||
+        initialValues?.supplier ||
+        "",
+      supplierId: supplierId || initialValues?.supplierId || undefined,
+      linkedPoId: linkedPoId || initialValues?.linkedPoId || undefined,
       items: (items || [])
         .filter((i) => (i.quantity || 0) > 0)
         .map((it) => ({
-          sku: String(it.productId || it.productName),
-          quantity: it.quantity || 0,
-          price: it.rate || 0,
+          itemName: it.productName,
+          quantity: it.quantity,
+          salesRate: it.rate,
+          color: it.color,
+          thickness: it.thickness ? Number(it.thickness) : undefined,
         })),
       subtotal: totals.sub,
-      totalAmount: totals.total,
+      total: totals.total,
       reason,
-      status: "processed",
     };
-    // show confirmation modal before final save
     setConfirmPayload(record);
     setConfirmOpen(true);
   }
@@ -320,15 +671,15 @@ function ReturnForm({
       invoiceNo: returnNumber,
       date: returnDate,
       customer:
-        suppliers.find((s) => String(s.id) === String(supplierId))?.name ?? "",
+        suppliers.find((s) => String(s._id) === String(supplierId))?.name ?? "",
       items: (items || []).map((it, idx) => ({
         sr: idx + 1,
-        section: String(it.productId || it.productName),
+        section: String(it.productName),
         quantity: it.quantity,
         rate: it.rate,
         amount: it.amount || (it.quantity || 0) * (it.rate || 0),
       })),
-      totals: { subtotal: totals.sub, tax: totals.tax, total: totals.total },
+      totals: { subtotal: totals.sub, total: totals.total },
       footerNotes: ["Purchase Return (Draft)"],
     };
     openPrintWindow(payload);
@@ -340,13 +691,29 @@ function ReturnForm({
     (async () => {
       try {
         const api = await import("../../../lib/api");
-        await api.createPurchaseReturn({
+        // Map to PurchaseReturnRecordPayload
+        const payload = {
           id: confirmPayload.id,
-          items: confirmPayload.items,
-          total: confirmPayload.totalAmount,
-          date: confirmPayload.returnDate,
+          returnNumber: confirmPayload.returnNumber,
+          returnDate: confirmPayload.returnDate,
+          supplier: confirmPayload.supplier,
           supplierId: confirmPayload.supplierId,
-        });
+          linkedPoId: confirmPayload.linkedPoId,
+          items: (confirmPayload.items || []).map((it: any) => ({
+            itemName: it.itemName ?? "",
+            quantity: it.quantity ?? 0,
+            salesRate: it.salesRate ?? 0,
+            color: it.color,
+            thickness:
+              typeof it.thickness === "string"
+                ? Number(it.thickness)
+                : it.thickness,
+          })),
+          subtotal: confirmPayload.subtotal,
+          total: confirmPayload.total,
+          reason: confirmPayload.reason,
+        };
+        await api.createPurchaseReturn(payload);
       } catch (err) {
         showNotification({
           title: "Purchase Return Persist Failed",
@@ -355,9 +722,10 @@ function ReturnForm({
         });
       } finally {
         onSave(confirmPayload);
+        setConfirmOpen(false);
+        if (setOpen) setOpen(false); // Ensure create modal closes after confirm
       }
     })();
-    setConfirmOpen(false);
   }
 
   return (
@@ -388,14 +756,23 @@ function ReturnForm({
         </div>
         <div>
           <label>Link Purchase Order (optional)</label>
-          <Select
-            data={(purchases || []).map((p) => ({
-              value: String(p.id),
-              label: `${p.id} — ${p.supplier}`,
-            }))}
-            value={linkedPoId}
-            onChange={(v) => setLinkedPoId(v ?? "")}
-          />
+          {poOptions.length > 0 ? (
+            <Select
+              data={poOptions}
+              value={linkedPoId}
+              onChange={(v) => {
+                if (typeof v === "string") {
+                  setLinkedPoId(v);
+                }
+              }}
+              clearable
+              placeholder="(Optional) Link to PO"
+            />
+          ) : (
+            <Text color="dimmed" size="sm">
+              No purchase orders available
+            </Text>
+          )}
         </div>
       </div>
 
@@ -409,14 +786,21 @@ function ReturnForm({
       >
         <div>
           <label>Supplier</label>
-          <Select
-            data={(suppliers || []).map((s) => ({
-              value: String(s.id),
-              label: `${s.name} — ${s.city}`,
-            }))}
-            value={supplierId}
-            onChange={(v) => setSupplierId(v ?? "")}
-          />
+          {supplierOptions.length > 0 ? (
+            <Select
+              data={supplierOptions}
+              value={supplierId}
+              onChange={(v) => {
+                if (typeof v === "string") setSupplierId(v);
+              }}
+              allowDeselect={false}
+              clearable={false}
+            />
+          ) : (
+            <Text color="dimmed" size="sm">
+              No suppliers available
+            </Text>
+          )}
         </div>
         <div>
           <label>Reason</label>
@@ -429,7 +813,25 @@ function ReturnForm({
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <PurchaseLineItemsTable items={items} onChange={setItems} />
+        <LineItemsTableUniversal
+          items={items}
+          setItems={setItems}
+          inventory={
+            inventory as {
+              id?: string;
+              _id?: string;
+              itemName?: string;
+              name?: string;
+              unit?: string;
+              salesRate?: number;
+              color?: string;
+              thickness?: string;
+              length?: string | number;
+            }[]
+          }
+          colors={colors}
+          addRowLabel="Add Return Item"
+        />
       </div>
 
       <div
@@ -441,8 +843,7 @@ function ReturnForm({
         }}
       >
         <div style={{ color: "#666" }}>
-          Subtotal: {formatCurrency(totals.sub)} • Tax:{" "}
-          {formatCurrency(totals.tax)}
+          Subtotal: {formatCurrency(totals.sub)}
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 18, fontWeight: 600 }}>

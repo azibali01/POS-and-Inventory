@@ -1,73 +1,92 @@
 import React, {
-  createContext,
   useContext,
-  useEffect,
   useState,
   useRef,
   useCallback,
+  useEffect,
 } from "react";
 import { showNotification } from "@mantine/notifications";
 import * as api from "../../lib/api";
 import { validateArrayResponse } from "../../lib/validate-api";
-import {
-  computeInventoryAfterReturn,
-  computePurchasesAfterReturn,
-} from "./return-utils";
-import type { SalesPayload } from "../../components/sales/SalesDocShell";
+
 import type { InventoryItemPayload } from "../../lib/api";
+import type { Supplier } from "../../components/purchase/SupplierForm";
 
 export interface InventoryItem {
-  id: number; // Required for database operations
-  name: string; // Required for display
-  category: string;
-  unit: string;
+  _id: string;
+  itemName?: string;
+  category?: string;
+  unit?: string;
   color?: string;
   thickness?: number;
   salesRate?: number;
-  stock: number;
   openingStock?: number;
   minimumStockLevel?: number;
-  description: string;
-  lastUpdated: string;
+  description?: string;
+  stock?: number;
+  lastUpdated?: string;
+  quantity?: number;
 }
 
 export interface Customer {
-  id: string;
+  _id: string;
   name: string;
   phone?: string;
   address?: string;
   city?: string;
   openingAmount?: number;
   creditLimit?: number;
-  paymentType?: "credit" | "debit";
+  paymentType?: "Credit" | "Debit";
   createdAt?: string;
 }
 
+export type CustomerInput = Omit<Customer, "_id" | "createdAt">;
+
 export interface SaleRecord {
-  id: string;
-  date: string;
-  customer: string;
-  items: Array<{ sku: string; quantity: number; price: number }>;
-  total: number;
-  status: "paid" | "pending" | "overdue";
+  date: string | Date;
+  quotationDate: string | Date;
+  customerId: string | number | boolean | undefined;
+  total: number | undefined;
+  status: string;
+  id: string | number;
+  invoiceNumber?: string;
+  invoiceDate?: string;
+  customerName?: string;
+  customer?: Array<{ id?: string | number; name: string }>;
+  products?: InventoryItemPayload[];
+  totalGrossAmount?: number;
+  totalNetAmount?: number;
+  subTotal?: number;
+  amount?: number;
+  remarks?: string;
+  length?: number;
+  totalDiscount?: number;
+  paymentMethod?: "Cash" | "Card";
 }
 
 export interface PurchaseRecord {
-  id: string;
-  date: string;
-  supplier: string;
-  // per-line items on a PO. 'received' tracks total qty received so far for that line.
-  items: Array<{
-    sku: string;
+  id?: string;
+  poNumber: string;
+  poDate: string | Date;
+  expectedDelivery?: string | Date;
+  supplier?: Supplier; // Now stores the full supplier object
+  products: Array<{
+    id: string;
+    productName: string;
     quantity: number;
-    price: number;
+    rate: number;
+    color?: string;
+    thickness?: string;
+    length?: string | number;
+    amount?: number;
+    inventoryId?: string;
     received?: number;
   }>;
+  subTotal?: number;
   total: number;
-  // legacy payment status
-  status?: "paid" | "pending" | "overdue";
-  // fulfillment status based on GRNs
-  fulfillmentStatus?: "open" | "partially_received" | "received";
+  status?: string;
+  remarks?: string;
+  createdAt?: Date;
 }
 
 export interface GRNRecord {
@@ -88,16 +107,13 @@ export interface PurchaseReturnRecord {
   id: string;
   returnNumber: string;
   returnDate: string;
+  items: InventoryItemPayload[];
   supplier?: string;
   supplierId?: string;
   linkedPoId?: string;
-  items: Array<{ sku: string; quantity: number; price?: number }>;
   subtotal: number;
-  totalAmount: number;
+  total: number;
   reason?: string;
-  status?: string;
-  // idempotency / processing flag
-  processed?: boolean;
 }
 
 export interface SupplierCreditRecord {
@@ -105,18 +121,18 @@ export interface SupplierCreditRecord {
   supplierId?: string;
   supplierName?: string;
   date: string;
-  amount: number;
+  total: number;
   note?: string;
 }
 
 export interface Expense {
   id: string;
   expenseNumber: string;
-  expenseDate: string | Date;
-  category: string;
+  date: string | Date;
+  categoryType: string;
   description?: string;
   amount: number;
-  paymentMethod?: "Cash" | "Card" | "UPI" | "Cheque";
+  paymentMethod?: "Cash" | "Card";
   reference?: string;
   remarks?: string;
   createdAt?: string | Date;
@@ -130,57 +146,80 @@ export interface Color {
 }
 
 interface DataContextType {
+  // ===== SUPPLIERS MODULE =====
+  suppliers: Supplier[];
+  suppliersLoading: boolean;
+  suppliersError: string | null;
+  setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>>;
+  loadSuppliers: () => Promise<Supplier[]>;
   // ===== INVENTORY MODULE =====
   inventory: InventoryItem[];
   inventoryLoading: boolean;
   inventoryError: string | null;
+  setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
   loadInventory: () => Promise<InventoryItem[]>;
   createInventoryItem: (
     payload: InventoryItemPayload
   ) => Promise<InventoryItem>;
   updateInventoryItem: (
-    id: string | number,
+    id: string,
     payload: Partial<InventoryItemPayload>
   ) => Promise<InventoryItem>;
-  deleteInventoryItem: (id: string | number) => Promise<void>;
+  deleteInventoryItem: (id: string) => Promise<void>;
 
   // ===== CATEGORIES MODULE =====
   categories: string[];
   categoriesLoading: boolean;
   categoriesError: string | null;
+  setCategories: React.Dispatch<React.SetStateAction<string[]>>;
   categoriesForSelect: Array<{ value: string; label: string }>;
   loadCategories: () => Promise<string[]>;
   createCategory: (name: string) => Promise<void>;
   updateCategory: (oldName: string, newName: string) => Promise<void>;
   deleteCategory: (name: string) => Promise<void>;
+  addCategory: (name: string) => Promise<void>;
+  renameCategory: (oldName: string, newName: string) => Promise<void>;
 
   // ===== CUSTOMERS MODULE =====
   customers: Customer[];
   customersLoading: boolean;
   customersError: string | null;
+  setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
   loadCustomers: () => Promise<Customer[]>;
-  createCustomer: (payload: any) => Promise<Customer>;
-  updateCustomer: (id: string | number, payload: any) => Promise<Customer>;
+  createCustomer: (payload: CustomerInput) => Promise<Customer>;
+  updateCustomer: (
+    id: string | number,
+    payload: Partial<CustomerInput>
+  ) => Promise<Customer>;
   deleteCustomer: (id: string | number) => Promise<void>;
 
   // ===== SALES MODULE =====
   sales: SaleRecord[];
   salesLoading: boolean;
   salesError: string | null;
+  setSales: React.Dispatch<React.SetStateAction<SaleRecord[]>>;
   loadSales: () => Promise<SaleRecord[]>;
-  createSale: (payload: SaleRecord) => Promise<SaleRecord>;
-  updateSale: (id: string | number, payload: Partial<SaleRecord>) => Promise<SaleRecord>;
-  deleteSale: (id: string | number) => Promise<void>;
+  createSale: (
+    payload: api.SaleRecordPayload | SaleRecord
+  ) => Promise<SaleRecord>;
+  updateSale: (
+    invoiceNumber: string,
+    payload: Partial<api.SaleRecordPayload>
+  ) => Promise<SaleRecord>;
+  deleteSale: (invoiceNumber: string) => Promise<void>;
 
   // ===== PURCHASES MODULE =====
   purchases: PurchaseRecord[];
   purchasesLoading: boolean;
   purchasesError: string | null;
+  setPurchases: React.Dispatch<React.SetStateAction<PurchaseRecord[]>>;
   loadPurchases: () => Promise<PurchaseRecord[]>;
-  createPurchase: (payload: any) => Promise<PurchaseRecord>;
+  createPurchase: (
+    payload: api.PurchaseRecordPayload
+  ) => Promise<PurchaseRecord>;
   updatePurchase: (
     id: string | number,
-    payload: any
+    payload: Partial<api.PurchaseRecordPayload>
   ) => Promise<PurchaseRecord>;
   deletePurchase: (id: string | number) => Promise<void>;
 
@@ -188,8 +227,9 @@ interface DataContextType {
   grns: GRNRecord[];
   grnsLoading: boolean;
   grnsError: string | null;
+  setGrns: React.Dispatch<React.SetStateAction<GRNRecord[]>>;
   loadGrns: () => Promise<GRNRecord[]>;
-  createGrn: (payload: any) => Promise<GRNRecord>;
+  createGrn: (payload: api.GRNRecordPayload) => Promise<GRNRecord>;
   applyGrnToInventory: (grn: GRNRecord) => void;
   updatePurchaseFromGrn: (grn: GRNRecord) => void;
 
@@ -197,8 +237,13 @@ interface DataContextType {
   purchaseReturns: PurchaseReturnRecord[];
   purchaseReturnsLoading: boolean;
   purchaseReturnsError: string | null;
+  setPurchaseReturns: React.Dispatch<
+    React.SetStateAction<PurchaseReturnRecord[]>
+  >;
   loadPurchaseReturns: () => Promise<PurchaseReturnRecord[]>;
-  createPurchaseReturn: (payload: any) => Promise<PurchaseReturnRecord>;
+  createPurchaseReturn: (
+    payload: api.PurchaseReturnRecordPayload
+  ) => Promise<PurchaseReturnRecord>;
   applyPurchaseReturnToInventory: (ret: PurchaseReturnRecord) => void;
   updatePurchaseFromReturn: (ret: PurchaseReturnRecord) => void;
   processPurchaseReturn: (ret: PurchaseReturnRecord) => {
@@ -210,14 +255,22 @@ interface DataContextType {
   expenses: Expense[];
   expensesLoading: boolean;
   expensesError: string | null;
+  setExpenses: React.Dispatch<React.SetStateAction<Expense[]>>;
   loadExpenses: () => Promise<Expense[]>;
   createExpense: (payload: ExpenseInput) => Promise<Expense>;
   updateExpense: (id: string, payload: Partial<Expense>) => Promise<Expense>;
   deleteExpense: (id: string) => Promise<void>;
+  addExpense: (e: ExpenseInput) => Expense;
+
+  // ===== COLORS (Static) =====
+  colors: Color[];
 
   // ===== QUOTATIONS =====
-  quotations: SalesPayload[];
-  setQuotations: React.Dispatch<React.SetStateAction<SalesPayload[]>>;
+  quotations: api.QuotationRecordPayload[];
+  loadQuotations: () => Promise<api.QuotationRecordPayload[]>;
+  setQuotations: React.Dispatch<
+    React.SetStateAction<api.QuotationRecordPayload[]>
+  >;
 
   // ===== SUPPLIER CREDITS =====
   supplierCredits: SupplierCreditRecord[];
@@ -225,182 +278,35 @@ interface DataContextType {
     React.SetStateAction<SupplierCreditRecord[]>
   >;
 
-  // ===== LEGACY / BACKEND STATUS =====
+  // ===== BACKEND STATUS =====
   refreshFromBackend: () => Promise<boolean>;
   isBackendAvailable: boolean;
   apiWarnings: string[];
-
-  // ===== COLORS (Static) =====
-  colors: Color[];
-
-  // Legacy setters (kept for backward compatibility - deprecate later)
-  setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
-  setCategories: React.Dispatch<React.SetStateAction<string[]>>;
-  setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
-  setSales: React.Dispatch<React.SetStateAction<SaleRecord[]>>;
-  setPurchases: React.Dispatch<React.SetStateAction<PurchaseRecord[]>>;
-  setGrns: React.Dispatch<React.SetStateAction<GRNRecord[]>>;
-  setPurchaseReturns: React.Dispatch<
-    React.SetStateAction<PurchaseReturnRecord[]>
-  >;
-  setExpenses: React.Dispatch<React.SetStateAction<Expense[]>>;
-
-  // Legacy helpers (kept for backward compatibility)
-  addCategory: (name: string) => void;
-  renameCategory: (oldName: string, newName: string) => void;
-  addExpense: (e: ExpenseInput) => Expense;
 }
 
-const DataContext = createContext<DataContextType | undefined>(undefined);
-
-export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
-  // Dev-only seed - will be loaded in useEffect
-  const initialInventory: InventoryItem[] = [];
-
-  // ===== STATE: INVENTORY =====
-  const [inventory, setInventory] = useState<InventoryItem[]>(initialInventory);
-  const [inventoryLoading, setInventoryLoading] = useState(false);
-  const [inventoryError, setInventoryError] = useState<string | null>(null);
-
-  // ===== STATE: CATEGORIES =====
-  const [categories, setCategories] = useState<string[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(false);
-  const [categoriesError, setCategoriesError] = useState<string | null>(null);
-
-  // ===== STATE: CUSTOMERS =====
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customersLoading, setCustomersLoading] = useState(false);
-  const [customersError, setCustomersError] = useState<string | null>(null);
-
-  // ===== STATE: SALES =====
-  const [sales, setSales] = useState<SaleRecord[]>([]);
-  const [salesLoading, setSalesLoading] = useState(false);
-  const [salesError, setSalesError] = useState<string | null>(null);
-
-  // ===== STATE: PURCHASES =====
-  const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
-  const [purchasesLoading, setPurchasesLoading] = useState(false);
-  const [purchasesError, setPurchasesError] = useState<string | null>(null);
-
-  // ===== STATE: GRNS =====
-  const [grns, setGrns] = useState<GRNRecord[]>([]);
-  const [grnsLoading, setGrnsLoading] = useState(false);
-  const [grnsError, setGrnsError] = useState<string | null>(null);
-
-  // ===== STATE: PURCHASE RETURNS =====
-  const [purchaseReturns, setPurchaseReturns] = useState<
-    PurchaseReturnRecord[]
-  >([]);
-  const [purchaseReturnsLoading, setPurchaseReturnsLoading] = useState(false);
-  const [purchaseReturnsError, setPurchaseReturnsError] = useState<
-    string | null
-  >(null);
-
-  // ===== STATE: EXPENSES =====
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [expensesLoading, setExpensesLoading] = useState(false);
-  const [expensesError, setExpensesError] = useState<string | null>(null);
-
-  // ===== STATE: OTHER =====
-  const [supplierCredits, setSupplierCredits] = useState<
-    SupplierCreditRecord[]
-  >([]);
-  const [isBackendAvailable, setIsBackendAvailable] = useState<boolean>(false);
-  const [apiWarnings, setApiWarnings] = useState<string[]>([]);
-  const [quotations, setQuotations] = useState<SalesPayload[]>([]);
-
-  // Track inventory loaded state to avoid refetch storms in development.
-  const inventoryRef = useRef<InventoryItem[]>(initialInventory);
-  const inventoryLoadedRef = useRef<boolean>(initialInventory.length > 0);
-  useEffect(() => {
-    inventoryRef.current = inventory;
-    inventoryLoadedRef.current = (inventory || []).length > 0;
-  }, [inventory]);
-
-  // Mock data loading disabled - using real inventory data only
-
-  // Dev-only: log provider mount so we can detect HMR / duplicate-context issues
-  useEffect(() => {
-    if (import.meta.env.MODE !== "production") {
-      // eslint-disable-next-line no-console
-      console.debug(
-        `[DataContext] Provider mounted @ ${new Date().toISOString()}`
-      );
-      console.log(`[DataContext] Inventory count: ${inventory.length}`);
-      return () => {
-        // eslint-disable-next-line no-console
-        console.debug(
-          `[DataContext] Provider unmounted @ ${new Date().toISOString()}`
-        );
-      };
-    }
-    return undefined;
-  }, []);
-
-  // Colors are static client-side. Provide the canonical set here and do not
-  // load or mutate them at runtime.
-  const [colors] = useState<Color[]>([
-    { name: "DULL" },
-    { name: "H23/PC-RAL" },
-    { name: "SAHRA/BRN" },
-    { name: "BLACK/MULTI" },
-    { name: "WOODCOAT" },
-  ]);
-
-  // categories formatted for Select controls
-  const categoriesForSelect = React.useMemo(() => {
-    return (categories || []).map((c) => ({
-      value: String(c),
-      label: String(c),
-    }));
-  }, [categories]);
-
-  // coalesce concurrent refreshFromBackend calls using a ref-held promise
-  const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
-
-  // generic per-loader single-flight map so multiple pages mounting at the
-  // same time don't issue duplicate requests for the same dataset.
-  const loaderPromisesRef = useRef<Record<string, Promise<any> | null>>({});
-
-  // track which loaders have successfully completed at least once so we
-  // can avoid re-fetching repeatedly in development or when multiple
-  // components mount/unmount. This is a simple idempotency guard.
-  const loaderLoadedRef = useRef<Record<string, boolean>>({});
-
-  // normalize response helper (pulled out so loaders can reuse it)
-  const normalizeResponse = (v: unknown): unknown[] => {
-    if (Array.isArray(v)) return v;
-    if (v && typeof v === "object") {
-      const maybe = v as { [k: string]: unknown };
-      if (Array.isArray(maybe.data)) return maybe.data;
-      for (const key of Object.keys(maybe)) {
-        const val = maybe[key];
-        if (Array.isArray(val)) return val as unknown[];
-      }
-    }
-    return [];
-  };
-
-  const runLoader = useCallback(
-    async (
+function useRunLoader(
+  loaderPromisesRef: React.MutableRefObject<
+    Record<string, Promise<unknown> | null>
+  >,
+  loaderLoadedRef: React.MutableRefObject<Record<string, boolean>>,
+  normalizeResponse: (v: unknown) => unknown[]
+) {
+  return useCallback(
+    (
       key: string,
       fn: () => Promise<unknown>,
       setter: (v: unknown[]) => void
     ) => {
-      // If a loader for the same key is already in-flight, reuse its promise.
       if (loaderPromisesRef.current[key]) {
         if (import.meta.env.MODE !== "production") {
-          // eslint-disable-next-line no-console
           try {
             const trace = new Error().stack || "";
+            // eslint-disable-next-line no-console
             console.debug(
               `[DataContext] runLoader: reusing in-flight loader "${key}"`,
               trace.split("\n").slice(2, 6)
             );
-          } catch (e) {
-            // ignore logging failure
+          } catch {
             // eslint-disable-next-line no-console
             console.debug(
               `[DataContext] runLoader: reusing in-flight loader "${key}"`
@@ -409,28 +315,23 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         }
         return loaderPromisesRef.current[key];
       }
-
       if (import.meta.env.MODE !== "production") {
         try {
-          // eslint-disable-next-line no-console
           const trace = new Error().stack || "";
+
           console.debug(
             `[DataContext] runLoader: starting loader "${key}"`,
             trace.split("\n").slice(2, 8)
           );
-        } catch (e) {
-          // eslint-disable-next-line no-console
+        } catch {
           console.debug(`[DataContext] runLoader: starting loader "${key}"`);
         }
       }
-
       loaderPromisesRef.current[key] = (async () => {
         try {
           const res = await fn();
           const arr = normalizeResponse(res) as unknown[];
           setter(arr);
-          // mark this loader as successfully loaded so future calls can
-          // short-circuit and avoid repeated network requests.
           loaderLoadedRef.current[key] = true;
           return arr;
         } finally {
@@ -439,124 +340,222 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       })();
       return loaderPromisesRef.current[key];
     },
-    []
+    [loaderPromisesRef, loaderLoadedRef, normalizeResponse]
+  );
+}
+
+const DataContext = React.createContext<DataContextType | undefined>(undefined);
+
+export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  // ===== REFS =====
+  const loaderPromisesRef = useRef<Record<string, Promise<unknown> | null>>({});
+  const loaderLoadedRef = useRef<Record<string, boolean>>({});
+  const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
+
+  // Helper to normalize API responses (array, {data: []}, {items: []}, etc.)
+  function normalizeResponse(v: unknown): unknown[] {
+    if (Array.isArray(v)) return v;
+    if (v && typeof v === "object") {
+      if (Array.isArray((v as Record<string, unknown>).data))
+        return (v as Record<string, unknown>).data as unknown[];
+      const arrProp = Object.values(v).find((val) => Array.isArray(val));
+      if (arrProp) return arrProp as unknown[];
+    }
+    return [];
+  }
+
+  // Memoized runLoader using useRunLoader
+  const runLoader = useRunLoader(
+    loaderPromisesRef,
+    loaderLoadedRef,
+    normalizeResponse
   );
 
-  // Lazy loaders for inventory/customers/colors so pages can opt-in
-  const loadInventory = useCallback(async () => {
-    // If inventory already loaded, skip fetching again (prevents request storms)
-    // We check both the inventoryLoadedRef (client state) and the loaderLoadedRef
-    // so that once a successful remote fetch occurred we don't keep hitting
-    // the backend repeatedly during dev HMR cycles or frequent mounts.
-    if (inventoryLoadedRef.current || loaderLoadedRef.current["inventory"]) {
-      if (import.meta.env.MODE !== "production") {
-        // eslint-disable-next-line no-console
-        console.debug(
-          "[DataContext] loadInventory: inventory already loaded — skipping fetch"
-        );
-      }
-      return inventoryRef.current;
-    }
-
-    // Use real inventory data from API or user-created data
-
-    return runLoader("inventory", api.getInventory, (v) => {
-      const raw = normalizeResponse(v) as unknown[];
-      const mapped = (raw || []).map((it) => {
-        const o = (it || {}) as any;
-        const idRaw = o.id ?? o._id ?? (o._id && o._id.$oid) ?? undefined;
-        let idNum = 0;
-        if (typeof idRaw === "number") idNum = idRaw;
-        else if (typeof idRaw === "string" && /^\d+$/.test(idRaw))
-          idNum = Number(idRaw);
-        else idNum = Date.now() + Math.floor(Math.random() * 1000);
-
-        return {
-          id: idNum,
-          name: o.name ?? o.itemName ?? o.item_name ?? "",
-          category: o.category ?? o.categoryName ?? o.cat ?? "",
-          unit: o.unit ?? o.unitType ?? "ft",
-          color: o.color ?? "",
-          thickness: o.thickness ?? (o.metadata && o.metadata.thickness) ?? 0,
-          salesRate: (o.salesRate ??
-            o.sellingPrice ??
-            o.price ??
-            o.selling_price) as number,
-          stock: o.stock ?? o.quantity ?? 0,
-          openingStock: o.openingStock ?? o.quantity ?? 0,
-          minimumStockLevel:
-            o.minimumStockLevel ?? o.minimumStock ?? o.minStock ?? 0,
-          description: o.description ?? o.remarks ?? "",
-          lastUpdated: o.updatedAt ?? o.lastUpdated ?? new Date().toISOString(),
-        } as InventoryItem;
-      });
-
+  // ===== INVENTORY LOADER (fetch from backend) =====
+  const loadInventory = async () => {
+    setInventoryLoading(true);
+    setInventoryError(null);
+    try {
+      const data = await api.getInventory();
+      // Map _id to string for type safety
+      const mapped = (data || []).map((item) => ({
+        ...item,
+        _id: item._id ? String(item._id) : "",
+        unit: item.unit !== undefined ? String(item.unit) : undefined,
+      }));
       setInventory(mapped);
-      inventoryRef.current = mapped;
-      inventoryLoadedRef.current = (mapped || []).length > 0;
+      loaderLoadedRef.current["inventory"] = true;
+      return mapped;
+    } catch (err: unknown) {
+      setInventoryError((err as Error).message || "Failed to load products");
+      showNotification({
+        title: "Load Products Failed",
+        message: (err as Error).message || "Failed to load products",
+        color: "red",
+      });
+      return [];
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
 
-      // Dev-only diagnostic: log mapping result to help debug missing table rows
-      if (import.meta.env.MODE !== "production") {
-        try {
-          // lightweight sample for the console
-          // eslint-disable-next-line no-console
-          console.debug(
-            "[DataContext] loadInventory -> mapped items:",
-            mapped.length,
-            mapped.slice(0, 5)
-          );
-        } catch (e) {
-          /* ignore console failure */
-        }
-      }
-    });
-  }, [runLoader]);
-
-  const loadCustomers = useCallback(async () => {
+  // ===== CUSTOMERS LOADER (fetch from backend) =====
+  const loadCustomers = async () => {
     if (loaderLoadedRef.current["customers"]) {
-      if (import.meta.env.MODE !== "production") {
-        // eslint-disable-next-line no-console
-        console.debug(
-          "[DataContext] loadCustomers: already loaded — skipping fetch"
-        );
-      }
       return customers;
     }
     return runLoader("customers", api.getCustomers, (v) => {
+      // Normalize and map backend payload to Customer[]
       const raw = normalizeResponse(v) as unknown[];
-      const mapped = (raw || []).map((it) => {
-        const o = (it || {}) as any;
-        const idRaw = o.id ?? o._id ?? (o._id && o._id.$oid) ?? undefined;
-        let customerId = "";
-        if (typeof idRaw === "string") customerId = idRaw;
-        else if (typeof idRaw === "number") customerId = String(idRaw);
-        else customerId = String(Date.now() + Math.random()); // fallback unique ID
-        
+      const mapped = raw.map((c) => {
+        const o = c as {
+          _id?: string;
+          id?: string;
+          name?: string;
+          phone?: string;
+          address?: string;
+          city?: string;
+          openingAmount?: number;
+          opening_amount?: number;
+          creditLimit?: number;
+          credit_limit?: number;
+          paymentType?: string;
+          createdAt?: string;
+          created_at?: string;
+        };
+        let paymentType: "Credit" | "Debit" | undefined = undefined;
+        if (o.paymentType === "credit" || o.paymentType === "Credit")
+          paymentType = "Credit";
+        else if (o.paymentType === "debit" || o.paymentType === "Debit")
+          paymentType = "Debit";
         return {
-          id: customerId,
-          name: o.name || "Unnamed Customer",
-          phone: o.phone || "",
-          address: o.address || "",
-          city: o.city || "",
-          openingAmount: Number(o.openingAmount || 0),
-          creditLimit: Number(o.creditLimit || 0),
-          paymentType: o.paymentType || "credit",
-          createdAt: o.createdAt || new Date().toISOString(),
-        } as Customer;
+          _id: o._id ?? o.id ?? "",
+          name: o.name ?? "",
+          phone: o.phone ?? "",
+          address: o.address ?? "",
+          city: o.city ?? "",
+          openingAmount: o.openingAmount ?? o.opening_amount ?? 0,
+          creditLimit: o.creditLimit ?? o.credit_limit ?? 0,
+          paymentType,
+          createdAt: o.createdAt ?? o.created_at ?? undefined,
+        };
       });
-      console.log("Loaded customers from API:", mapped);
       setCustomers(mapped);
-    });
-  }, [runLoader, customers]);
+      return mapped;
+    }) as Promise<Customer[]>;
+  };
+  // Auto-load customers on mount
+  useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  // Auto-load sales on mount
+  useEffect(() => {
+    loadSales();
+  }, []);
+  // ===== SUPPLIERS STATE =====
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(false);
+  const [suppliersError, setSuppliersError] = useState<string | null>(null);
+
+  // ===== SUPPLIERS LOADER (fetch from backend) =====
+  const loadSuppliers = async () => {
+    if (loaderLoadedRef.current["suppliers"]) {
+      return suppliers;
+    }
+    setSuppliersLoading(true);
+    setSuppliersError(null);
+    try {
+      const data = await api.getSuppliers();
+      setSuppliers(data || []);
+      loaderLoadedRef.current["suppliers"] = true;
+      return data || [];
+    } catch (err: unknown) {
+      setSuppliersError((err as Error).message || "Failed to load suppliers");
+      showNotification({
+        title: "Load Suppliers Failed",
+        message: (err as Error).message || "Failed to load suppliers",
+        color: "red",
+      });
+      return [];
+    } finally {
+      setSuppliersLoading(false);
+    }
+  };
+
+  // Auto-load suppliers on mount
+  useEffect(() => {
+    loadSuppliers();
+  }, []);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  // ===== CATEGORIES STATE =====
+  const [categories, setCategories] = useState<string[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  // ===== CUSTOMERS STATE =====
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [customersError, setCustomersError] = useState<string | null>(null);
+  // ===== SALES STATE =====
+  const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesError, setSalesError] = useState<string | null>(null);
+  // ===== PURCHASES STATE =====
+  const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
+  const [purchasesLoading, setPurchasesLoading] = useState(false);
+  const [purchasesError, setPurchasesError] = useState<string | null>(null);
+  // ===== GRN STATE =====
+  const [grns, setGrns] = useState<GRNRecord[]>([]);
+  const [grnsLoading, setGrnsLoading] = useState(false);
+  const [grnsError, setGrnsError] = useState<string | null>(null);
+  // ===== PURCHASE RETURNS STATE =====
+  const [purchaseReturns, setPurchaseReturns] = useState<
+    PurchaseReturnRecord[]
+  >([]);
+  const [purchaseReturnsLoading, setPurchaseReturnsLoading] = useState(false);
+  const [purchaseReturnsError, setPurchaseReturnsError] = useState<
+    string | null
+  >(null);
+  // ===== EXPENSES STATE =====
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expensesLoading, setExpensesLoading] = useState(false);
+  const [expensesError, setExpensesError] = useState<string | null>(null);
+  // ===== QUOTATIONS STATE =====
+  const [quotations, setQuotations] = useState<api.QuotationRecordPayload[]>(
+    []
+  );
+  // ===== SUPPLIER CREDITS STATE =====
+  const [supplierCredits, setSupplierCredits] = useState<
+    SupplierCreditRecord[]
+  >([]);
+  // ===== BACKEND STATUS =====
+  const [isBackendAvailable, setIsBackendAvailable] = useState(false);
+  const [apiWarnings, setApiWarnings] = useState<string[]>([]);
+  // ===== COLORS (STATIC) =====
+  const [colors] = useState<Color[]>([
+    { name: "DULL" },
+    { name: "H23/PC-RAL" },
+    { name: "SAHRA/BRN" },
+    { name: "BLACK/MULTI" },
+    { name: "WOODCOAT" },
+  ]);
+  // ===== MEMOIZED SELECTS =====
+  const categoriesForSelect = React.useMemo(() => {
+    const filtered = (categories || [])
+      .filter((c) => c && typeof c === "string" && c.trim().length > 0)
+      .map((c) => ({
+        value: String(c).trim(),
+        label: String(c).trim(),
+      }));
+    return filtered;
+  }, [categories]);
 
   const loadCategories = useCallback(async () => {
     if (loaderLoadedRef.current["categories"]) {
-      if (import.meta.env.MODE !== "production") {
-        // eslint-disable-next-line no-console
-        console.debug(
-          "[DataContext] loadCategories: already loaded — skipping fetch"
-        );
-      }
       return categories;
     }
     return runLoader("categories", api.getCategories, (v) => {
@@ -578,9 +577,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
           return "";
         })
         .map((s) => (typeof s === "string" ? s.trim() : ""))
-        .filter(Boolean);
+        .filter((name) => Boolean(name) && name.length > 0);
       setCategories(categoryNames);
-    });
+      return categoryNames;
+    }) as Promise<string[]>;
   }, [runLoader, categories]);
 
   // colors are static — no runtime loader
@@ -593,9 +593,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         const created = await api.createInventory(payload);
         const item = {
           ...created,
-          id: (created as any).id ?? Date.now(),
-          name: (created as any).itemName ?? payload.itemName ?? "Unnamed Item",
-        } as unknown as InventoryItem;
+          id: String(
+            (created as { id?: string | number; _id?: string | number })?.id ??
+              (created as { _id?: string | number })?._id ??
+              Date.now()
+          ),
+          name:
+            (created as { itemName?: string })?.itemName ??
+            payload.itemName ??
+            "Unnamed Item",
+        } as InventoryItem;
 
         setInventory((prev) => [item, ...prev]);
         showNotification({
@@ -604,12 +611,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
           color: "green",
         });
         return item;
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Create inventory failed:", err);
-        setInventoryError(err.message || "Failed to create product");
+        setInventoryError((err as Error).message || "Failed to create product");
         showNotification({
           title: "Create Failed",
-          message: err.message || "Failed to create product",
+          message: (err as Error).message || "Failed to create product",
           color: "red",
         });
         throw err;
@@ -621,37 +628,32 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const updateInventoryItem = useCallback(
-    async (id: string | number, payload: Partial<InventoryItemPayload>) => {
+    async (id: string, payload: Partial<InventoryItemPayload>) => {
       setInventoryLoading(true);
       try {
         const updated = await api.updateInventory(String(id), payload);
-        const idNum = (() => {
-          const raw = (updated as any).id ?? id;
-          if (typeof raw === "number") return raw;
-          if (typeof raw === "string" && /^\d+$/.test(raw)) return Number(raw);
-          if (typeof id === "string" && /^\d+$/.test(id)) return Number(id);
-          if (typeof id === "number") return id;
-          return Date.now();
-        })();
-
+        const inventoryId = String(
+          (updated as { _id?: string | number })?._id ?? id
+        );
         const item = {
           ...updated,
-          id: idNum,
-        } as unknown as InventoryItem;
-
-        setInventory((prev) => prev.map((p) => (p.id === idNum ? item : p)));
+          _id: inventoryId,
+        } as InventoryItem;
+        setInventory((prev) =>
+          prev.map((p) => (String(p._id) === inventoryId ? item : p))
+        );
         showNotification({
           title: "Product Updated",
           message: `Product has been updated successfully`,
           color: "blue",
         });
         return item;
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Update inventory failed:", err);
-        setInventoryError(err.message || "Failed to update product");
+        setInventoryError((err as Error).message || "Failed to update product");
         showNotification({
           title: "Update Failed",
-          message: err.message || "Failed to update product",
+          message: (err as Error).message || "Failed to update product",
           color: "red",
         });
         throw err;
@@ -662,22 +664,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     []
   );
 
-  const deleteInventoryItem = useCallback(async (id: string | number) => {
+  const deleteInventoryItem = useCallback(async (id: string) => {
     setInventoryLoading(true);
     try {
-      await api.deleteInventory(String(id));
-      setInventory((prev) => prev.filter((p) => String(p.id) !== String(id)));
+      console.log("Deleting inventory item with MongoDB ID:", id);
+      await api.deleteInventory(id);
+      setInventory((prev) => prev.filter((p) => String(p._id) !== String(id)));
       showNotification({
         title: "Product Deleted",
         message: "Product has been removed",
         color: "orange",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Delete inventory failed:", err);
-      setInventoryError(err.message || "Failed to delete product");
+      let message = "Failed to delete product";
+      if (
+        err &&
+        typeof err === "object" &&
+        "message" in err &&
+        typeof (err as { message?: unknown }).message === "string"
+      ) {
+        message =
+          (err as { message?: string }).message || "Failed to delete product";
+      }
+      setInventoryError(message);
       showNotification({
         title: "Delete Failed",
-        message: err.message || "Failed to delete product",
+        message,
         color: "red",
       });
       throw err;
@@ -685,17 +698,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       setInventoryLoading(false);
     }
   }, []);
-
   // ===== CUSTOMERS CRUD FUNCTIONS =====
-  const createCustomer = useCallback(async (payload: any) => {
+  const createCustomer = useCallback(async (payload: CustomerInput) => {
     setCustomersLoading(true);
     try {
-      const created = await api.createCustomer(payload);
-      const customer = {
+      // Map paymentType to lowercase if present
+      const mappedPayload = {
+        ...payload,
+        paymentType: payload.paymentType
+          ? payload.paymentType.toLowerCase() === "credit"
+            ? "credit"
+            : payload.paymentType.toLowerCase() === "debit"
+            ? "debit"
+            : undefined
+          : undefined,
+      } as api.CustomerPayload;
+      const created = await api.createCustomer(mappedPayload);
+      const customer: Customer = {
         ...created,
-        id: created.id ?? Date.now(),
-      } as Customer;
-
+        _id: created._id,
+      };
       setCustomers((prev) => [customer, ...prev]);
       showNotification({
         title: "Customer Created",
@@ -703,12 +725,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         color: "green",
       });
       return customer;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Create customer failed:", err);
-      setCustomersError(err.message || "Failed to create customer");
+      setCustomersError((err as Error).message || "Failed to create customer");
       showNotification({
         title: "Create Failed",
-        message: err.message || "Failed to create customer",
+        message: (err as Error).message || "Failed to create customer",
         color: "red",
       });
       throw err;
@@ -718,17 +740,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const updateCustomer = useCallback(
-    async (id: string | number, payload: any) => {
+    async (id: string | number, payload: Partial<CustomerInput>) => {
       setCustomersLoading(true);
       try {
-        const updated = await api.updateCustomer(String(id), payload);
-        const customer = {
+        // Map paymentType to lowercase if present
+        const mappedPayload = {
+          ...payload,
+          paymentType: payload.paymentType
+            ? payload.paymentType.toLowerCase() === "credit"
+              ? "credit"
+              : payload.paymentType.toLowerCase() === "debit"
+              ? "debit"
+              : undefined
+            : undefined,
+        } as Partial<api.CustomerPayload>;
+        const updated = await api.updateCustomer(String(id), mappedPayload);
+        const customer: Customer = {
           ...updated,
           id: updated.id ?? id,
-        } as Customer;
-
+        };
         setCustomers((prev) =>
-          prev.map((c) => (String(c.id) === String(id) ? customer : c))
+          prev.map((c) => (String(c._id) === String(id) ? customer : c))
         );
         showNotification({
           title: "Customer Updated",
@@ -736,12 +768,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
           color: "blue",
         });
         return customer;
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Update customer failed:", err);
-        setCustomersError(err.message || "Failed to update customer");
+        setCustomersError(
+          (err as Error).message || "Failed to update customer"
+        );
         showNotification({
           title: "Update Failed",
-          message: err.message || "Failed to update customer",
+          message: (err as Error).message || "Failed to update customer",
           color: "red",
         });
         throw err;
@@ -756,18 +790,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     setCustomersLoading(true);
     try {
       await api.deleteCustomer(String(id));
-      setCustomers((prev) => prev.filter((c) => String(c.id) !== String(id)));
+      setCustomers((prev) => prev.filter((c) => String(c._id) !== String(id)));
       showNotification({
         title: "Customer Deleted",
         message: "Customer has been removed",
         color: "orange",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Delete customer failed:", err);
-      setCustomersError(err.message || "Failed to delete customer");
+      let message = "Failed to delete customer";
+      if (
+        err &&
+        typeof err === "object" &&
+        "message" in err &&
+        typeof (err as { message?: unknown }).message === "string"
+      ) {
+        message =
+          (err as { message?: string }).message || "Failed to delete customer";
+      }
+      setCustomersError(message);
       showNotification({
         title: "Delete Failed",
-        message: err.message || "Failed to delete customer",
+        message,
         color: "red",
       });
       throw err;
@@ -777,84 +821,172 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   // ===== SALES CRUD FUNCTIONS =====
-  const createSale = useCallback(async (payload: any) => {
-    setSalesLoading(true);
-    try {
-      const created = await api.createSale(payload);
-      const sale = {
-        ...created,
-        id: created.id ?? `sale-${Date.now()}`,
-      } as SaleRecord;
+  const createSale = useCallback(
+    async (payload: api.SaleRecordPayload | SaleRecord) => {
+      setSalesLoading(true);
+      try {
+        // Only send SaleRecordPayload to API
+        const apiPayload: api.SaleRecordPayload = {
+          ...payload,
+          quotationDate:
+            typeof payload.quotationDate === "string"
+              ? payload.quotationDate
+              : payload.quotationDate instanceof Date
+              ? payload.quotationDate.toISOString()
+              : undefined,
+        };
+        const created = await api.createSale(apiPayload);
 
-      setSales((prev) => [sale, ...prev]);
-      showNotification({
-        title: "Sale Created",
-        message: "Sale has been recorded successfully",
-        color: "green",
-      });
-      return sale;
-    } catch (err: any) {
-      console.error("Create sale failed:", err);
-      setSalesError(err.message || "Failed to create sale");
-      showNotification({
-        title: "Create Failed",
-        message: err.message || "Failed to create sale",
-        color: "red",
-      });
-      throw err;
-    } finally {
-      setSalesLoading(false);
-    }
-  }, []);
+        console.debug("Create sale response:", created);
 
-  const updateSale = useCallback(async (id: string | number, payload: any) => {
-    setSalesLoading(true);
-    try {
-      const updated = await api.updateSale(String(id), payload);
-      const sale = {
-        ...updated,
-        id: updated.id ?? id,
-      } as SaleRecord;
+        const payloadCustomer = (payload as { customer?: unknown })?.customer;
+        const inferredCustomerName = Array.isArray(payloadCustomer)
+          ? (payloadCustomer[0] as { name?: string })?.name
+          : typeof payloadCustomer === "string"
+          ? payloadCustomer
+          : (payload as { customerName?: string })?.customerName || null;
 
-      setSales((prev) =>
-        prev.map((s) => (String(s.id) === String(id) ? sale : s))
-      );
-      showNotification({
-        title: "Sale Updated",
-        message: "Sale has been updated successfully",
-        color: "blue",
-      });
-      return sale;
-    } catch (err: any) {
-      console.error("Update sale failed:", err);
-      setSalesError(err.message || "Failed to update sale");
-      showNotification({
-        title: "Update Failed",
-        message: err.message || "Failed to update sale",
-        color: "red",
-      });
-      throw err;
-    } finally {
-      setSalesLoading(false);
-    }
-  }, []);
+        const normalizedCustomer =
+          (created as { customer?: Array<{ name?: string }> })?.customer &&
+          (created as { customer?: Array<{ name?: string }> })?.customer?.length
+            ? (created as { customer: Array<{ name?: string }> }).customer
+            : inferredCustomerName
+            ? [{ name: inferredCustomerName }]
+            : [];
+
+        const sale = {
+          ...created,
+          id:
+            (created as { invoiceNumber?: string | number })?.invoiceNumber ??
+            created.id ??
+            `sale-${Date.now()}`,
+          customer: normalizedCustomer,
+          customerName:
+            (Array.isArray(normalizedCustomer) &&
+              (normalizedCustomer[0] as { name?: string })?.name) ||
+            (created as { customerName?: string })?.customerName ||
+            inferredCustomerName ||
+            "",
+        } as SaleRecord;
+
+        setSales((prev) => [sale, ...prev]);
+        showNotification({
+          title: "Sale Created",
+          message: "Sale has been recorded successfully",
+          color: "green",
+        });
+        return sale;
+      } catch (err: unknown) {
+        console.error("Create sale failed:", err);
+        let message = "Failed to create sale";
+        if (
+          err &&
+          typeof err === "object" &&
+          "message" in err &&
+          typeof (err as { message?: unknown }).message === "string"
+        ) {
+          message = (err as Error).message;
+        }
+        setSalesError(message);
+        showNotification({
+          title: "Create Failed",
+          message,
+          color: "red",
+        });
+        throw err;
+      } finally {
+        setSalesLoading(false);
+      }
+    },
+    []
+  );
+
+  const updateSale = useCallback(
+    async (id: string | number, payload: Partial<api.SaleRecordPayload>) => {
+      setSalesLoading(true);
+      try {
+        const updated = await api.updateSaleByNumber(String(id), payload);
+        console.debug("Update sale response:", updated);
+        const payloadCustomer = (payload as { customer?: unknown })?.customer;
+        const inferredCustomerName = Array.isArray(payloadCustomer)
+          ? (payloadCustomer[0] as { name?: string })?.name
+          : typeof payloadCustomer === "string"
+          ? payloadCustomer
+          : (payload as { customerName?: string })?.customerName || null;
+
+        const normalizedCustomer =
+          (updated as { customer?: Array<{ name?: string }> })?.customer &&
+          (updated as { customer?: Array<{ name?: string }> })?.customer?.length
+            ? (updated as { customer: Array<{ name?: string }> }).customer
+            : inferredCustomerName
+            ? [{ name: inferredCustomerName }]
+            : [];
+
+        const sale = {
+          ...updated,
+          id: updated.id ?? id,
+          customer: normalizedCustomer,
+          customerName:
+            (Array.isArray(normalizedCustomer) &&
+              (normalizedCustomer[0] as { name?: string })?.name) ||
+            (updated as { customerName?: string })?.customerName ||
+            inferredCustomerName ||
+            "",
+        } as SaleRecord;
+
+        setSales((prev) =>
+          prev.map((s) => (String(s.id) === String(id) ? sale : s))
+        );
+        showNotification({
+          title: "Sale Updated",
+          message: "Sale has been updated successfully",
+          color: "blue",
+        });
+        return sale;
+      } catch (err: unknown) {
+        console.error("Update sale failed:", err);
+        setSalesError((err as Error).message || "Failed to update sale");
+        showNotification({
+          title: "Update Failed",
+          message: (err as Error).message || "Failed to update sale",
+          color: "red",
+        });
+        throw err;
+      } finally {
+        setSalesLoading(false);
+      }
+    },
+    []
+  );
 
   const deleteSale = useCallback(async (id: string | number) => {
     setSalesLoading(true);
     try {
-      await api.deleteSale(String(id));
+      console.debug("Deleting sale id/invoiceNumber:", String(id));
+      const resp = await api.deleteSaleByNumber(String(id));
+
+      console.debug("Delete sale response:", resp);
       setSales((prev) => prev.filter((s) => String(s.id) !== String(id)));
       showNotification({
         title: "Sale Deleted",
         message: "Sale has been removed",
         color: "orange",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Delete sale failed:", err);
-      setSalesError(err.message || "Failed to delete sale");
+      let message = "Failed to delete sale";
+      if (
+        err &&
+        typeof err === "object" &&
+        "message" in err &&
+        typeof (err as { message?: unknown }).message === "string"
+      ) {
+        message = (err as Error).message;
+      }
+      setSalesError(message);
       showNotification({
         title: "Delete Failed",
-        message: err.message || "Failed to delete sale",
+        message,
         color: "red",
       });
       throw err;
@@ -863,39 +995,67 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  // ===== PURCHASES CRUD FUNCTIONS =====
-  const createPurchase = useCallback(async (payload: any) => {
-    setPurchasesLoading(true);
-    try {
-      const created = await api.createPurchase(payload);
-      const purchase = {
-        ...created,
-        id: created.id ?? `po-${Date.now()}`,
-      } as PurchaseRecord;
+  const createPurchase = useCallback(
+    async (payload: api.PurchaseRecordPayload) => {
+      setPurchasesLoading(true);
+      try {
+        // If payload has supplierId, find the full supplier object and send as supplier
+        const fullPayload = { ...payload };
+        // Use a type guard to check for supplierId property
+        type PayloadWithSupplierId = api.PurchaseRecordPayload & {
+          supplierId?: string;
+        };
+        const hasSupplierId = (
+          obj: api.PurchaseRecordPayload
+        ): obj is PayloadWithSupplierId =>
+          typeof (obj as PayloadWithSupplierId).supplierId === "string" &&
+          !(obj as PayloadWithSupplierId).supplier;
 
-      setPurchases((prev) => [purchase, ...prev]);
-      showNotification({
-        title: "Purchase Created",
-        message: "Purchase order has been created",
-        color: "green",
-      });
-      return purchase;
-    } catch (err: any) {
-      console.error("Create purchase failed:", err);
-      setPurchasesError(err.message || "Failed to create purchase");
-      showNotification({
-        title: "Create Failed",
-        message: err.message || "Failed to create purchase",
-        color: "red",
-      });
-      throw err;
-    } finally {
-      setPurchasesLoading(false);
-    }
-  }, []);
+        if (hasSupplierId(payload)) {
+          const foundSupplier = suppliers.find(
+            (s) => s._id === payload.supplierId
+          );
+          if (foundSupplier) {
+            (fullPayload as PayloadWithSupplierId).supplier = foundSupplier;
+            delete (fullPayload as PayloadWithSupplierId).supplierId;
+          }
+        }
+        const created = await api.createPurchase(fullPayload);
+        const purchase = {
+          ...created,
+          id: created.id ?? `po-${Date.now()}`,
+        } as PurchaseRecord;
+
+        setPurchases((prev) => [purchase, ...prev]);
+        showNotification({
+          title: "Purchase Created",
+          message: "Purchase order has been created",
+          color: "green",
+        });
+        return purchase;
+      } catch (err: unknown) {
+        console.error("Create purchase failed:", err);
+        setPurchasesError(
+          (err as Error).message || "Failed to create purchase"
+        );
+        showNotification({
+          title: "Create Failed",
+          message: (err as Error).message || "Failed to create purchase",
+          color: "red",
+        });
+        throw err;
+      } finally {
+        setPurchasesLoading(false);
+      }
+    },
+    [suppliers]
+  );
 
   const updatePurchase = useCallback(
-    async (id: string | number, payload: any) => {
+    async (
+      id: string | number,
+      payload: Partial<api.PurchaseRecordPayload>
+    ) => {
       setPurchasesLoading(true);
       try {
         const updated = await api.updatePurchase(String(id), payload);
@@ -913,12 +1073,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
           color: "blue",
         });
         return purchase;
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Update purchase failed:", err);
-        setPurchasesError(err.message || "Failed to update purchase");
+        setPurchasesError(
+          (err as Error).message || "Failed to update purchase"
+        );
         showNotification({
           title: "Update Failed",
-          message: err.message || "Failed to update purchase",
+          message: (err as Error).message || "Failed to update purchase",
           color: "red",
         });
         throw err;
@@ -939,12 +1101,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         message: "Purchase order has been removed",
         color: "orange",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Delete purchase failed:", err);
-      setPurchasesError(err.message || "Failed to delete purchase");
+      let message = "Failed to delete purchase";
+      if (
+        err &&
+        typeof err === "object" &&
+        "message" in err &&
+        typeof (err as unknown as { message?: unknown }).message === "string"
+      ) {
+        message =
+          (err as { message?: string }).message || "Failed to delete purchase";
+      }
+      setPurchasesError(message);
       showNotification({
         title: "Delete Failed",
-        message: err.message || "Failed to delete purchase",
+        message,
         color: "red",
       });
       throw err;
@@ -953,8 +1125,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  // ===== GRN CRUD FUNCTIONS =====
-  const createGrn = useCallback(async (payload: any) => {
+  const createGrn = useCallback(async (payload: api.GRNRecordPayload) => {
     setGrnsLoading(true);
     try {
       const created = await api.createGRN(payload);
@@ -970,12 +1141,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         color: "green",
       });
       return grn;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Create GRN failed:", err);
-      setGrnsError(err.message || "Failed to create GRN");
+      setGrnsError((err as Error).message || "Failed to create GRN");
       showNotification({
         title: "Create Failed",
-        message: err.message || "Failed to create GRN",
+        message: (err as Error).message || "Failed to create GRN",
         color: "red",
       });
       throw err;
@@ -984,7 +1155,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  // ===== PURCHASE RETURN CRUD FUNCTIONS =====
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const createPurchaseReturn = useCallback(async (payload: any) => {
     setPurchaseReturnsLoading(true);
     try {
@@ -1001,14 +1172,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         color: "green",
       });
       return purchaseReturn;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Create purchase return failed:", err);
       setPurchaseReturnsError(
-        err.message || "Failed to create purchase return"
+        (err as Error).message || "Failed to create purchase return"
       );
       showNotification({
         title: "Create Failed",
-        message: err.message || "Failed to create purchase return",
+        message: (err as Error).message || "Failed to create purchase return",
         color: "red",
       });
       throw err;
@@ -1017,7 +1188,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  // ===== EXPENSE CRUD FUNCTIONS =====
   const createExpense = useCallback(async (payload: ExpenseInput) => {
     setExpensesLoading(true);
     try {
@@ -1034,12 +1204,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         color: "green",
       });
       return expense;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Create expense failed:", err);
-      setExpensesError(err.message || "Failed to create expense");
+      setExpensesError((err as Error).message || "Failed to create expense");
       showNotification({
         title: "Create Failed",
-        message: err.message || "Failed to create expense",
+        message: (err as Error).message || "Failed to create expense",
         color: "red",
       });
       throw err;
@@ -1065,12 +1235,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
           color: "blue",
         });
         return expense;
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Update expense failed:", err);
-        setExpensesError(err.message || "Failed to update expense");
+        setExpensesError((err as Error).message || "Failed to update expense");
         showNotification({
           title: "Update Failed",
-          message: err.message || "Failed to update expense",
+          message: (err as Error).message || "Failed to update expense",
           color: "red",
         });
         throw err;
@@ -1081,22 +1251,34 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     []
   );
 
-  const deleteExpenseItem = useCallback(async (id: string) => {
+  const deleteExpenseItem = useCallback(async (expenseNumber: string) => {
     setExpensesLoading(true);
     try {
-      await api.deleteExpense(id);
-      setExpenses((prev) => prev.filter((e) => e.id !== id));
+      await api.deleteExpense(expenseNumber);
+      setExpenses((prev) =>
+        prev.filter((e) => e.expenseNumber !== expenseNumber)
+      );
       showNotification({
         title: "Expense Deleted",
         message: "Expense has been removed",
         color: "orange",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Delete expense failed:", err);
-      setExpensesError(err.message || "Failed to delete expense");
+      let message = "Failed to delete expense";
+      if (
+        err &&
+        typeof err === "object" &&
+        "message" in err &&
+        typeof (err as { message?: unknown }).message === "string"
+      ) {
+        message =
+          (err as { message?: string }).message || "Failed to delete expense";
+      }
+      setExpensesError(message);
       showNotification({
         title: "Delete Failed",
-        message: err.message || "Failed to delete expense",
+        message,
         color: "red",
       });
       throw err;
@@ -1106,60 +1288,44 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   // ===== CATEGORY CRUD (already exists above, keeping references) =====
-  const createCategory = useCallback(
-    async (name: string) => {
-      const v = name.trim();
+  const createCategory = useCallback(async (name: string) => {
+    const v = name.trim();
+    if (!v) return;
+    setCategoriesLoading(true);
+    try {
+      await api.createCategory({ name: v });
+      // Refresh categories from backend to get authoritative list
+      if (typeof loadCategories === "function") await loadCategories();
+      showNotification({
+        title: "Category Added",
+        message: `Category '${v}' added`,
+        color: "green",
+      });
+    } catch (err) {
+      setCategoriesError(String(err));
+      showNotification({
+        title: "Category Creation Failed",
+        message: String(err),
+        color: "red",
+      });
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
+  const updateCategory = useCallback(
+    async (categoryId: string, newName: string) => {
+      const v = newName.trim();
       if (!v) return;
       setCategoriesLoading(true);
       try {
-        await api.createCategory({ name: v });
-        // Refresh categories from backend to get authoritative list
+        await api.updateCategory(categoryId, { name: v });
         if (typeof loadCategories === "function") await loadCategories();
         showNotification({
-          title: "Category Added",
-          message: `Category '${v}' added`,
-          color: "green",
+          title: "Renamed",
+          message: `Category renamed to '${v}'`,
+          color: "blue",
         });
-      } catch (err) {
-        setCategoriesError(String(err));
-        showNotification({
-          title: "Category Creation Failed",
-          message: String(err),
-          color: "red",
-        });
-      } finally {
-        setCategoriesLoading(false);
-      }
-    },
-    [loadCategories]
-  );
-
-  const updateCategory = useCallback(
-    async (oldName: string, newName: string) => {
-      const v = newName.trim();
-      if (!v || oldName === v) return;
-      setCategoriesLoading(true);
-      try {
-        const cats = (await api.getCategories()) as Array<{
-          id?: string | number;
-          name?: string;
-        }>;
-        const categoryToRename = cats.find((c) => c.name === oldName);
-        const renameId =
-          (categoryToRename &&
-            (categoryToRename.id ?? (categoryToRename as any)._id)) ||
-          undefined;
-        if (renameId) {
-          await api.updateCategory(renameId, { name: v });
-          if (typeof loadCategories === "function") await loadCategories();
-          showNotification({
-            title: "Renamed",
-            message: `'${oldName}' → '${v}'`,
-            color: "blue",
-          });
-        } else {
-          throw new Error("Category not found on backend");
-        }
       } catch (err) {
         setCategoriesError(String(err));
         showNotification({
@@ -1171,46 +1337,116 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         setCategoriesLoading(false);
       }
     },
-    [loadCategories]
+    []
   );
 
-  const deleteCategoryItem = useCallback(
-    async (name: string) => {
-      setCategoriesLoading(true);
-      try {
-        const cats = (await api.getCategories()) as Array<{
-          id?: string | number;
-          name?: string;
-        }>;
-        const categoryToDelete = cats.find((c) => c.name === name);
-        const delId =
-          (categoryToDelete &&
-            (categoryToDelete.id ?? (categoryToDelete as any)._id)) ||
-          undefined;
-        if (delId) {
-          await api.deleteCategory(delId);
-          if (typeof loadCategories === "function") await loadCategories();
-          showNotification({
-            title: "Category Deleted",
-            message: `Category '${name}' removed`,
-            color: "orange",
-          });
-        } else {
-          throw new Error("Category not found on backend");
+  const deleteCategoryItem = useCallback(async (name: string) => {
+    setCategoriesLoading(true);
+    try {
+      const catsRaw = (await api.getCategories()) as unknown[];
+      // normalize to objects with id and name for robust matching
+      const cats = (catsRaw || []).map((c) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (!c) return { id: undefined as any, name: "" };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (typeof c === "string") return { id: undefined as any, name: c };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const o = c as { [k: string]: any };
+        const nameFields = ["name", "title", "category", "label", "value"];
+        let resolvedName = "";
+        for (const f of nameFields) {
+          if (typeof o[f] === "string" && o[f].trim()) {
+            resolvedName = o[f].trim();
+            break;
+          }
         }
-      } catch (err) {
-        setCategoriesError(String(err));
-        showNotification({
-          title: "Category Deletion Failed",
-          message: String(err),
-          color: "red",
-        });
-      } finally {
-        setCategoriesLoading(false);
+        const _id = o._id ?? o.id ?? undefined;
+        return { _id, name: resolvedName };
+      });
+
+      const nameTrim = name.trim();
+      const nameLower = nameTrim.toLowerCase();
+      const categoryToDelete = cats.find(
+        (c) => (c.name || "").trim().toLowerCase() === nameLower
+      );
+      const delId =
+        categoryToDelete && categoryToDelete._id
+          ? String(categoryToDelete._id)
+          : undefined;
+      if (delId) {
+        // Delete server-side category when possible (use MongoDB _id)
+        console.debug(
+          "Deleting category by MongoDB _id:",
+          delId,
+          "for name:",
+          nameTrim
+        );
+        await api.deleteCategory(String(delId));
+      } else {
+        // If category doesn't exist on backend (derived from inventory only),
+        // continue and clear it from local inventory so UI reflects removal.
+        console.warn(
+          "Category not found on backend (no _id), clearing locally:",
+          nameTrim
+        );
       }
-    },
-    [loadCategories]
-  );
+
+      // Clear category from local inventory items so categoriesList updates
+      setInventory((prev) =>
+        prev.map((p) =>
+          (p.category || "").trim() === nameTrim ? { ...p, category: "" } : p
+        )
+      );
+
+      // Refresh categories from backend directly (bypass runLoader short-circuit)
+      try {
+        const fresh = normalizeResponse(await api.getCategories()) as unknown[];
+        const categoryNames = fresh
+          .map((c) => {
+            if (!c) return "";
+            if (typeof c === "string") return c;
+            if (typeof c === "object") {
+              const o = c as { [k: string]: unknown };
+              const nameFields = [
+                "name",
+                "title",
+                "category",
+                "label",
+                "value",
+              ];
+              for (const f of nameFields) {
+                const vv = o[f];
+                if (typeof vv === "string" && vv.trim()) return vv as string;
+              }
+              if (o.id !== undefined && o.id !== null) return String(o.id);
+              if (o._id !== undefined && o._id !== null) return String(o._id);
+            }
+            return "";
+          })
+          .map((s) => (typeof s === "string" ? s.trim() : ""))
+          .filter((name) => Boolean(name) && name.length > 0);
+        setCategories(categoryNames);
+      } catch {
+        // If refresh fails, keep local state (we already cleared inventory categories)
+        console.warn("Failed to refresh categories after delete");
+      }
+
+      showNotification({
+        title: "Category Deleted",
+        message: `Category '${name}' removed`,
+        color: "orange",
+      });
+    } catch (err) {
+      setCategoriesError(String(err));
+      showNotification({
+        title: "Category Deletion Failed",
+        message: String(err),
+        color: "red",
+      });
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
 
   // ===== LEGACY ALIASES FOR BACKWARD COMPATIBILITY =====
   const addCategory = useCallback(
@@ -1261,50 +1497,30 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     return record;
   };
 
-  // Refresh all primary data from backend (if available)
   async function refreshFromBackend() {
-    // if a refresh is already in-flight, return the same promise (single-flight)
     if (refreshPromiseRef.current) return refreshPromiseRef.current;
 
     refreshPromiseRef.current = (async () => {
       try {
-        // Fetch only categories on initial refresh. Other datasets are
-        // loaded lazily by pages (inventory/customers/colors/sales/etc.).
         const cat = await api.getCategories();
-
-        // helper to normalize responses that might be:
-        // - an array
-        // - an object with a `data` array
-        // - an object that contains any array property (e.g. { categories: [...] })
-        // This makes the client tolerant to different backend wrappers.
-
         const warnings: string[] = [];
         const maybeWarn = (name: string, v: unknown) => {
           const w = validateArrayResponse(name, v);
           if (w) warnings.push(w);
         };
-
-        // Validate categories response
         maybeWarn("categories", cat);
 
         setApiWarnings(warnings);
 
-        // heavy datasets left untouched here; they should be loaded lazily
-        // by their respective pages or by an explicit refresh.
-        // Convert category payloads to string array. Accept either an array of
-        // strings (e.g. ["Sections"]) or an array of objects { id, name }.
         const rawCats = normalizeResponse(cat) as unknown[];
 
-        // more tolerant mapping: accept string entries or objects with a
-        // common name-like property (name/title/category/label/value) or
-        // fallback to id when present.
         const categoryNames = rawCats
           .map((c) => {
             if (!c) return "";
             if (typeof c === "string") return c;
             if (typeof c === "object") {
               const o = c as { [k: string]: unknown };
-              // try common name fields
+
               const nameFields = [
                 "name",
                 "title",
@@ -1316,7 +1532,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
                 const v = o[f];
                 if (typeof v === "string" && v.trim()) return v;
               }
-              // fallback to id (some backends use `_id`)
+
               if (o.id !== undefined && o.id !== null) return String(o.id);
               if (o._id !== undefined && o._id !== null) return String(o._id);
             }
@@ -1324,14 +1540,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
           })
           .map((s) => (typeof s === "string" ? s.trim() : ""))
           .filter(Boolean);
-
-        // (sample-keys diagnostics removed to reduce console noise)
-
-        // (dev logging removed) - keep implementation silent in production and
-        // development to avoid noisy console output. Diagnostics were useful
-        // during development but were producing too many logs in the UI.
-
-        // Set categories from backend (authoritative).
         setCategories(categoryNames);
         setIsBackendAvailable(true);
         return true;
@@ -1351,171 +1559,217 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
     return refreshPromiseRef.current;
   }
-
-  // Do not auto-refresh from backend on mount: categories and heavy datasets
-  // are loaded lazily by pages via the `load*` helpers (e.g. loadCategories,
-  // loadInventory). This prevents duplicate network requests when modals
-  // mount/unmount frequently during development.
-
-  // Lazy loader helpers exposed to pages so they can fetch datasets only when
-  // the page is navigated to.
   const loadSales = async () => {
-    if (loaderLoadedRef.current["sales"]) {
-      if (import.meta.env.MODE !== "production") {
-        // eslint-disable-next-line no-console
-        console.debug(
-          "[DataContext] loadSales: already loaded — skipping fetch"
-        );
-      }
+    if (loaderLoadedRef.current["sales"] && sales.length > 0) {
       return sales;
     }
+    if (sales.length === 0) {
+      loaderLoadedRef.current["sales"] = false;
+    }
     return runLoader("sales", api.getSales, (v) => {
-      setSales(normalizeResponse(v) as SaleRecord[]);
-    });
+      const rawSales = normalizeResponse(v) as unknown[];
+      const normalizedSales = rawSales.map((sale) => {
+        const s = sale as Record<string, unknown>;
+        const customer = s.customer;
+        let normalizedCustomer: Array<{ id?: string | number; name: string }> =
+          [];
+        if (Array.isArray(customer) && customer.length > 0) {
+          normalizedCustomer = customer;
+        } else if (customer && typeof customer === "object") {
+          normalizedCustomer = [
+            {
+              ...(customer as object),
+              name: (customer as { name?: string })?.name ?? "",
+            },
+          ];
+        } else if (typeof customer === "string" && customer.trim()) {
+          normalizedCustomer = [{ name: customer.trim() }];
+        }
+        const customerName =
+          (normalizedCustomer.length > 0 && normalizedCustomer[0]?.name) ||
+          s.customerName ||
+          (typeof customer === "string" ? customer : "") ||
+          "";
+        const normalized = {
+          ...s,
+          id: s.invoiceNumber ?? s.id ?? `sale-${Date.now()}`,
+          customer: normalizedCustomer,
+          customerName: customerName,
+        } as SaleRecord;
+        return normalized;
+      });
+      setSales(normalizedSales);
+      return normalizedSales;
+    }) as Promise<SaleRecord[]>;
   };
 
   const loadPurchases = async () => {
     if (loaderLoadedRef.current["purchases"]) {
-      if (import.meta.env.MODE !== "production") {
-        // eslint-disable-next-line no-console
-        console.debug(
-          "[DataContext] loadPurchases: already loaded — skipping fetch"
-        );
-      }
       return purchases;
     }
     return runLoader("purchases", api.getPurchases, (v) => {
-      setPurchases(normalizeResponse(v) as PurchaseRecord[]);
-    });
+      // Ensure each purchase has a full supplier object if present
+      const normalized = (normalizeResponse(v) as any[]).map((rec) => {
+        if (
+          rec.supplier &&
+          typeof rec.supplier === "object" &&
+          rec.supplier._id
+        ) {
+          return rec;
+        } else if (rec.supplierId) {
+          // fallback: try to find supplier from context
+          const found = suppliers.find((s) => s._id === rec.supplierId);
+          return { ...rec, supplier: found };
+        }
+        return rec;
+      }) as PurchaseRecord[];
+      setPurchases(normalized);
+      return normalized;
+    }) as Promise<PurchaseRecord[]>;
   };
 
   const loadGrns = async () => {
     if (loaderLoadedRef.current["grns"]) {
-      if (import.meta.env.MODE !== "production") {
-        // eslint-disable-next-line no-console
-        console.debug(
-          "[DataContext] loadGrns: already loaded — skipping fetch"
-        );
-      }
       return grns;
     }
     return runLoader("grns", api.getGRNs, (v) => {
-      setGrns(normalizeResponse(v) as GRNRecord[]);
-    });
+      const normalized = normalizeResponse(v) as GRNRecord[];
+      setGrns(normalized);
+      return normalized;
+    }) as Promise<GRNRecord[]>;
   };
 
   const loadPurchaseReturns = async () => {
     if (loaderLoadedRef.current["purchaseReturns"]) {
-      if (import.meta.env.MODE !== "production") {
-        // eslint-disable-next-line no-console
-        console.debug(
-          "[DataContext] loadPurchaseReturns: already loaded — skipping fetch"
-        );
-      }
       return purchaseReturns;
     }
     return runLoader("purchaseReturns", api.getPurchaseReturns, (v) => {
-      setPurchaseReturns(normalizeResponse(v) as PurchaseReturnRecord[]);
-    });
+      const normalized = normalizeResponse(v) as PurchaseReturnRecord[];
+      setPurchaseReturns(normalized);
+      return normalized;
+    }) as Promise<PurchaseReturnRecord[]>;
   };
-
-  const loadExpenses = async () => {
+  const loadExpenses = async (): Promise<Expense[]> => {
     if (loaderLoadedRef.current["expenses"]) {
-      if (import.meta.env.MODE !== "production") {
-        // eslint-disable-next-line no-console
-        console.debug(
-          "[DataContext] loadExpenses: already loaded — skipping fetch"
-        );
-      }
       return expenses;
     }
     return runLoader("expenses", api.getExpenses, (v) => {
-      setExpenses(normalizeResponse(v) as Expense[]);
-    });
+      const normalized = normalizeResponse(v) as Expense[];
+      setExpenses(normalized);
+      return normalized;
+    }) as Promise<Expense[]>;
   };
 
-  // On a full page reload, perform the primary GETs so the app has fresh
-  // data. We detect a reload using the Navigation Timing API where available
-  // to avoid triggering on HMR or SPA navigations. This intentionally runs
-  // the lazy loaders concurrently and relies on runLoader to coalesce
-  // duplicate requests.
-  useEffect(() => {
-    const isReload = (() => {
-      try {
-        const nav = (
-          performance && (performance as any).getEntriesByType
-            ? (performance as any).getEntriesByType("navigation")
-            : null
-        ) as any;
-        if (nav && nav.length && nav[0].type) return nav[0].type === "reload";
-        // legacy fallback
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        if (
-          (performance as any).navigation &&
-          (performance as any).navigation.type === 1
-        )
-          return true;
-      } catch (e) {
-        /* ignore */
+  // Only one loadQuotations function, returns correct type and is in correct order
+  const loadQuotations = useCallback(async (): Promise<
+    api.QuotationRecordPayload[]
+  > => {
+    if (loaderLoadedRef.current["quotations"]) {
+      if (import.meta.env.MODE !== "production") {
+        console.debug(
+          "[DataContext] loadQuotations: already loaded — skipping fetch"
+        );
       }
-      return false;
-    })();
-
-    if (!isReload) return undefined;
-
-    // Run all important loaders concurrently. runLoader will avoid
-    // duplicate in-flight requests when pages/components request the same
-    // datasets.
-    (async () => {
-      try {
-        await Promise.all([
-          typeof loadCategories === "function"
-            ? loadCategories()
-            : Promise.resolve(),
-          typeof loadInventory === "function"
-            ? loadInventory()
-            : Promise.resolve(),
-          typeof loadCustomers === "function"
-            ? loadCustomers()
-            : Promise.resolve(),
-          typeof loadSales === "function" ? loadSales() : Promise.resolve(),
-          typeof loadPurchases === "function"
-            ? loadPurchases()
-            : Promise.resolve(),
-          typeof loadGrns === "function" ? loadGrns() : Promise.resolve(),
-          typeof loadPurchaseReturns === "function"
-            ? loadPurchaseReturns()
-            : Promise.resolve(),
-          typeof loadExpenses === "function"
-            ? loadExpenses()
-            : Promise.resolve(),
-        ]);
-      } catch (err) {
-        // swallow — individual loaders surface errors via notifications where
-        // appropriate. We don't want a failed background refresh to crash the
-        // provider.
-      }
-    })();
-
-    return undefined;
-  }, [
-    loadCategories,
-    loadInventory,
-    loadCustomers,
-    loadSales,
-    loadPurchases,
-    loadGrns,
-    loadPurchaseReturns,
-    loadExpenses,
-  ]);
+      return quotations;
+    }
+    return runLoader("quotations", api.getQuotations, (v) => {
+      const raw = normalizeResponse(v) as unknown[];
+      const mapped = (raw || []).map((it) => {
+        const o = (it || {}) as Record<string, unknown>;
+        let customer: api.CustomerPayload[] = [];
+        if (Array.isArray(o.customer)) {
+          customer = (o.customer as api.CustomerPayload[]).map((c) => ({
+            id: c.id,
+            name: c.name ?? (typeof c === "string" ? c : ""),
+          }));
+        } else if (typeof o.customer === "object" && o.customer !== null) {
+          customer = [
+            {
+              id: (o.customer as { id?: string | number })?.id,
+              name: (o.customer as { name?: string })?.name ?? "",
+            },
+          ];
+        } else if (typeof o.customer === "string" && o.customer.trim()) {
+          customer = [{ name: o.customer.trim() }];
+        } else if (o.customerName && typeof o.customerName === "string") {
+          customer = [{ name: o.customerName }];
+        }
+        const products =
+          (o.products as unknown[] | undefined) ??
+          (o.items as unknown[] | undefined) ??
+          [];
+        return {
+          _id:
+            (o._id as string | undefined) ??
+            (o.id as string | undefined) ??
+            undefined,
+          id:
+            (o.id as string | undefined) ??
+            (o._id as string | undefined) ??
+            undefined,
+          quotationNumber:
+            (o.quotationNumber as string | undefined) ??
+            (o.quotation_no as string | undefined) ??
+            (o.docNo as string | undefined) ??
+            undefined,
+          products: products as api.InventoryItemPayload[],
+          quotationDate:
+            (o.quotationDate as string | undefined) ??
+            (o.date as string | undefined) ??
+            (o.docDate as string | undefined) ??
+            undefined,
+          customer,
+          customerName:
+            (o.customerName as string | undefined) ??
+            (customer.length > 0 ? customer[0].name : undefined),
+          remarks:
+            (o.remarks as string | undefined) ??
+            (o.note as string | undefined) ??
+            undefined,
+          subTotal:
+            (o.subTotal as number | undefined) ??
+            (o.sub_total as number | undefined) ??
+            (o.total as number | undefined) ??
+            undefined,
+          totalGrossAmmount:
+            (o.totalGrossAmmount as number | undefined) ??
+            (o.totalGrossAmount as number | undefined) ??
+            (o.total as number | undefined) ??
+            undefined,
+          totalDiscount:
+            (o.totalDiscount as number | undefined) ??
+            (o.discount as number | undefined) ??
+            0,
+          length: products.length || undefined,
+          status: (o.status as string | undefined) ?? undefined,
+          metadata: (o.metadata as Record<string, unknown> | undefined) ?? {},
+        } as api.QuotationRecordPayload;
+      });
+      setQuotations(mapped);
+      return mapped;
+    }) as Promise<api.QuotationRecordPayload[]>;
+  }, [runLoader, quotations]);
+  // Stubs for required purchase return functions
+  function applyPurchaseReturnToInventory(ret: PurchaseReturnRecord) {
+    // Placeholder: implement inventory update logic as needed
+    void ret;
+  }
+  function updatePurchaseFromReturn(): void {
+    // Implement purchase update logic as needed
+  }
+  function processPurchaseReturn() {
+    // Implement processing logic as needed
+    return { applied: false };
+  }
 
   function applyGrnToInventory(grn: GRNRecord) {
     // For each item in GRN, try to find inventory by sku and increase stock
     setInventory((prev) =>
       prev.map((item) => {
         const found = grn.items.find(
-          (gi) => String(gi.sku) === String(item.name) || String(gi.sku) === String(item.id)
+          (gi) =>
+            String(gi.sku) === String(item.itemName) ||
+            String(gi.sku) === String(item._id)
         );
         if (found) {
           return {
@@ -1530,88 +1784,36 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   function updatePurchaseFromGrn(grn: GRNRecord) {
     if (!grn.linkedPoId) return;
-    setPurchases((prev) =>
-      prev.map((po) => {
+    setPurchases((prev: PurchaseRecord[]) =>
+      prev.map((po: PurchaseRecord) => {
         if (String(po.id) !== String(grn.linkedPoId)) return po;
-        // For each GRN item, add its qty to the matching PO item's 'received' field
-        const items = (po.items || []).map((pi) => {
-          const matched = grn.items.find(
-            (gi) => String(gi.sku) === String(pi.sku)
+        // For each GRN item, add its qty to the matching PO product's 'received' field
+        const products = (po.products || []).map((pi) => {
+          // Try to match by productName or id
+          const found = grn.items.find(
+            (gi) =>
+              String(gi.sku) === String(pi.productName) ||
+              String(gi.sku) === String(pi.id)
           );
-          if (!matched) return { ...pi };
-          const prevReceived = pi.received || 0;
-          return { ...pi, received: prevReceived + (matched.quantity || 0) };
+          return found
+            ? { ...pi, received: (pi.received || 0) + (found.quantity || 0) }
+            : pi;
         });
-
-        // compute fulfillmentStatus
-        let fulfillmentStatus: PurchaseRecord["fulfillmentStatus"] = "open";
-        const totalOrdered = items.reduce((s, i) => s + (i.quantity || 0), 0);
-        const totalReceived = items.reduce((s, i) => s + (i.received || 0), 0);
-        if (totalReceived <= 0) fulfillmentStatus = "open";
-        else if (totalReceived < totalOrdered)
-          fulfillmentStatus = "partially_received";
-        else fulfillmentStatus = "received";
-
-        return { ...po, items, fulfillmentStatus } as PurchaseRecord;
+        return { ...po, products };
       })
     );
-  }
-
-  function applyPurchaseReturnToInventory(ret: PurchaseReturnRecord) {
-    setInventory((prev) => computeInventoryAfterReturn(prev, ret));
-  }
-
-  function updatePurchaseFromReturn(ret: PurchaseReturnRecord) {
-    setPurchases((prev) => computePurchasesAfterReturn(prev, ret));
-  }
-
-  function processPurchaseReturn(ret: PurchaseReturnRecord) {
-    // Idempotency: if a return with same id or returnNumber already processed, skip
-    const exists = purchaseReturns.find(
-      (r) => r.id === ret.id || r.returnNumber === ret.returnNumber
-    );
-    if (exists && exists.processed) {
-      return { applied: false, message: "Return already processed" };
-    }
-
-    // persist/update return record (mark processed)
-    const toSave: PurchaseReturnRecord = { ...ret, processed: true };
-    setPurchaseReturns((prev) => [
-      toSave,
-      ...(prev || []).filter(
-        (p) => p.id !== toSave.id && p.returnNumber !== toSave.returnNumber
-      ),
-    ]);
-
-    // apply inventory change and update purchase using pure helpers
-    setInventory((prev) => computeInventoryAfterReturn(prev, toSave));
-    setPurchases((prev) => computePurchasesAfterReturn(prev, toSave));
-
-    // create supplier credit (simple amount record)
-    const supplierName =
-      (customers || []).find((c) => String(c.id) === String(toSave.supplierId))
-        ?.name ||
-      toSave.supplier ||
-      "";
-    const credit: SupplierCreditRecord = {
-      id:
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : `scr-${Date.now()}`,
-      supplierId: toSave.supplierId,
-      supplierName,
-      date: new Date().toISOString(),
-      amount: toSave.totalAmount || 0,
-      note: `Credit for return ${toSave.returnNumber}`,
-    };
-    setSupplierCredits((prev) => [credit, ...(prev || [])]);
-
-    return { applied: true };
   }
 
   return (
     <DataContext.Provider
       value={{
+        // ===== SUPPLIERS MODULE =====
+        suppliers,
+        suppliersLoading,
+        suppliersError,
+        setSuppliers,
+        loadSuppliers,
+
         // ===== INVENTORY MODULE =====
         inventory,
         inventoryLoading,
@@ -1701,9 +1903,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         colors,
 
         // ===== QUOTATIONS =====
-
-        // ===== QUOTATIONS =====
         quotations,
+        loadQuotations,
         setQuotations,
 
         // ===== SUPPLIER CREDITS =====
@@ -1727,6 +1928,7 @@ export function useDataContext() {
     // Provide richer diagnostics to help with HMR / duplicate-react issues
     const location =
       typeof window !== "undefined" ? window.location.href : "<unknown>";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mode = import.meta && (import.meta.env || ({} as any)).MODE;
     throw new Error(
       `useDataContext must be used within a DataProvider. Current location: ${location}. Build mode: ${

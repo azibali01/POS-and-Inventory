@@ -22,7 +22,7 @@ export type InvoiceData = {
   customer?: string;
   grn?: string | null;
   items: InvoiceItem[];
-  totals?: { subtotal?: number; tax?: number; total?: number };
+  totals?: { subtotal?: number; total?: number };
   footerNotes?: string[];
 };
 
@@ -58,8 +58,8 @@ export function renderInvoiceHTML(data: InvoiceData) {
     <div>
       <div class="brand">${escapeHtml(data.companyName ?? "")}</div>
       ${(data.addressLines || [])
-        .map((l) => `<div class="small">${escapeHtml(l)}</div>`)
-        .join("")}
+      .map((l) => `<div class="small">${escapeHtml(l)}</div>`)
+      .join("")}
     </div>
   `;
 
@@ -88,8 +88,8 @@ export function renderInvoiceHTML(data: InvoiceData) {
   const rowsHtml =
     data.items && data.items.length
       ? data.items
-          .map(
-            (it, idx) => `
+        .map(
+          (it, idx) => `
       <tr>
         <td>${escapeHtml(it.sr ?? idx + 1)}</td>
         <td>${escapeHtml(it.section ?? it.description ?? "")}</td>
@@ -98,32 +98,25 @@ export function renderInvoiceHTML(data: InvoiceData) {
         <td>${escapeHtml(it.sizeFt ?? "")}</td>
         <td class="right">${escapeHtml(it.lengths ?? "")}</td>
         <td class="right">${escapeHtml(it.totalFeet ?? "")}</td>
-        <td class="right">${
-          it.rate != null ? Number(it.rate).toFixed(2) : ""
-        }</td>
-        <td class="right">${
-          it.amount != null ? Number(it.amount).toFixed(2) : ""
-        }</td>
+        <td class="right">${it.rate != null ? Number(it.rate).toFixed(2) : ""
+            }</td>
+        <td class="right">${it.amount != null ? Number(it.amount).toFixed(2) : ""
+            }</td>
       </tr>
     `
-          )
-          .join("")
+        )
+        .join("")
       : Array.from({ length: 12 })
-          .map(() => `<tr>${cols.map(() => `<td>&nbsp;</td>`).join("")}</tr>`)
-          .join("");
+        .map(() => `<tr>${cols.map(() => `<td>&nbsp;</td>`).join("")}</tr>`)
+        .join("");
 
   const totalsHtml = `
     <div class="totals">
       <div class="box">
-        <div style="display:flex;justify-content:space-between"><div class="small">Subtotal</div><div>${
-          data.totals?.subtotal ? Number(data.totals.subtotal).toFixed(2) : ""
-        }</div></div>
-        <div style="display:flex;justify-content:space-between"><div class="small">Tax</div><div>${
-          data.totals?.tax ? Number(data.totals.tax).toFixed(2) : ""
-        }</div></div>
-        <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:6px"><div>Total</div><div>${
-          data.totals?.total ? Number(data.totals.total).toFixed(2) : ""
-        }</div></div>
+        <div style="display:flex;justify-content:space-between"><div class="small">Subtotal</div><div>${data.totals?.subtotal ? Number(data.totals.subtotal).toFixed(2) : ""
+    }</div></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:6px"><div>Total</div><div>${data.totals?.total ? Number(data.totals.total).toFixed(2) : ""
+    }</div></div>
       </div>
     </div>
   `;

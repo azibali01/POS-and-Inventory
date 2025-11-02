@@ -1,25 +1,25 @@
 import { useCallback } from "react";
 import { NumberInput, TextInput, Button, Select } from "@mantine/core";
+
 import Table from "../../lib/AppTable";
 import type { InventoryItem } from "../../Dashboard/Context/DataContext";
+import { IconTrash } from "@tabler/icons-react";
 
 export type LineItem = {
-  id: string;
-  productId: string;
-  productName: string;
-  unit?: string;
-  quantity: number;
-  rate: number;
+  _id?: string | number;
+  itemName?: string;
+  unit: string;
   discount?: number;
-  taxRate?: number;
-  amount?: number;
-  rateSource?: "old" | "new";
-  color?: string;
-  thickness?: string | number;
-  length?: string | number;
-  percent?: number;
   discountAmount?: number;
-  netAmount?: number;
+  salesRate?: number;
+  color?: string;
+  openingStock?: number;
+  quantity?: number;
+  thickness?: number;
+  amount: number;
+  length?: number;
+  totalGrossAmount: number;
+  totalNetAmount: number;
 };
 
 export function LineItemsTable({
@@ -32,8 +32,10 @@ export function LineItemsTable({
   products?: InventoryItem[];
 }) {
   const update = useCallback(
-    (id: string, patch: Partial<LineItem>) =>
-      onChange(items.map((it) => (it.id === id ? { ...it, ...patch } : it))),
+    (rowIdx: number, patch: Partial<LineItem>) =>
+      onChange(
+        items.map((it, idx) => (idx === rowIdx ? { ...it, ...patch } : it))
+      ),
     [items, onChange]
   );
 
@@ -45,71 +47,72 @@ export function LineItemsTable({
           <Table.Th style={{ width: 140 }}>Color</Table.Th>
           <Table.Th style={{ width: 120 }}>Thickness</Table.Th>
           <Table.Th style={{ width: 120 }}>Length</Table.Th>
-          <Table.Th style={{ width: 120 }}>Price Source</Table.Th>
+
           <Table.Th style={{ width: 120 }}>Qty</Table.Th>
           <Table.Th style={{ width: 120 }}>Rate</Table.Th>
           <Table.Th style={{ width: 120 }}>Gross</Table.Th>
           <Table.Th style={{ width: 120 }}>%</Table.Th>
           <Table.Th style={{ width: 120 }}>Discount</Table.Th>
           <Table.Th style={{ width: 120 }}>Net</Table.Th>
-          <Table.Th style={{ width: 120 }}>GST</Table.Th>
+
           <Table.Th style={{ width: 120 }}>Amount</Table.Th>
-          <Table.Th style={{ width: 120 }}>Remove</Table.Th>
+          <Table.Th style={{ textAlign: "left" }}>Remove</Table.Th>
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
-        {items.map((it) => {
-          const gross = (it.quantity || 0) * (it.rate || 0);
-          const discount = it.discountAmount ?? it.discount ?? 0;
-          const net = gross - discount;
+        {items.map((it, idx) => {
+          // Amount = Length * Quantity * Rate
+          const length = Number(it.length || 0);
+          const quantity = Number(it.quantity || 0);
+          const rate = Number(it.salesRate || 0);
+          const gross = length * quantity * rate;
+          const discountAmount = it.discountAmount ?? 0;
+          const net = gross - discountAmount;
           // GST removed per request — line total is net amount (no tax)
-          const lineTotal = net;
 
           return (
-            <Table.Tr key={it.id}>
+            <Table.Tr key={`line-${idx}`}>
               <Table.Td style={{ minWidth: 200 }}>
                 {products && products.length ? (
                   <Select
-                    value={String(it.productId || "")}
+                    value={String(it._id || "")}
                     data={products.map((p) => ({
-                      value: String(p.id),
-                      label: p.name,
+                      value: String(p._id),
+                      label: p.itemName || String(p._id),
                     }))}
                     onChange={(val: string | null) => {
                       const prod = products.find(
-                        (p) => String(p.id) === String(val)
+                        (p) => String(p._id) === String(val)
                       );
                       if (prod) {
-                        const ext = prod as unknown as {
-                          thickness?: string | number;
-                          weight?: string | number;
-                          msl?: string | number;
-                          length?: string | number;
-                          color?: string;
-                          colorId?: string;
-                        };
-                        update(it.id, {
-                          productId: String(prod.id),
-                          productName: prod.name,
-                          rate: prod.sellingPrice,
-                          // map product metadata into the line item when available
-                          color: prod.color ?? prod.colorId ?? ext.color ?? "",
-                          thickness:
-                            ext.thickness ??
-                            ext.weight ??
-                            ext.msl ??
-                            ext.length ??
-                            "",
-                          length: ext.length ?? prod.length ?? "",
+                        update(idx, {
+                          _id: prod._id,
+                          itemName: prod.itemName || "",
+                          unit: prod.unit ?? "",
+                          salesRate: Number(prod.salesRate ?? 0),
+                          color: prod.color ?? "",
+                          thickness: Number(prod.thickness ?? 0),
+                          openingStock: prod.openingStock ?? 0,
+                          // length: prod.length ?? 0, // Remove if not in InventoryItem
+                          amount: 0,
+                          totalGrossAmount: 0,
+                          totalNetAmount: 0,
                         });
-                      } else update(it.id, { productId: String(val || "") });
+                      } else {
+                        update(idx, {
+                          _id: "",
+                          itemName: "",
+                        });
+                      }
                     }}
                   />
                 ) : (
                   <TextInput
-                    value={it.productName}
+                    value={it.itemName}
                     onChange={(e) =>
-                      update(it.id, { productName: e.currentTarget.value })
+                      update(idx, {
+                        itemName: e.currentTarget.value,
+                      })
                     }
                   />
                 )}
@@ -120,7 +123,7 @@ export function LineItemsTable({
                   value={it.color ?? ""}
                   placeholder="Color"
                   onChange={(e) =>
-                    update(it.id, { color: e.currentTarget.value })
+                    update(idx, { color: e.currentTarget.value })
                   }
                 />
               </Table.Td>
@@ -130,7 +133,9 @@ export function LineItemsTable({
                   value={String(it.thickness ?? "")}
                   placeholder="Thickness"
                   onChange={(e) =>
-                    update(it.id, { thickness: e.currentTarget.value })
+                    update(idx, {
+                      thickness: Number(e.currentTarget.value),
+                    })
                   }
                 />
               </Table.Td>
@@ -139,68 +144,13 @@ export function LineItemsTable({
                 <TextInput
                   value={String(it.length ?? "")}
                   placeholder="Length"
-                  onChange={(e) =>
-                    update(it.id, { length: e.currentTarget.value })
-                  }
-                />
-              </Table.Td>
-
-              <Table.Td>
-                <Select
-                  value={it.rateSource ?? "new"}
-                  data={[
-                    { value: "old", label: "Old Price" },
-                    { value: "new", label: "New Price" },
-                  ]}
-                  onChange={(v: string | null) => {
-                    const prod = products?.find(
-                      (p) => String(p.id) === String(it.productId)
-                    );
-                    const source = (v ?? "new") as "old" | "new";
-                    if (prod) {
-                      const chosen =
-                        source === "old"
-                          ? prod.oldPrice ?? prod.sellingPrice
-                          : prod.newPrice ?? prod.sellingPrice;
-                      update(it.id, {
-                        rate: Number(chosen || 0),
-                        rateSource: source,
-                      });
-                    } else update(it.id, { rateSource: source });
-                  }}
-                />
-              </Table.Td>
-
-              <Table.Td>
-                <NumberInput
-                  value={it.quantity}
-                  onChange={(v: number | string | undefined) =>
-                    update(it.id, { quantity: Number(v || 0) })
-                  }
-                />
-              </Table.Td>
-
-              <Table.Td>
-                <NumberInput
-                  value={it.rate}
-                  onChange={(v: number | string | undefined) =>
-                    update(it.id, { rate: Number(v || 0) })
-                  }
-                />
-              </Table.Td>
-
-              <Table.Td>{gross.toFixed(2)}</Table.Td>
-
-              <Table.Td>
-                <NumberInput
-                  value={it.percent ?? 0}
-                  onChange={(v: number | string | undefined) => {
-                    const pct = Number(v || 0);
-                    const discountAmount = (pct / 100) * gross;
-                    update(it.id, {
-                      percent: pct,
-                      discountAmount,
-                      discount: discountAmount,
+                  onChange={(e) => {
+                    const length = Number(e.currentTarget.value);
+                    const quantity = Number(it.quantity || 0);
+                    const rate = Number(it.salesRate || 0);
+                    update(idx, {
+                      length,
+                      amount: length * quantity * rate,
                     });
                   }}
                 />
@@ -208,30 +158,76 @@ export function LineItemsTable({
 
               <Table.Td>
                 <NumberInput
-                  value={it.discountAmount ?? it.discount ?? 0}
-                  onChange={(v: number | string | undefined) =>
-                    update(it.id, {
-                      discountAmount: Number(v || 0),
-                      discount: Number(v || 0),
-                    })
-                  }
+                  value={it.quantity}
+                  onChange={(v: number | string | undefined) => {
+                    const quantity = Number(v || 0);
+                    const length = Number(it.length || 0);
+                    const rate = Number(it.salesRate || 0);
+                    update(idx, {
+                      quantity,
+                      amount: length * quantity * rate,
+                    });
+                  }}
+                />
+              </Table.Td>
+
+              <Table.Td>
+                <NumberInput
+                  value={it.salesRate}
+                  onChange={(v: number | string | undefined) => {
+                    const rate = Number(v || 0);
+                    const length = Number(it.length || 0);
+                    const quantity = Number(it.quantity || 0);
+                    update(idx, {
+                      salesRate: rate,
+                      amount: length * quantity * rate,
+                    });
+                  }}
+                />
+              </Table.Td>
+
+              <Table.Td>{gross.toFixed(2)}</Table.Td>
+
+              <Table.Td>
+                <NumberInput
+                  value={it.discount ?? 0}
+                  onChange={(v: number | string | undefined) => {
+                    const pct = Number(v || 0);
+                    const discountAmount = (pct / 100) * gross;
+                    update(idx, {
+                      discount: pct,
+                      discountAmount,
+                    });
+                  }}
+                />
+              </Table.Td>
+
+              <Table.Td>
+                <NumberInput
+                  value={it.discountAmount ?? 0}
+                  onChange={(v: number | string | undefined) => {
+                    const amt = Number(v || 0);
+                    // When user edits discountAmount, update both fields to keep them in sync
+                    const pct = gross > 0 ? (amt / gross) * 100 : 0;
+                    update(idx, {
+                      discountAmount: amt,
+                      discount: pct,
+                    });
+                  }}
                 />
               </Table.Td>
 
               <Table.Td>{net.toFixed(2)}</Table.Td>
 
-              <Table.Td>{lineTotal.toFixed(2)}</Table.Td>
+              <Table.Td>{(length * quantity * rate).toFixed(2)}</Table.Td>
 
               <Table.Td>
-                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <div style={{ display: "flex", justifyContent: "flex-start" }}>
                   <Button
                     variant="subtle"
-                    onClick={() =>
-                      onChange(items.filter((x) => x.id !== it.id))
-                    }
-                  >
-                    Remove
-                  </Button>
+                    onClick={() => onChange(items.filter((_, i) => i !== idx))}
+                    leftSection={<IconTrash size={18} />}
+                  ></Button>
                 </div>
               </Table.Td>
             </Table.Tr>

@@ -25,31 +25,17 @@ export default function CategoryPage() {
   } = useDataContext();
 
   useEffect(() => {
-    // dev logging to help debug when backend categories change
-    // removed verbose dev logging to keep console clean
-  }, [categories]);
-
-  useEffect(() => {
-    // DataContext refreshes data once on app mount. Avoid calling
-    // refreshFromBackend here to prevent duplicate network requests and
-    // repeated console logs. We keep a separate logger effect below that
-    // prints categories when they update.
-  }, [refreshFromBackend]);
+    refreshFromBackend();
+  }, []);
 
   const [addOpen, setAddOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
-  // separate inputs for add and rename so opening one modal doesn't leak
-  // data into the other modal
+
   const [addValue, setAddValue] = useState("");
   const [renameValue, setRenameValue] = useState("");
-
-  // Build a deduplicated, sorted list of category names coming from
-  // inventory (derived) and categories (backend / custom). We show the
-  // total count of categories in the header but do not display per-row
-  // counts in the table as requested.
   const categoriesList = useMemo(() => {
     const s = new Set<string>();
     for (const it of inventory || []) {
@@ -112,8 +98,6 @@ export default function CategoryPage() {
     // open local confirm modal
     setConfirmTarget(delName);
     setConfirmOpen(true);
-    // do not store counts here - table no longer shows per-row counts
-    // clear any modal inputs to avoid leakage
     setAddValue("");
     setRenameValue("");
   }
@@ -144,7 +128,7 @@ export default function CategoryPage() {
       </Group>
 
       <Card>
-        <Table  highlightOnHover withColumnBorders withRowBorders>
+        <Table highlightOnHover withColumnBorders withRowBorders>
           <Table.Thead>
             <Table.Tr>
               <Table.Th style={{ width: "60px" }}>Sr No.</Table.Th>
@@ -161,16 +145,20 @@ export default function CategoryPage() {
                 <Table.Td style={{ textAlign: "right" }}>
                   <Group justify="flex-end">
                     <ActionIcon
+                      variant="subtle"
                       onClick={() => {
                         setEditing(name);
                         setRenameValue(name);
                         setRenameOpen(true);
                       }}
                     >
-                      <IconEdit />
+                      <IconEdit size={18} />
                     </ActionIcon>
-                    <ActionIcon color="red" onClick={() => handleDelete(name)}>
-                      <IconTrash />
+                    <ActionIcon
+                      variant="subtle"
+                      onClick={() => handleDelete(name)}
+                    >
+                      <IconTrash size={18} color="red" />
                     </ActionIcon>
                   </Group>
                 </Table.Td>

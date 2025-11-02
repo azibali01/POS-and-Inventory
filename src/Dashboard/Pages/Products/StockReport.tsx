@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Card,
   Group,
@@ -17,7 +16,8 @@ import {
   IconPackageExport,
 } from "@tabler/icons-react";
 
-import { useDataContext } from "../../Context/DataContext";
+import { useState, useEffect } from "react";
+import api from "../../../lib/api";
 import type { InventoryItem } from "../../Context/DataContext";
 
 function formatNumber(n: number | undefined) {
@@ -28,38 +28,39 @@ function formatNumber(n: number | undefined) {
 }
 
 export default function StockReportPage() {
-  const { inventory, loadInventory } = useDataContext();
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
 
-  // Clear any stored mock data and use real inventory data
-  React.useEffect(() => {
-    // Clear mock data from localStorage
-    localStorage.removeItem('dev-mock-inventory');
-    localStorage.setItem('dev-use-mock-data', 'false');
-    
-    // Load real inventory data
-    if (typeof loadInventory === 'function') {
-      loadInventory().catch(() => {
-        console.warn("Failed to load inventory data");
-      });
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        const { data } = await api.get("products");
+        setInventory(Array.isArray(data) ? data : []);
+      } catch {
+        setInventory([]);
+      }
     }
-  }, [loadInventory]);
+    fetchProducts();
+  }, []);
 
-  // Use real inventory data (this will include products created/updated in ProductMaster)
-  const products: InventoryItem[] = inventory;
-  
-  console.log("StockReport - Using real inventory data:", products.length, "items");
-
+  const products: InventoryItem[] = Array.isArray(inventory) ? inventory : [];
   // Get stock value - prioritize openingStock for new products, then stock for updated products
   const getStockValue = (p: InventoryItem) => {
     const stock = p.openingStock ?? p.stock ?? 0;
-    return typeof stock === 'number' ? stock : 0;
+    return typeof stock === "number" ? stock : 0;
   };
-  
-  const lowStockItems = products.filter(
-    (p) => getStockValue(p) <= (p.minimumStockLevel || 0) && getStockValue(p) > 0
-  );
+
+  // Low stock: stock > 0 and stock <= minimumStockLevel
+  const lowStockItems = products.filter((p) => {
+    const stock = getStockValue(p);
+    const min = p.minimumStockLevel || 0;
+    return stock > 0 && stock <= min;
+  });
+  // Negative stock: stock < 0
   const negativeStockItems = products.filter((p) => getStockValue(p) < 0);
-  const inStockItems = products.filter((p) => getStockValue(p) > (p.minimumStockLevel || 0));
+  // In stock: stock > minimumStockLevel
+  const inStockItems = products.filter(
+    (p) => getStockValue(p) > (p.minimumStockLevel || 0)
+  );
 
   return (
     <div>
@@ -161,11 +162,11 @@ export default function StockReportPage() {
                   </Table.Thead>
                   <Table.Tbody>
                     {products.map((product, index) => (
-                      <Table.Tr key={product.id}>
+                      <Table.Tr key={product._id}>
                         <Table.Td style={{ fontFamily: "monospace" }}>
                           {index + 1}
                         </Table.Td>
-                        <Table.Td>{product.name}</Table.Td>
+                        <Table.Td>{product.itemName}</Table.Td>
                         <Table.Td>
                           <Badge>{product.category}</Badge>
                         </Table.Td>
@@ -180,7 +181,8 @@ export default function StockReportPage() {
                         <Table.Td>
                           {getStockValue(product) < 0 ? (
                             <Badge color="red">Negative</Badge>
-                          ) : getStockValue(product) <= (product.minimumStockLevel || 0) ? (
+                          ) : getStockValue(product) <=
+                            (product.minimumStockLevel || 0) ? (
                             <Badge color="yellow">Low Stock</Badge>
                           ) : (
                             <Badge color="green">In Stock</Badge>
@@ -228,11 +230,11 @@ export default function StockReportPage() {
                   </Table.Thead>
                   <Table.Tbody>
                     {lowStockItems.map((product, index) => (
-                      <Table.Tr key={product.id}>
+                      <Table.Tr key={product._id}>
                         <Table.Td style={{ fontFamily: "monospace" }}>
                           {index + 1}
                         </Table.Td>
-                        <Table.Td>{product.name}</Table.Td>
+                        <Table.Td>{product.itemName}</Table.Td>
                         <Table.Td>
                           <Badge>{product.category}</Badge>
                         </Table.Td>
@@ -255,7 +257,10 @@ export default function StockReportPage() {
                             fontWeight: 600,
                           }}
                         >
-                          {formatNumber((product.minimumStockLevel || 0) - getStockValue(product))}
+                          {formatNumber(
+                            (product.minimumStockLevel || 0) -
+                              getStockValue(product)
+                          )}
                         </Table.Td>
                       </Table.Tr>
                     ))}
@@ -296,11 +301,11 @@ export default function StockReportPage() {
                   </Table.Thead>
                   <Table.Tbody>
                     {negativeStockItems.map((product, index) => (
-                      <Table.Tr key={product.id}>
+                      <Table.Tr key={product._id}>
                         <Table.Td style={{ fontFamily: "monospace" }}>
                           {index + 1}
                         </Table.Td>
-                        <Table.Td>{product.name}</Table.Td>
+                        <Table.Td>{product.itemName}</Table.Td>
                         <Table.Td>
                           <Badge>{product.category}</Badge>
                         </Table.Td>

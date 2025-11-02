@@ -1,6 +1,5 @@
 import type React from "react";
 import { useMemo, useState } from "react";
-
 import {
   Card,
   TextInput,
@@ -26,9 +25,9 @@ type Supplier = BaseSupplier & {
 };
 import type { InventoryItem } from "../../Context/DataContext";
 
-export type POFormPayload = {
-  poNumber: string;
-  poDate: Date;
+export type PurchaseInvoiceFormPayload = {
+  purchaseInvoiceNumber: string;
+  invoiceDate: Date;
   expectedDelivery?: Date;
   supplierId?: string;
   products: PurchaseLineItem[];
@@ -37,22 +36,25 @@ export type POFormPayload = {
   total?: number;
 };
 
-export function PurchaseOrderForm({
+export function PurchaseInvoiceForm({
   onSubmit,
-  defaultPONumber = "",
+  defaultInvoiceNumber = "",
   initialValues,
 }: {
-  onSubmit?: (payload: POFormPayload) => void;
-  defaultPONumber?: string;
-  initialValues?: Partial<POFormPayload & { products: PurchaseLineItem[] }>;
+  onSubmit?: (payload: PurchaseInvoiceFormPayload) => void;
+  defaultInvoiceNumber?: string;
+  initialValues?: Partial<
+    PurchaseInvoiceFormPayload & { products: PurchaseLineItem[] }
+  >;
 }) {
-  // Use defaultPONumber prop for auto-generation
-  const poNumber = initialValues?.poNumber || defaultPONumber;
-  const [poDate, setPoDate] = useState<string>(
-    initialValues?.poDate
-      ? typeof initialValues.poDate === "string"
-        ? (initialValues.poDate as string).slice(0, 10)
-        : new Date(initialValues.poDate as string | Date)
+  // Use defaultInvoiceNumber prop for auto-generation
+  const purchaseInvoiceNumber =
+    initialValues?.purchaseInvoiceNumber || defaultInvoiceNumber;
+  const [invoiceDate, setInvoiceDate] = useState<string>(
+    initialValues?.invoiceDate
+      ? typeof initialValues.invoiceDate === "string"
+        ? (initialValues.invoiceDate as string).slice(0, 10)
+        : new Date(initialValues.invoiceDate as string | Date)
             .toISOString()
             .slice(0, 10)
       : new Date().toISOString().slice(0, 10)
@@ -67,7 +69,6 @@ export function PurchaseOrderForm({
       : ""
   );
   const { inventory = [], colors = [], suppliers = [] } = useDataContext();
-  // Support both supplierId and supplier object for edit modal prefill
   function isSupplierObject(obj: unknown): obj is { _id: string } {
     return (
       !!obj &&
@@ -129,9 +130,9 @@ export function PurchaseOrderForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     // Only call onSubmit, let parent handle API and state
-    const purchasePayload = {
-      poNumber,
-      poDate: new Date(poDate),
+    const invoicePayload = {
+      purchaseInvoiceNumber,
+      invoiceDate: new Date(invoiceDate),
       expectedDelivery: expectedDelivery
         ? new Date(expectedDelivery)
         : undefined,
@@ -152,7 +153,7 @@ export function PurchaseOrderForm({
       subTotal,
       total,
     };
-    onSubmit?.(purchasePayload);
+    onSubmit?.(invoicePayload);
   }
 
   return (
@@ -167,8 +168,8 @@ export function PurchaseOrderForm({
           }}
         >
           <div>
-            <Title order={3}>Purchase Order</Title>
-            <Text color="dimmed">Create and send a purchase order</Text>
+            <Title order={3}>Purchase Invoice</Title>
+            <Text color="dimmed">Create and record a purchase invoice</Text>
           </div>
           <Badge variant="outline">{status}</Badge>
         </div>
@@ -182,22 +183,22 @@ export function PurchaseOrderForm({
             }}
           >
             <div>
-              <label htmlFor="poNo">PO Number</label>
+              <label htmlFor="invoiceNo">Invoice Number</label>
               <TextInput
-                id="poNo"
-                value={poNumber}
+                id="invoiceNo"
+                value={purchaseInvoiceNumber}
                 readOnly
-                placeholder="PO-2025-001"
+                placeholder="INV-2025-001"
               />
             </div>
             <div>
-              <label htmlFor="poDate">PO Date</label>
+              <label htmlFor="invoiceDate">Invoice Date</label>
               <TextInput
-                id="poDate"
+                id="invoiceDate"
                 type="date"
-                value={poDate}
+                value={invoiceDate}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setPoDate(e.target.value)
+                  setInvoiceDate(e.target.value)
                 }
               />
             </div>
@@ -569,7 +570,7 @@ export function PurchaseOrderForm({
           }}
         >
           <div style={{ fontSize: 13, color: "#666" }}>
-            Date: {formatDate(new Date(poDate))}
+            Date: {formatDate(new Date(invoiceDate))}
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 12, color: "#777" }}>Subtotal</div>
@@ -590,7 +591,7 @@ export function PurchaseOrderForm({
           Print
         </Button>
         <Button type="submit" onClick={handleSubmit}>
-          Save PO
+          Save Invoice
         </Button>
       </div>
     </form>

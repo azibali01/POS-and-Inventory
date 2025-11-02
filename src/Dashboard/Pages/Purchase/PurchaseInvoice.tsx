@@ -1,501 +1,700 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { showNotification } from "@mantine/notifications";
+import React, { useState } from "react";
+import { PurchaseInvoiceForm } from "./PurchaseInvoiceForm.generated";
 import {
-  Card,
-  TextInput,
-  Textarea,
   Button,
-  Badge,
-  Text,
-  Select,
-  Title,
+  Card,
   Modal,
+  Table,
+  TextInput,
+  Title,
+  Text,
+  Menu,
+  ActionIcon,
 } from "@mantine/core";
-import Table from "../../../lib/AppTable";
-import { PurchaseLineItemsTable } from "./line-items-table-purchase";
-import type { PurchaseLineItem } from "./types";
-import { formatCurrency, formatDate } from "../../../lib/format-utils";
-import openPrintWindow from "../../../components/print/printWindow";
-import type { InvoiceData } from "../../../components/print/printTemplate";
 import {
-  useDataContext,
-  type Customer,
-  type GRNRecord,
-  type PurchaseRecord,
-} from "../../Context/DataContext";
-import { IconPlus } from "@tabler/icons-react";
+  IconEdit,
+  IconPlus,
+  IconPrinter,
+  IconTrash,
+} from "@tabler/icons-react";
+import type { Supplier } from "../../../components/purchase/SupplierForm";
+import { useDataContext } from "../../Context/DataContext";
+import { formatDate, formatCurrency } from "../../../lib/format-utils";
+import openPrintWindow from "../../../components/print/printWindow";
+// Helper to format invoice data for printing
 
-export interface PurchaseInvoicePayload {
-  invoiceNumber?: string;
-  invoiceDate?: string;
-  grnNumber?: string;
-  supplierId?: string | number;
-  items?: PurchaseLineItem[];
-  totals?: { sub: number; tax: number; total: number };
-  remarks?: string;
-}
-
-export function PurchaseInvoiceForm({
-  onSubmit,
-}: {
-  onSubmit?: (payload: PurchaseInvoicePayload) => void;
-}) {
-  const { customers: suppliers = [], grns = [], loadGrns } = useDataContext();
-
-  useEffect(() => {
-    if ((!grns || grns.length === 0) && typeof loadGrns === "function") {
-      loadGrns().catch(() => {
-        /* ignore - errors surfaced by DataContext */
-      });
-    }
-  }, [loadGrns]);
-
-  const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [invoiceDate, setInvoiceDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [grnNumber, setGrnNumber] = useState<string>("");
-  const [supplierId, setSupplierId] = useState<string>(
-    suppliers[0] ? String(suppliers[0].id) : ""
-  );
-  const [remarks, setRemarks] = useState("Invoice received");
-  const [status] = useState("Draft");
-
-  const [items, setItems] = useState<PurchaseLineItem[]>([
-    {
-      id:
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : Math.random().toString(36).slice(2),
-      productId: "",
-      productName: "Select product",
-      unit: "pcs",
-      quantity: 1,
-      rate: 0,
-      rateSource: "manual",
-      color: undefined,
-      thickness: undefined,
-      length: undefined,
-      grossAmount: 0,
-      percent: 0,
-      discountAmount: 0,
-      netAmount: 0,
-      taxRate: 18,
-      amount: 0,
+function getInvoicePrintData(inv: PurchaseInvoiceTableRow) {
+  return {
+    title: "Purchase Invoice",
+    companyName: "Seven Star Traders",
+    addressLines: ["Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan"],
+    invoiceNo: String(inv.purchaseInvoiceNumber),
+    date: String(inv.invoiceDate),
+    customer: inv.supplier?.name || "",
+    items: (inv.products || []).map((it, idx) => ({
+      sr: idx + 1,
+      section: it.productName,
+      quantity: it.quantity,
+      rate: Number(it.rate ?? 0),
+      amount: Number(it.amount ?? (it.quantity || 0) * (it.rate || 0)),
+    })),
+    totals: {
+      subtotal: inv.subTotal ?? inv.total,
+      total: inv.total,
     },
-  ]);
+  };
+}
+import { createPurchaseInvoice, getPurchaseInvoices } from "../../../lib/api";
 
-  useEffect(() => {
-    if (!grnNumber) return;
-    const g = (grns || []).find((x: GRNRecord) => x.grnNumber === grnNumber);
-    if (!g) return;
-    setSupplierId(String(g.supplierId ?? ""));
-    setItems(
-      (g.items || []).map((i) => ({
-        id:
-          typeof crypto !== "undefined" &&
-          typeof crypto.randomUUID === "function"
-            ? crypto.randomUUID()
-            : Math.random().toString(36).slice(2),
-        productId: String(i.sku ?? ""),
-        productName: i.sku ?? "",
-        unit: "pcs",
-        quantity: i.quantity ?? 1,
-        rate: i.price ?? 0,
-        rateSource: "old",
-        color: undefined,
-        thickness: undefined,
-        length: undefined,
-        grossAmount: (i.quantity || 0) * (i.price || 0),
-        percent: 0,
-        discountAmount: 0,
-        netAmount: (i.quantity || 0) * (i.price || 0),
-        taxRate: 18,
-        amount: (i.quantity || 0) * (i.price || 0),
-      }))
-    );
-  }, [grnNumber, grns]);
+import type { PurchaseLineItem } from "./types";
 
-  const totals = useMemo(() => {
-    const sub = items.reduce((s, i) => s + (i.grossAmount || 0), 0);
-    const tax = items.reduce(
-      (s, i) => s + ((i.netAmount || 0) * (i.taxRate || 0)) / 100,
-      0
-    );
-    return {
-      sub,
-      tax,
-      total: sub - items.reduce((s, i) => s + (i.discountAmount || 0), 0) + tax,
-    };
-  }, [items]);
+// Define the payload type for handleCreate
+export type PurchaseInvoiceFormPayload = {
+  purchaseInvoiceNumber: string;
+  invoiceDate: string | Date;
+  expectedDelivery?: string | Date;
+  supplierId?: string;
+  products?: PurchaseLineItem[];
+  subTotal?: number;
+  total?: number;
+  status?: string;
+  remarks?: string;
+};
 
-  const selectedSupplier = (suppliers || []).find(
-    (s: Customer) => String(s.id) === String(supplierId)
-  );
+// Define the table row type for purchase invoices
+export type PurchaseInvoiceTableRow = {
+  id: string;
+  purchaseInvoiceNumber: string;
+  invoiceDate: string | Date;
+  expectedDelivery?: string | Date;
+  supplier?: import("../../../components/purchase/SupplierForm").Supplier;
+  products: PurchaseLineItem[];
+  subTotal: number;
+  total: number;
+  amount: number;
+  status?: string;
+  remarks?: string;
+  createdAt?: Date;
+};
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const payload = {
-      invoiceNumber,
-      invoiceDate,
-      grnNumber,
-      supplierId,
-      items,
-      totals,
-      remarks,
-    };
-    onSubmit?.(payload);
-    // persist to backend via API, optimistic
-    (async () => {
-      try {
-        const api = await import("../../../lib/api");
-        await api.createPurchase({
-          items: items.map((i) => ({
-            inventoryId: i.productId,
-            quantity: i.quantity,
-            unitPrice: i.rate,
-          })),
-          total: totals.total,
-          date: invoiceDate,
-          supplierId,
-        });
-      } catch (err) {
-        showNotification({
-          title: "Purchase Invoice Persist Failed",
-          message: String(err),
-          color: "red",
-        });
+// No longer needed, use generated form directly
+
+export default function PurchaseInvoicesPage() {
+  // ...existing code...
+
+  // All hooks and state declarations above
+
+  // Place useEffect after all hooks, before return
+
+  const { suppliers, inventory, purchases, loadInventory } = useDataContext();
+
+  // Ensure products (inventory) are loaded on mount
+  React.useEffect(() => {
+    console.log("[PurchaseInvoice] inventory:", inventory);
+    if (!inventory || inventory.length === 0) {
+      loadInventory();
+    }
+  }, [inventory, loadInventory]);
+  const [data, setData] = useState<PurchaseInvoiceTableRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Import from PO modal state
+  const [importOpen, setImportOpen] = useState(false);
+  const [importPOSearch, setImportPOSearch] = useState("");
+  const [initialPayload, setInitialPayload] =
+    useState<PurchaseInvoiceFormPayload | null>(null);
+
+  // Auto-generate next invoice number in format PINV-0001, PINV-0002, ...
+  function getNextInvoiceNumber(): string {
+    // Find max number in data
+    const prefix = "PINV-";
+    let max = 0;
+    data.forEach((inv) => {
+      const match = String(inv.purchaseInvoiceNumber).match(/^PINV-(\d{4})$/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > max) max = num;
       }
-    })();
+    });
+    const next = (max + 1).toString().padStart(4, "0");
+    return `${prefix}${next}`;
+  }
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [editInvoice, setEditInvoice] =
+    useState<PurchaseInvoiceTableRow | null>(null);
+
+  // Type guard for supplierId
+  function hasSupplierId(obj: unknown): obj is { supplierId: string } {
+    return (
+      typeof obj === "object" &&
+      obj !== null &&
+      "supplierId" in obj &&
+      typeof (obj as { supplierId?: unknown }).supplierId === "string"
+    );
   }
 
+  // Robust supplier resolution (copied from PurchaseOrder.tsx)
+  const resolveSupplier = React.useCallback(
+    (invSupplier: unknown, inv?: Partial<PurchaseInvoiceTableRow>) => {
+      let supplier: Supplier | undefined = undefined;
+      if (
+        invSupplier &&
+        typeof invSupplier === "object" &&
+        "_id" in invSupplier &&
+        typeof (invSupplier as { _id?: unknown })._id === "string"
+      ) {
+        supplier = suppliers?.find(
+          (s) => s._id === (invSupplier as { _id: string })._id
+        );
+      } else if (inv && hasSupplierId(inv)) {
+        supplier = suppliers?.find((s) => s._id === inv.supplierId);
+      }
+      if (
+        !supplier &&
+        invSupplier &&
+        typeof invSupplier === "object" &&
+        "name" in invSupplier
+      ) {
+        supplier = invSupplier as Supplier;
+      }
+      return supplier;
+    },
+    [suppliers]
+  );
+
+  // Load purchase invoices on mount
+  React.useEffect(() => {
+    if (!suppliers || suppliers.length === 0) return;
+    let mounted = true;
+    setLoading(true);
+    (async () => {
+      try {
+        const invoices = await getPurchaseInvoices();
+        if (!mounted) return;
+
+        if (invoices && invoices.length > 0) {
+          const allSuppliers = invoices.map(
+            (inv: unknown) => (inv as PurchaseInvoiceTableRow).supplier
+          );
+          console.log("All suppliers from backend (invoices):", allSuppliers);
+        }
+        setData(
+          (invoices || []).map(
+            (inv: PurchaseInvoiceTableRow & { supplierId?: string }) => {
+              // Always use the mapped supplier from the array, never fallback to raw object
+              const supplier = resolveSupplier(inv.supplier, inv);
+              // Hydrate productName for each product line item
+              const products = (inv.products || []).map((item) => {
+                if (item.productName) return item;
+                let found = undefined;
+                if (item.id && inventory) {
+                  found = inventory.find((p) => p._id === item.id);
+                }
+                return {
+                  ...item,
+                  productName: found?.itemName || item.productName || "",
+                };
+              });
+              return {
+                id: inv.id || inv.purchaseInvoiceNumber || crypto.randomUUID(),
+                purchaseInvoiceNumber: inv.purchaseInvoiceNumber,
+                invoiceDate: inv.invoiceDate,
+                expectedDelivery: inv.expectedDelivery,
+                supplier,
+                products,
+                subTotal: inv.subTotal ?? 0,
+                total: inv.total ?? 0,
+                amount: inv.amount ?? inv.total ?? 0,
+                status: inv.status,
+                remarks: inv.remarks,
+                createdAt: inv.createdAt,
+              };
+            }
+          )
+        );
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [suppliers, inventory, resolveSupplier]);
+
+  async function handleCreate(payload: PurchaseInvoiceFormPayload) {
+    const products = (payload.products || []) as PurchaseLineItem[];
+    const subTotal =
+      payload.subTotal ?? products.reduce((s, it) => s + (it.amount || 0), 0);
+    const total = payload.total ?? subTotal;
+    const supplier = suppliers?.find((s) => s._id === payload.supplierId);
+    let expectedDelivery: Date | undefined = undefined;
+    if (payload.expectedDelivery) {
+      expectedDelivery =
+        typeof payload.expectedDelivery === "string"
+          ? new Date(payload.expectedDelivery)
+          : payload.expectedDelivery;
+    }
+    // The backend expects purchaseInvoiceNumber and invoiceDate for invoices, not poNumber/poDate
+    const invoicePayload = {
+      ...payload,
+      expectedDelivery,
+      supplier,
+      products,
+      subTotal,
+      total,
+      remarks: payload.remarks,
+    };
+    await createPurchaseInvoice(invoicePayload);
+    setOpen(false);
+    setEditInvoice(null);
+    // Refresh the list after creating a purchase invoice
+    const invoices = await getPurchaseInvoices();
+    setData(
+      (invoices || []).map(
+        (inv: PurchaseInvoiceTableRow & { supplierId?: string }) => {
+          const supplier = resolveSupplier(inv.supplier, inv);
+          return {
+            id: inv.id || inv.purchaseInvoiceNumber || crypto.randomUUID(),
+            purchaseInvoiceNumber: inv.purchaseInvoiceNumber,
+            invoiceDate: inv.invoiceDate,
+            expectedDelivery: inv.expectedDelivery,
+            supplier,
+            products: inv.products || [],
+            subTotal: inv.subTotal ?? 0,
+            total: inv.total ?? 0,
+            amount: inv.amount ?? inv.total ?? 0,
+            status: inv.status,
+            remarks: inv.remarks,
+            createdAt: inv.createdAt,
+          };
+        }
+      )
+    );
+  }
+
+  // function handleCreateSync(payload: Partial<PurchaseInvoiceTableRow>) {
+  //   void handleCreate(fromPOFormPayload(payload));
+  // }
+
+  // Prefill all fields for edit modal, normalizing supplier and products
+  const initialValues = React.useMemo(() => {
+    if (!editInvoice) return {};
+    // Use robust supplier resolution for edit modal
+    const supplier = resolveSupplier(editInvoice.supplier, editInvoice);
+    // Products: just pass through, or you can normalize further if you have inventory context
+    const products = editInvoice.products ? [...editInvoice.products] : [];
+    return {
+      ...editInvoice,
+      supplier,
+      products,
+      expectedDelivery:
+        editInvoice.expectedDelivery instanceof Date
+          ? editInvoice.expectedDelivery
+          : editInvoice.expectedDelivery
+          ? new Date(editInvoice.expectedDelivery)
+          : undefined,
+      invoiceDate:
+        editInvoice.invoiceDate instanceof Date
+          ? editInvoice.invoiceDate
+          : editInvoice.invoiceDate
+          ? new Date(editInvoice.invoiceDate)
+          : undefined,
+    };
+  }, [editInvoice, resolveSupplier]);
+  const defaultInvoiceNumber = editInvoice
+    ? editInvoice.purchaseInvoiceNumber
+    : getNextInvoiceNumber();
+
+  // Main return: modal + table
+  // Add Action column and menu like PurchaseOrder.tsx
+  // Add delete modal state
+  const [deleteInvoice, setDeleteInvoice] =
+    useState<PurchaseInvoiceTableRow | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  // import Menu, ActionIcon from Mantine
+  // ...existing code...
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <Card>
+    <div>
+      {/* Add Purchase Invoice Modal */}
+      <Modal
+        opened={open && !initialPayload}
+        onClose={() => {
+          setOpen(false);
+          setEditInvoice(null);
+        }}
+        size="90%"
+      >
+        <PurchaseInvoiceForm
+          onSubmit={handleCreate}
+          initialValues={initialValues}
+          defaultInvoiceNumber={defaultInvoiceNumber}
+        />
+      </Modal>
+
+      {/* Import from PO Modal */}
+      <Modal
+        opened={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Import from Purchase Order"
+        size="80%"
+      >
+        <div style={{ padding: 12 }}>
+          <h3>Purchase Orders</h3>
+          <div style={{ marginBottom: 12 }}>
+            <input
+              type="text"
+              placeholder="Search by PO Number..."
+              value={importPOSearch || ""}
+              onChange={(e) => setImportPOSearch(e.target.value)}
+              style={{
+                padding: 6,
+                width: 260,
+                border: "1px solid #ccc",
+                borderRadius: 4,
+              }}
+            />
+          </div>
+          {(purchases || []).filter((po) => {
+            const term = importPOSearch.trim().toLowerCase();
+            if (!term) return true;
+            return (
+              String(po.poNumber).toLowerCase().includes(term) ||
+              String(po.supplier?.name || "")
+                .toLowerCase()
+                .includes(term)
+            );
+          }).length === 0 && <div>No purchase orders found</div>}
+          <div style={{ display: "grid", gap: 8 }}>
+            {(purchases || [])
+              .filter((po) => {
+                const term = importPOSearch.trim().toLowerCase();
+                if (!term) return true;
+                return (
+                  String(po.poNumber).toLowerCase().includes(term) ||
+                  String(po.supplier?.name || "")
+                    .toLowerCase()
+                    .includes(term)
+                );
+              })
+              .map((po, idx) => (
+                <div
+                  key={po.poNumber ?? `po-${idx}`}
+                  style={{
+                    padding: 12,
+                    border: "1px solid #f0f0f0",
+                    borderRadius: 6,
+                    background: "#fff",
+                  }}
+                >
+                  <div
+                    style={{ display: "flex", justifyContent: "space-between" }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700 }}>{po.poNumber}</div>
+                      <div style={{ color: "#666" }}>
+                        Date:{" "}
+                        {po.poDate
+                          ? new Date(po.poDate).toLocaleDateString()
+                          : ""}
+                      </div>
+                      <div style={{ color: "#666" }}>
+                        Supplier: {po.supplier?.name || ""}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 12, color: "#888" }}>
+                        {po.products?.length || 0} items
+                      </div>
+                      <div style={{ fontWeight: 700 }}>
+                        {formatCurrency(po.total ?? 0)}
+                      </div>
+                    </div>
+                  </div>
+                  {/* ...items table, remarks, and import button as in previous logic... */}
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: "flex",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <Button
+                      size="xs"
+                      onClick={() => {
+                        // Convert PO to PurchaseInvoiceFormPayload-compatible import form
+                        setInitialPayload({
+                          purchaseInvoiceNumber: getNextInvoiceNumber(),
+                          invoiceDate: new Date().toISOString(),
+                          supplierId: po.supplier?._id,
+                          products: po.products || [],
+                          subTotal: po.subTotal ?? 0,
+                          total: po.total ?? 0,
+                          remarks: po.remarks ?? "",
+                        });
+                        setImportOpen(false);
+                        setOpen(true);
+                      }}
+                    >
+                      Import
+                    </Button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Import from PO - Create Invoice Modal */}
+      {initialPayload && (
+        <Modal
+          opened={open && !!initialPayload}
+          onClose={() => {
+            setOpen(false);
+            setInitialPayload(null);
+          }}
+          title={`Create Invoice from PO: ${initialPayload.purchaseInvoiceNumber}`}
+          size="90%"
+        >
+          <PurchaseInvoiceForm
+            onSubmit={handleCreate}
+            initialValues={initialPayload}
+            defaultInvoiceNumber={initialPayload.purchaseInvoiceNumber}
+          />
+        </Modal>
+      )}
+
+      <div style={{ marginTop: 16 }}>
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            padding: 12,
           }}
         >
-          <div>
-            <Title order={3}>Purchase Invoice</Title>
-            <Text color="dimmed">
-              Record supplier invoice (optional GRN prefill)
-            </Text>
-          </div>
-          <Badge variant="outline">{status}</Badge>
-        </div>
-
-        <div style={{ padding: 12 }}>
-          <div
-            style={{
-              display: "grid",
-              gap: 12,
-              gridTemplateColumns: "repeat(3, 1fr)",
-            }}
-          >
-            <div>
-              <label>Invoice Number</label>
-              <TextInput
-                value={invoiceNumber}
-                onChange={(e) => setInvoiceNumber(e.currentTarget.value)}
-                placeholder="PINV-2025-001"
-              />
-            </div>
-            <div>
-              <label>Invoice Date</label>
-              <TextInput
-                type="date"
-                value={invoiceDate}
-                onChange={(e) => setInvoiceDate(e.currentTarget.value)}
-              />
-            </div>
-            <div>
-              <label>GRN Number (optional)</label>
-              <Select
-                data={(grns || []).map((g: GRNRecord) => ({
-                  value: g.grnNumber,
-                  label: `${g.grnNumber} — ${g.supplierName}`,
-                }))}
-                value={grnNumber}
-                onChange={(v) => setGrnNumber(v ?? "")}
-              />
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gap: 12,
-              gridTemplateColumns: "1fr 1fr",
-              marginTop: 12,
-            }}
-          >
-            <div>
-              <label>Supplier</label>
-              <Select
-                data={(suppliers || []).map((s: Customer) => ({
-                  value: String(s.id),
-                  label: `${s.name} — ${s.city}`,
-                }))}
-                value={supplierId}
-                onChange={(v) => setSupplierId(v ?? "")}
-              />
-            </div>
-            <div>
-              <label>Supplier Details</label>
-              <Textarea
-                readOnly
-                value={
-                  selectedSupplier
-                    ? `${selectedSupplier.name}\n${selectedSupplier.address}\n${selectedSupplier.city}\nGST: ${selectedSupplier.gstNumber}`
-                    : ""
-                }
-                minRows={4}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginTop: 12 }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-start",
-                alignItems: "center",
-                marginBottom: 8,
-              }}
-            >
-              <Text style={{ fontSize: 14, fontWeight: 600 }}>Items</Text>
-            </div>
-            <PurchaseLineItemsTable items={items} onChange={setItems} />
-            <div style={{ marginTop: 12 }}>
-              <label>Remarks</label>
-              <Textarea
-                value={remarks}
-                onChange={(e) => setRemarks(e.currentTarget.value)}
-                minRows={3}
-              />
-            </div>
-          </div>
-
-          <div
-            style={{
-              padding: 12,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <div style={{ fontSize: 13, color: "#666" }}>
-              Date: {formatDate(new Date(invoiceDate))} • Supplier Balance:{" "}
-              {formatCurrency(selectedSupplier?.currentBalance ?? 0)}
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 12, color: "#777" }}>Subtotal</div>
-              <div style={{ fontSize: 14 }}>{formatCurrency(totals.sub)}</div>
-              <div style={{ fontSize: 12, color: "#777", marginTop: 8 }}>
-                GST
-              </div>
-              <div style={{ fontSize: 14 }}>{formatCurrency(totals.tax)}</div>
-              <div style={{ fontSize: 12, color: "#777", marginTop: 8 }}>
-                Total
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 600 }}>
-                {formatCurrency(totals.total)}
-              </div>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: 8,
-          marginTop: 8,
-        }}
-      >
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            const invoice: InvoiceData = {
-              title: "Purchase Invoice",
-              companyName: "Seven Star Traders",
-              addressLines: [
-                "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
-              ],
-              invoiceNo: invoiceNumber,
-              date: invoiceDate,
-              grn: grnNumber || null,
-              items: items.map((it, idx) => ({
-                sr: idx + 1,
-                section: it.productName,
-                thickness: it.thickness,
-                sizeFt: it.length,
-                lengths: it.quantity,
-                totalFeet: it.grossAmount,
-                rate: it.rate,
-                amount: it.amount || it.netAmount || it.grossAmount,
-              })),
-              totals: {
-                subtotal: totals.sub,
-                tax: totals.tax,
-                total: totals.total,
-              },
-              footerNotes: [
-                "Extrusion & Powder Coating",
-                "Aluminum Window, Door, Profiles & All Kinds of Pipes",
-              ],
-            };
-            openPrintWindow(invoice);
-          }}
-        >
-          Print
-        </Button>
-        <Button type="submit">Save Invoice</Button>
-      </div>
-    </form>
-  );
-}
-
-export default function PurchaseInvoicesPage() {
-  const [q, setQ] = useState("");
-  const { purchases = [], setPurchases } = useDataContext();
-  const [data, setData] = useState(() =>
-    (purchases || []).slice(0, 20).map((p: PurchaseRecord) => ({
-      id: p.id,
-      invoiceNumber: String(p.id),
-      invoiceDate: p.date,
-      supplierName: p.supplier,
-      totalAmount: p.total,
-      status: p.status || "Pending",
-    }))
-  );
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    setData(
-      (purchases || []).map((p: PurchaseRecord) => ({
-        id: p.id,
-        invoiceNumber: String(p.id),
-        invoiceDate: p.date,
-        supplierName: p.supplier,
-        totalAmount: p.total,
-        status: p.status || "Pending",
-      }))
-    );
-  }, [purchases]);
-
-  const filtered = useMemo(() => {
-    const term = q.toLowerCase().trim();
-    if (!term) return data;
-    return data.filter(
-      (i) =>
-        i.invoiceNumber.toLowerCase().includes(term) ||
-        i.supplierName.toLowerCase().includes(term)
-    );
-  }, [q, data]);
-
-  return (
-    <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 12,
-        }}
-      >
-        <div>
           <Title order={2}>Purchase Invoices</Title>
-          <Text color="dimmed">Create and track supplier invoices</Text>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button
+              onClick={() => setImportOpen(true)}
+              variant="filled"
+              size="sm"
+            >
+              Import from Purchase Order
+            </Button>
+            <TextInput
+              placeholder="Search invoices..."
+              value={q}
+              onChange={(e) => setQ(e.currentTarget.value)}
+              style={{ width: 260 }}
+            />
+            <Button
+              onClick={() => setOpen(true)}
+              leftSection={<IconPlus size={16} />}
+            >
+              Create Invoice
+            </Button>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <TextInput
-            placeholder="Search invoices..."
-            value={q}
-            onChange={(e) => setQ(e.currentTarget.value)}
-            style={{ width: 260 }}
-          />
+        <Card>
+          <div style={{ padding: 12 }}>
+            <Title order={4}>Recent Purchase Invoices</Title>
+            <Text color="dimmed">Last {data.length} purchase invoices</Text>
+            <div style={{ marginTop: 12, overflowX: "auto" }}>
+              <Table
+                withRowBorders
+                withColumnBorders
+                highlightOnHover
+                withTableBorder
+              >
+                {loading && (
+                  <tbody>
+                    <tr>
+                      <td
+                        colSpan={5}
+                        style={{ textAlign: "center", padding: 24 }}
+                      >
+                        Loading invoices...
+                      </td>
+                    </tr>
+                  </tbody>
+                )}
+                <Table.Thead bg={"gray.1"}>
+                  <Table.Tr>
+                    <Table.Th>Number</Table.Th>
+                    <Table.Th>Date</Table.Th>
+                    <Table.Th>Supplier</Table.Th>
+                    <Table.Th style={{ textAlign: "right" }}>Total</Table.Th>
+                    <Table.Th style={{ textAlign: "right" }}>Action</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {data
+                    .filter((inv) => {
+                      const term = q.trim().toLowerCase();
+                      if (!term) return true;
+                      return (
+                        String(inv.purchaseInvoiceNumber)
+                          .toLowerCase()
+                          .includes(term) ||
+                        String(inv.supplier?.name || "")
+                          .toLowerCase()
+                          .includes(term)
+                      );
+                    })
+                    .map((inv) => (
+                      <Table.Tr key={inv.id}>
+                        <Table.Td style={{ fontFamily: "monospace" }}>
+                          {inv.purchaseInvoiceNumber}
+                        </Table.Td>
+                        <Table.Td>{formatDate(inv.invoiceDate)}</Table.Td>
+                        <Table.Td>{inv.supplier?.name || ""}</Table.Td>
+                        <Table.Td style={{ textAlign: "right" }}>
+                          {formatCurrency(inv.total)}
+                        </Table.Td>
+                        <Table.Td style={{ textAlign: "right" }}>
+                          {/* Action menu */}
+                          <Menu position="bottom-end" withArrow width={200}>
+                            <Menu.Target>
+                              <ActionIcon variant="subtle" color="gray">
+                                <span style={{ fontWeight: 600, fontSize: 18 }}>
+                                  ⋮
+                                </span>
+                              </ActionIcon>
+                            </Menu.Target>
+                            <Menu.Dropdown>
+                              <Menu.Item
+                                onClick={() => {
+                                  setEditInvoice(inv);
+                                  setOpen(true);
+                                }}
+                                leftSection={<IconEdit size={14} />}
+                              >
+                                Edit
+                              </Menu.Item>
+                              <Menu.Item
+                                onClick={() => {
+                                  const d = getInvoicePrintData(inv);
+                                  openPrintWindow(d);
+                                }}
+                                leftSection={<IconPrinter size={14} />}
+                              >
+                                Print
+                              </Menu.Item>
+                              <Menu.Item
+                                color="red"
+                                onClick={() => setDeleteInvoice(inv)}
+                                leftSection={<IconTrash size={14} />}
+                              >
+                                Delete
+                              </Menu.Item>
+                            </Menu.Dropdown>
+                          </Menu>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                </Table.Tbody>
+              </Table>
+            </div>
+          </div>
+        </Card>
+      </div>
+      {/* Confirm Delete Modal (should only render once, outside the table and menu) */}
+      <Modal
+        opened={!!deleteInvoice}
+        onClose={() => setDeleteInvoice(null)}
+        title="Confirm Delete"
+        centered
+        withCloseButton
+      >
+        <Text>
+          Are you sure you want to delete Purchase Invoice{" "}
+          <b>{deleteInvoice?.purchaseInvoiceNumber}</b>?
+        </Text>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            marginTop: 16,
+            gap: 8,
+          }}
+        >
           <Button
-            onClick={() => setOpen(true)}
-            leftSection={<IconPlus size={16} />}
+            variant="default"
+            onClick={() => setDeleteInvoice(null)}
+            disabled={deleteLoading}
           >
-            Create Invoice
+            Cancel
+          </Button>
+          <Button
+            color="red"
+            loading={deleteLoading}
+            onClick={async () => {
+              if (!deleteInvoice) return;
+              setDeleteLoading(true);
+              try {
+                if (!deleteInvoice) return;
+                await import("../../../lib/api").then(async (api) => {
+                  await api.deletePurchaseInvoiceByNumber(
+                    deleteInvoice.purchaseInvoiceNumber
+                  );
+                });
+                setDeleteInvoice(null);
+                // Refresh the list after deleting a purchase invoice
+                getPurchaseInvoices().then((invoices) => {
+                  setData(
+                    (invoices || []).map((inv: PurchaseInvoiceTableRow) => {
+                      let supplier: Supplier | undefined = undefined;
+                      if (
+                        inv.supplier &&
+                        typeof inv.supplier === "object" &&
+                        "_id" in inv.supplier &&
+                        typeof (inv.supplier as { _id?: unknown })._id ===
+                          "string"
+                      ) {
+                        supplier = suppliers?.find(
+                          (s) => s._id === (inv.supplier as { _id: string })._id
+                        );
+                      }
+                      if (
+                        !supplier &&
+                        inv.supplier &&
+                        typeof inv.supplier === "object" &&
+                        "name" in inv.supplier
+                      ) {
+                        supplier = inv.supplier as Supplier;
+                      }
+                      return {
+                        id:
+                          inv.id ||
+                          inv.purchaseInvoiceNumber ||
+                          crypto.randomUUID(),
+                        purchaseInvoiceNumber: inv.purchaseInvoiceNumber,
+                        invoiceDate: inv.invoiceDate,
+                        expectedDelivery: inv.expectedDelivery,
+                        supplier,
+                        products: inv.products || [],
+                        subTotal: inv.subTotal ?? 0,
+                        total: inv.total ?? 0,
+                        amount: inv.amount ?? inv.total ?? 0,
+                        status: inv.status,
+                        remarks: inv.remarks,
+                        createdAt: inv.createdAt,
+                      };
+                    })
+                  );
+                });
+                // showNotification({ title: "Deleted", message: `Purchase Invoice ${deleteInvoice.purchaseInvoiceNumber} deleted`, color: "red" });
+              } catch {
+                // let msg = "Failed to delete purchase invoice.";
+                // showNotification({ title: "Error", message: msg, color: "red" });
+              } finally {
+                setDeleteLoading(false);
+              }
+            }}
+          >
+            Delete
           </Button>
         </div>
-      </div>
-
-      <Card>
-        <div style={{ padding: 12 }}>
-          <Title order={4}>Recent Purchase Invoices</Title>
-          <Text color="dimmed">Last {data.length} purchase invoices</Text>
-          <div style={{ marginTop: 12, overflowX: "auto" }}>
-            <Table>
-              <thead>
-                <tr>
-                  <th>Number</th>
-                  <th>Date</th>
-                  <th>Supplier</th>
-                  <th style={{ textAlign: "right" }}>Amount</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((inv) => (
-                  <tr key={inv.id}>
-                    <td style={{ fontFamily: "monospace" }}>
-                      {inv.invoiceNumber}
-                    </td>
-                    <td>{formatDate(inv.invoiceDate)}</td>
-                    <td>{inv.supplierName}</td>
-                    <td style={{ textAlign: "right" }}>
-                      {formatCurrency(inv.totalAmount)}
-                    </td>
-                    <td>
-                      <Badge variant="outline">{inv.status}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </div>
-        </div>
-      </Card>
-
-      <Modal opened={open} onClose={() => setOpen(false)} size="80%">
-        <PurchaseInvoiceForm
-          onSubmit={(payload?: PurchaseInvoicePayload) => {
-            const items = (payload?.items || []).map((it) => ({
-              sku: String(it.productId || it.productName),
-              quantity: it.quantity || 0,
-              price: it.rate || 0,
-            }));
-            const record: PurchaseRecord = {
-              id:
-                typeof crypto !== "undefined" &&
-                typeof crypto.randomUUID === "function"
-                  ? crypto.randomUUID()
-                  : `pinv-${Date.now()}`,
-              date: payload?.invoiceDate || new Date().toISOString(),
-              supplier: String(payload?.supplierId ?? ""),
-              items,
-              total: payload?.totals?.total || 0,
-              status: "pending",
-            };
-            if (typeof setPurchases === "function")
-              setPurchases((prev: PurchaseRecord[]) => [
-                record,
-                ...(prev || []),
-              ]);
-            setOpen(false);
-          }}
-        />
       </Modal>
     </div>
   );

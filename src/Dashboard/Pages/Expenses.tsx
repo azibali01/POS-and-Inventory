@@ -8,21 +8,39 @@ import {
   Group,
 } from "@mantine/core";
 import Table from "../../lib/AppTable";
-import { Plus } from "lucide-react";
-
-
+import { Plus, Trash2 } from "lucide-react";
+// import { deleteExpense } from "../../lib/api";
 
 import type {
   Expense as ExpenseType,
   ExpenseInput,
 } from "../Context/DataContext";
+
+// Use the provided ExpensePayload interface for backend API
+export interface ExpensePayload {
+  expenseNumber?: string;
+  amount: number;
+  date?: string;
+  categoryType?:
+    | "Rent"
+    | "Utilities"
+    | "Transportation"
+    | "Salary"
+    | "Maintenance"
+    | "Other";
+  description?: string;
+  reference?: string;
+  paymentMethod?: string;
+  remarks?: string;
+  metadata?: Record<string, unknown>;
+}
 import { useDataContext } from "../Context/DataContext";
 
 function formatCurrency(value: number) {
   // format as currency using user's locale; change currency code if needed
   return new Intl.NumberFormat(undefined, {
     style: "currency",
-    currency: "USD",
+    currency: "PKR",
   }).format(value);
 }
 
@@ -43,21 +61,66 @@ const categories = [
 ] as const;
 
 export default function ExpensesPage() {
+  // Find the next expense number in the format EXP-0001
+  function getNextExpenseNumber() {
+    const numbers = expenses
+      .map((e) => {
+        const match = String(e.expenseNumber || e.expenseNumber || "").match(
+          /EXP-(\d+)/
+        );
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter((n) => !isNaN(n));
+    const max = numbers.length > 0 ? Math.max(...numbers) : 0;
+    return `EXP-${String(max + 1).padStart(4, "0")}`;
+  }
   const [q, setQ] = useState("");
   const dataCtx = useDataContext();
   const { loadExpenses } = dataCtx;
   const expenses = useMemo(() => dataCtx.expenses ?? [], [dataCtx.expenses]);
-
-  useEffect(() => {
-    if (
-      (!dataCtx.expenses || dataCtx.expenses.length === 0) &&
-      typeof loadExpenses === "function"
-    ) {
-      loadExpenses().catch(() => {});
-    }
-  }, [loadExpenses]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ExpenseType | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Handle delete API call
+  async function handleDelete(expenseNumber: string) {
+    setDeletingId(expenseNumber);
+    try {
+      await dataCtx.deleteExpense?.(expenseNumber);
+      // No need to setLastSaved, DataContext will update state
+    } catch (err) {
+      // Optionally show error
+    } finally {
+      setDeletingId(null);
+    }
+  }
+  // Track when a save occurs to trigger refetch
+  const [lastSaved, setLastSaved] = useState(0);
+
+  // Always fetch all expenses from backend on mount and when opened
+  useEffect(() => {
+    if (typeof loadExpenses === "function") {
+      loadExpenses().catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // (Optional) Also keep the original effect for empty context, if needed
+  // useEffect(() => {
+  //   if (
+  //     (!dataCtx.expenses || dataCtx.expenses.length === 0) &&
+  //     typeof loadExpenses === "function"
+  //   ) {
+  //     loadExpenses().catch(() => {});
+  //   }
+  // }, [loadExpenses]);
+
+  // Refetch expenses after a save
+  useEffect(() => {
+    if (lastSaved > 0 && typeof loadExpenses === "function") {
+      loadExpenses().catch(() => {});
+    }
+  }, [lastSaved, loadExpenses]);
 
   const filtered = useMemo(() => {
     const t = q.toLowerCase().trim();
@@ -65,7 +128,7 @@ export default function ExpensesPage() {
     return expenses.filter(
       (e: ExpenseType) =>
         e.expenseNumber.toLowerCase().includes(t) ||
-        e.category.toLowerCase().includes(t) ||
+        e.categoryType.toLowerCase().includes(t) ||
         (e.description || "").toLowerCase().includes(t)
     );
   }, [q, expenses]);
@@ -84,14 +147,22 @@ export default function ExpensesPage() {
         </Button>
       </Group>
 
-      <Table highlightOnHover striped verticalSpacing="sm">
+      <Table
+        highlightOnHover
+        withColumnBorders
+        withRowBorders
+        withTableBorder
+        bg={"gray.1"}
+      >
         <thead>
           <tr>
             <th>Number</th>
             <th>Date</th>
             <th>Category</th>
             <th>Description</th>
+            <th>Payment Method</th>
             <th style={{ textAlign: "right" }}>Amount</th>
+            <th style={{ textAlign: "center" }}>Delete</th>
           </tr>
         </thead>
         <tbody>
@@ -99,11 +170,18 @@ export default function ExpensesPage() {
             <tr
               key={e.id}
               style={{ cursor: "pointer" }}
-              onClick={() => setEditing(e)}
+              onClick={(event) => {
+                // Prevent row click if delete icon is clicked
+                if (
+                  (event.target as HTMLElement).closest(".delete-expense-btn")
+                )
+                  return;
+                setEditing(e);
+              }}
             >
               <td>{e.expenseNumber}</td>
-              <td>{formatDate(e.expenseDate)}</td>
-              <td>{e.category}</td>
+              <td>{formatDate(e.date)}</td>
+              <td>{e.categoryType}</td>
               <td
                 style={{
                   maxWidth: 420,
@@ -114,7 +192,24 @@ export default function ExpensesPage() {
               >
                 {e.description}
               </td>
+              <td>{e.paymentMethod}</td>
               <td style={{ textAlign: "right" }}>{formatCurrency(e.amount)}</td>
+              <td style={{ textAlign: "center" }}>
+                <Button
+                  color="red"
+                  size="xs"
+                  variant="subtle"
+                  className="delete-expense-btn"
+                  loading={deletingId === e.expenseNumber}
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    handleDelete(e.expenseNumber);
+                  }}
+                  title="Delete Expense"
+                >
+                  <Trash2 size={16} />
+                </Button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -122,10 +217,29 @@ export default function ExpensesPage() {
       <AddExpenseDialogMantine
         open={open}
         onOpenChange={setOpen}
-        onSave={(payload: ExpenseInput) => {
+        nextExpenseNumber={getNextExpenseNumber()}
+        onSave={(payload: ExpensePayload) => {
+          // Convert ExpensePayload to ExpenseInput for addExpense
+          const expenseInput: ExpenseInput = {
+            expenseNumber: payload.expenseNumber ?? "",
+            date: payload.date ?? "",
+            categoryType:
+              payload.categoryType === "Maintenance"
+                ? "Stationery"
+                : payload.categoryType === "Other"
+                ? "Misc"
+                : (payload.categoryType as ExpenseInput["categoryType"]),
+            description: payload.description ?? "",
+            amount: payload.amount,
+            paymentMethod:
+              payload.paymentMethod as ExpenseInput["paymentMethod"],
+            reference: payload.reference ?? "",
+            remarks: payload.remarks ?? "",
+          };
           (dataCtx as { addExpense?: (p: ExpenseInput) => void }).addExpense?.(
-            payload
+            expenseInput
           );
+          setLastSaved(Date.now()); // trigger refetch
         }}
       />
       {editing && (
@@ -146,15 +260,16 @@ function AddExpenseDialogMantine({
   open,
   onOpenChange,
   onSave,
+  nextExpenseNumber,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  onSave: (payload: ExpenseInput) => void;
+  onSave: (payload: ExpensePayload) => void;
+  nextExpenseNumber: string;
 }) {
   const [expenseNumber, setExpenseNumber] = useState("");
-  const [expenseDate, setExpenseDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
-  );
+
+  const [expenseDate, setExpenseDate] = useState<string>("");
   const [category, setCategory] = useState<string>(categories[0]);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState<number | undefined>(undefined);
@@ -162,8 +277,22 @@ function AddExpenseDialogMantine({
     useState<ExpenseType["paymentMethod"]>("Cash");
   const [reference, setReference] = useState("");
   const [remarks, setRemarks] = useState("");
-
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // When modal opens, set all fields, including the next expense number
+  useEffect(() => {
+    if (open) {
+      setExpenseNumber(nextExpenseNumber);
+      setExpenseDate(new Date().toISOString().slice(0, 10));
+      setCategory(categories[0]);
+      setDescription("");
+      setAmount(undefined);
+      setPaymentMethod("Cash");
+      setReference("");
+      setRemarks("");
+      setErrors({});
+    }
+  }, [open, nextExpenseNumber]);
 
   function validate(): boolean {
     const e: Record<string, string> = {};
@@ -172,6 +301,23 @@ function AddExpenseDialogMantine({
     if (!(Number(amount) > 0)) e.amount = "Amount must be positive";
     setErrors(e);
     return Object.keys(e).length === 0;
+  }
+
+  // Map UI category to ExpensePayload categoryType
+  function mapCategoryToPayload(cat: string): ExpensePayload["categoryType"] {
+    switch (cat) {
+      case "Rent":
+      case "Utilities":
+      case "Transportation":
+      case "Salary":
+        return cat;
+      case "Stationery":
+        return "Maintenance";
+      case "Misc":
+        return "Other";
+      default:
+        return "Other";
+    }
   }
 
   return (
@@ -256,16 +402,18 @@ function AddExpenseDialogMantine({
         <Button
           onClick={() => {
             if (!validate()) return;
-            onSave({
+            // Compose ExpensePayload for backend
+            const payload: ExpensePayload = {
               expenseNumber,
-              expenseDate,
-              category,
-              description,
               amount: Number(amount),
-              paymentMethod,
+              date: expenseDate,
+              categoryType: mapCategoryToPayload(category),
+              description,
               reference,
+              paymentMethod,
               remarks,
-            });
+            };
+            onSave(payload);
             onOpenChange(false);
           }}
         >
@@ -301,20 +449,20 @@ function EditExpenseDialogMantine({
       <TextInput
         label="Date"
         type="date"
-        value={String(payload.expenseDate ?? "").slice(0, 10)}
+        value={String(payload.date ?? "").slice(0, 10)}
         onChange={(e) =>
           setPayload((p: Partial<ExpenseType>) => ({
             ...p,
-            expenseDate: e.currentTarget.value,
+            date: e.currentTarget.value,
           }))
         }
       />
       <Select
         label="Category"
         data={categories.map((c) => ({ value: c, label: c }))}
-        value={String(payload.category ?? categories[0])}
+        value={String(payload.categoryType ?? categories[0])}
         onChange={(v) =>
-          setPayload((p) => ({ ...p, category: v ?? undefined }))
+          setPayload((p) => ({ ...p, categoryType: v ?? undefined }))
         }
       />
       <TextInput

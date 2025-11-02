@@ -22,14 +22,14 @@ export function CustomerForm({
   const { setCustomers } = useDataContext();
 
   const [form, setForm] = useState<Customer>(() => ({
-    id: customer?.id || String(Date.now()),
+    _id: customer?._id || String(Date.now()),
     name: customer?.name || "",
     phone: customer?.phone || "",
     address: customer?.address || "",
     city: customer?.city || "",
     openingAmount: customer?.openingAmount || 0,
     creditLimit: customer?.creditLimit || 0,
-    paymentType: customer?.paymentType || "credit",
+    paymentType: customer?.paymentType === "Debit" ? "Debit" : "Credit",
     createdAt: customer?.createdAt || new Date().toISOString(),
   }));
 
@@ -38,15 +38,15 @@ export function CustomerForm({
   const [openingAmount, setOpeningAmount] = useState<number>(
     Math.abs(initialOpening)
   );
-  const [paymentType, setPaymentType] = useState<"credit" | "debit">(
-    customer?.paymentType || "credit"
+  const [paymentType, setPaymentType] = useState<"Credit" | "Debit">(
+    customer?.paymentType === "Debit" ? "Debit" : "Credit"
   );
   const [loading, setLoading] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
       const customerData = {
         name: form.name,
@@ -54,21 +54,21 @@ export function CustomerForm({
         address: form.address || "",
         city: form.city || "",
         openingAmount: openingAmount,
-        paymentType: paymentType,
+        paymentType: paymentType.toLowerCase() as "credit" | "debit",
         creditLimit: form.creditLimit || 0,
         createdAt: form.createdAt,
       };
 
       if (customer) {
         // Update existing customer
-        await updateCustomer(customer.id, customerData);
+        await updateCustomer(customer._id, customerData);
         const updatedCustomer = {
           ...form,
           openingAmount: openingAmount,
-          paymentType: paymentType,
+          paymentType,
         } as Customer;
         setCustomers((prev) =>
-          prev.map((c) => (c.id === updatedCustomer.id ? updatedCustomer : c))
+          prev.map((c) => (c._id === updatedCustomer._id ? updatedCustomer : c))
         );
         showNotification({
           title: "Success",
@@ -79,18 +79,19 @@ export function CustomerForm({
         // Create new customer
         const newCustomer = await createCustomer(customerData);
         console.log("Created customer response:", newCustomer);
-        
+
         // Ensure we have a valid MongoDB ID (string)
-        const customerId = newCustomer.id || newCustomer._id || String(Date.now());
+        const customerId =
+          newCustomer._id || newCustomer.id || String(Date.now());
         const customerWithId = {
           ...form,
-          id: String(customerId), // Ensure ID is always a string
+          _id: String(customerId), // Ensure ID is always a string
           openingAmount: openingAmount,
-          paymentType: paymentType,
+          paymentType,
         } as Customer;
         setCustomers((prev) => [customerWithId, ...prev]);
         showNotification({
-          title: "Success", 
+          title: "Success",
           message: "Customer created successfully",
           color: "green",
         });
@@ -156,11 +157,11 @@ export function CustomerForm({
           label="Type"
           value={paymentType}
           data={[
-            { value: "credit", label: "Credit" },
-            { value: "debit", label: "Debit" },
+            { value: "Credit", label: "Credit" },
+            { value: "Debit", label: "Debit" },
           ]}
           onChange={(v) =>
-            setPaymentType((v as "credit" | "debit") || "credit")
+            setPaymentType((v as "Credit" | "Debit") || "Credit")
           }
           style={{ width: 150 }}
         />
@@ -174,7 +175,12 @@ export function CustomerForm({
       </Group>
 
       <Group style={{ justifyContent: "flex-end" }}>
-        <Button variant="outline" onClick={onClose} type="button" disabled={loading}>
+        <Button
+          variant="outline"
+          onClick={onClose}
+          type="button"
+          disabled={loading}
+        >
           Cancel
         </Button>
         <Button type="submit" loading={loading}>

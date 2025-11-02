@@ -1,13 +1,5 @@
-import { type ReactNode } from "react";
-import {
-  AppShell,
-  Stack,
-  NavLink,
-  TextInput,
-  ActionIcon,
-  UnstyledButton,
-  Group,
-} from "@mantine/core";
+import { type ReactNode, useState, useMemo } from "react";
+import { AppShell, Stack, NavLink, TextInput } from "@mantine/core";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -16,11 +8,7 @@ import {
   ShoppingBag,
   Receipt,
   Wallet,
-  Settings,
   FileBarChart,
-  Bell,
-  Search,
-  User,
 } from "lucide-react";
 
 type MenuItem = {
@@ -98,11 +86,7 @@ const navigation: MenuItem[] = [
         icon: <ShoppingBag size={14} />,
         path: "/purchase/orders",
       },
-      {
-        label: "GRN",
-        icon: <Receipt size={14} />,
-        path: "/purchase/grn",
-      },
+
       {
         label: "Purchase Invoice",
         icon: <Receipt size={14} />,
@@ -139,6 +123,16 @@ const navigation: MenuItem[] = [
         icon: <Wallet size={14} />,
         path: "/accounts/journal",
       },
+      {
+        label: "Cash Book",
+        icon: <Wallet size={14} />,
+        path: "/accounts/cash-book",
+      },
+      {
+        label: "Bank Book",
+        icon: <Wallet size={14} />,
+        path: "/accounts/bank-book",
+      },
     ],
   },
   {
@@ -150,17 +144,41 @@ const navigation: MenuItem[] = [
         icon: <FileBarChart size={14} />,
         path: "/reports/profit-loss",
       },
-      {
-        label: "Stock Summary",
-        icon: <FileBarChart size={14} />,
-        path: "/reports/stock-summary",
-      },
     ],
   },
 ];
 
 export default function DashboardLayout() {
   const location = useLocation();
+  const [search, setSearch] = useState("");
+
+  // Helper to flatten all menu items for search
+
+  // Filter navigation based on search
+  const filteredNavigation = useMemo(() => {
+    if (!search.trim()) return navigation;
+    const q = search.trim().toLowerCase();
+    // Show parents if any child matches
+    function filterItems(items: MenuItem[]): MenuItem[] {
+      return items
+        .map((item) => {
+          if (item.children) {
+            const filteredChildren = filterItems(item.children);
+            if (
+              filteredChildren.length > 0 ||
+              item.label.toLowerCase().includes(q)
+            ) {
+              return { ...item, children: filteredChildren };
+            }
+            return null;
+          }
+          if (item.label.toLowerCase().includes(q)) return item;
+          return null;
+        })
+        .filter(Boolean) as MenuItem[];
+    }
+    return filterItems(navigation);
+  }, [search]);
 
   // Print mode detection: use location.state from POS page
   const isPrintMode = !!(location.state as { printMode?: boolean } | undefined)
@@ -173,11 +191,11 @@ export default function DashboardLayout() {
 
   return (
     <AppShell
-      header={{ height: 60 }}
+      header={{ height: 40 }}
       navbar={{
-        width: 260,
+        width: 240,
         breakpoint: "sm",
-        collapsed: { mobile: false },
+        collapsed: { mobile: true },
       }}
       padding="md"
       styles={{
@@ -185,28 +203,24 @@ export default function DashboardLayout() {
       }}
     >
       {/* Header */}
-      {!isPrintMode && (
-        <AppShell.Header>
-          <div
-            style={{
-              height: "100%",
-              borderBottom: "1px solid #eee",
-              display: "flex",
-              alignItems: "center",
-              padding: "0 16px",
-              background: "#FFFFFF",
-            }}
-          >
-            <AppHeader />
-          </div>
-        </AppShell.Header>
-      )}
-
+      <AppShell.Header
+        style={{ background: "#F5F5F5", padding: "16px", height: "40px" }}
+      >
+        {/* You can add header content here if needed */}
+      </AppShell.Header>
       {/* Sidebar */}
       {!isPrintMode && (
-        <AppShell.Navbar p="md" bg="#F5F5F5" style={{ color: "#000000ff" }}>
+        <AppShell.Navbar p="md" bg="#F5F5F5">
           <Stack gap="xs">
-            {navigation.map((item) => {
+            <TextInput
+              placeholder="Search pages..."
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              mb={8}
+              size="sm"
+              styles={{ input: { borderRadius: 8 } }}
+            />
+            {filteredNavigation.map((item: MenuItem) => {
               // If item has children render a parent NavLink containing child NavLinks
               if (item.children && item.children.length > 0) {
                 return (
@@ -225,7 +239,7 @@ export default function DashboardLayout() {
                       label: { fontSize: "14px", fontWeight: 600 },
                     }}
                   >
-                    {item.children.map((child) => {
+                    {item.children.map((child: MenuItem) => {
                       const isActive = location.pathname === child.path;
                       return (
                         <NavLink
@@ -278,36 +292,6 @@ export default function DashboardLayout() {
               );
             })}
           </Stack>
-
-          {/* Footer (settings) */}
-          <div
-            style={{
-              marginTop: 12,
-              borderTop: "1px solid #e6e6e6",
-              paddingTop: 12,
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div
-                style={{
-                  display: "flex",
-                  width: 36,
-                  height: 36,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 8,
-                  background: "#efefef",
-                  color: "#666",
-                }}
-              >
-                <Settings size={16} />
-              </div>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>Settings</div>
-                <div style={{ fontSize: 12, color: "#666" }}>v1.0.0</div>
-              </div>
-            </div>
-          </div>
         </AppShell.Navbar>
       )}
 
@@ -316,56 +300,5 @@ export default function DashboardLayout() {
         <Outlet />
       </AppShell.Main>
     </AppShell>
-  );
-}
-
-function AppHeader() {
-  return (
-    <div
-      style={{ display: "flex", alignItems: "center", width: "100%", gap: 12 }}
-    >
-      <UnstyledButton aria-label="Toggle sidebar">
-        {/* Placeholder for sidebar trigger */}
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M3 12h18M3 6h18M3 18h18" />
-        </svg>
-      </UnstyledButton>
-
-      <div style={{ flex: 1, maxWidth: 520 }}>
-        <div style={{ position: "relative" }}>
-          <Search
-            style={{
-              position: "absolute",
-              left: 12,
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "#888",
-            }}
-          />
-          <TextInput
-            placeholder="Search products, invoices, customers..."
-            style={{ paddingLeft: 40 }}
-          />
-        </div>
-      </div>
-
-      <Group>
-        <ActionIcon variant="light" title="Notifications">
-          <Bell />
-        </ActionIcon>
-        <ActionIcon variant="light" title="Profile">
-          <User />
-        </ActionIcon>
-      </Group>
-    </div>
   );
 }

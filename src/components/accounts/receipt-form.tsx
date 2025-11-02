@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useDataContext } from "../../Dashboard/Context/DataContext";
 import {
   Modal,
   TextInput,
@@ -17,6 +18,7 @@ interface ReceiptVoucher {
   voucherNumber: string;
   voucherDate: Date;
   receivedFrom: string;
+  receivedFromId?: string;
   amount: number;
   paymentMode: "Cash" | "Card" | "UPI" | "Cheque";
   reference: string;
@@ -28,21 +30,49 @@ export function ReceiptForm({
   open,
   onOpenChange,
   onSave,
+  initialValues,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSave: (payload: ReceiptVoucher) => void;
+  initialValues?: Partial<ReceiptVoucher>;
 }) {
+  const dataCtx = useDataContext();
+  const customers = dataCtx?.customers ?? [];
+
   const [voucherNumber, setVoucherNumber] = useState("");
   const [voucherDate, setVoucherDate] = useState<string>(
     new Date().toISOString().slice(0, 10)
   );
   const [receivedFrom, setReceivedFrom] = useState("");
+  const [receivedFromId, setReceivedFromId] = useState<string | undefined>(
+    undefined
+  );
   const [amount, setAmount] = useState<number | undefined>(undefined);
   const [paymentMode, setPaymentMode] =
     useState<ReceiptVoucher["paymentMode"]>("Cash");
   const [reference, setReference] = useState("");
   const [remarks, setRemarks] = useState("");
+
+  // Reset or prefill form fields when modal is opened or initialValues change
+  useEffect(() => {
+    if (open) {
+      setVoucherNumber(initialValues?.voucherNumber ?? "");
+      setVoucherDate(
+        initialValues?.voucherDate
+          ? typeof initialValues.voucherDate === "string"
+            ? initialValues.voucherDate.slice(0, 10)
+            : initialValues.voucherDate.toISOString().slice(0, 10)
+          : new Date().toISOString().slice(0, 10)
+      );
+      setReceivedFrom(initialValues?.receivedFrom ?? "");
+      setReceivedFromId(initialValues?.receivedFromId);
+      setAmount(initialValues?.amount);
+      setPaymentMode(initialValues?.paymentMode ?? "Cash");
+      setReference(initialValues?.reference ?? "");
+      setRemarks(initialValues?.remarks ?? "");
+    }
+  }, [open, initialValues]);
 
   function save() {
     onSave({
@@ -53,6 +83,7 @@ export function ReceiptForm({
       voucherNumber,
       voucherDate: new Date(voucherDate),
       receivedFrom,
+      receivedFromId,
       amount: Number(amount ?? 0),
       paymentMode,
       reference,
@@ -101,12 +132,35 @@ export function ReceiptForm({
         onChange={(e) => setVoucherDate(e.currentTarget.value)}
       />
 
-      <TextInput
+      <Select
         label="Received From"
-        value={receivedFrom}
-        onChange={(e) => setReceivedFrom(e.currentTarget.value)}
-        placeholder="Customer Name"
+        searchable
+        clearable
+        data={[
+          ...customers.map((c) => ({ value: c._id, label: c.name })),
+          { value: "__manual__", label: "Other (manual entry)" },
+        ]}
+        value={receivedFromId || (receivedFrom ? "__manual__" : null)}
+        onChange={(v) => {
+          if (v && v !== "__manual__") {
+            const cust = customers.find((c) => c._id === v);
+            setReceivedFromId(v);
+            setReceivedFrom(cust?.name || "");
+          } else {
+            setReceivedFromId(undefined);
+            setReceivedFrom("");
+          }
+        }}
+        placeholder="Select customer or enter manually"
       />
+      {(!receivedFromId || receivedFromId === "__manual__") && (
+        <TextInput
+          label="Manual Entry"
+          value={receivedFrom}
+          onChange={(e) => setReceivedFrom(e.currentTarget.value)}
+          placeholder="Customer Name or Other"
+        />
+      )}
 
       <Group grow>
         <NumberInput
@@ -116,7 +170,7 @@ export function ReceiptForm({
         />
         <Select
           label="Payment Mode"
-          data={["Cash", "Card", "UPI", "Cheque"].map((v) => ({
+          data={["Cash", "Online/Bank"].map((v) => ({
             value: v,
             label: v,
           }))}

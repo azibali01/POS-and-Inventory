@@ -1,25 +1,17 @@
 import { useState, useEffect } from "react";
-import {
-  Modal,
-  TextInput,
-  Button,
-  NumberInput,
-  Switch,
-  Select,
-} from "@mantine/core";
+import { Modal, TextInput, Button, NumberInput, Select } from "@mantine/core";
 
+type paymentType = "Credit" | "Debit";
 export type Supplier = {
-  id: string;
-  supplierCode: string;
+  _id: string;
   name: string;
   phone?: string;
   email?: string;
   address?: string;
   city?: string;
-  gstNumber?: string;
   openingBalance?: number;
+  paymentType?: paymentType;
   currentBalance?: number;
-  isActive?: boolean;
   createdAt?: string | Date;
 };
 
@@ -38,26 +30,32 @@ export default function SupplierForm({
   onSave?: (s: Supplier) => void;
 }) {
   const [form, setForm] = useState<Partial<Supplier>>({
-    supplierCode: "",
     name: "",
     phone: "",
     email: "",
     address: "",
     city: "",
-    gstNumber: "",
     openingBalance: 0,
     currentBalance: 0,
-    isActive: true,
+
     ...initial,
   });
-  const [openingType, setOpeningType] = useState<"credit" | "debit">(
-    initial && (initial.openingBalance ?? 0) < 0 ? "debit" : "credit"
+  const [openingType, setOpeningType] = useState<paymentType>(
+    initial && initial.paymentType
+      ? initial.paymentType
+      : initial && (initial.openingBalance ?? 0) < 0
+      ? "Debit"
+      : "Credit"
   );
 
   useEffect(() => {
     setForm((f) => ({ ...f, ...initial }));
     setOpeningType(
-      initial && (initial.openingBalance ?? 0) < 0 ? "debit" : "credit"
+      initial && initial.paymentType
+        ? initial.paymentType
+        : initial && (initial.openingBalance ?? 0) < 0
+        ? "Debit"
+        : "Credit"
     );
   }, [initial]);
 
@@ -67,23 +65,24 @@ export default function SupplierForm({
   }
 
   function handleSave() {
-    const payload: Supplier = {
-      id: (form.id as string) || `s-${Date.now()}`,
-      supplierCode: (form.supplierCode as string) || "",
+    const payload: Partial<Supplier> = {
       name: (form.name as string) || "",
       phone: (form.phone as string) || "",
       email: (form.email as string) || "",
       address: (form.address as string) || "",
       city: (form.city as string) || "",
-      gstNumber: (form.gstNumber as string) || "",
       openingBalance: Number(form.openingBalance || 0),
       currentBalance: Number(form.currentBalance || 0),
-      isActive: Boolean(form.isActive ?? true),
+      paymentType: openingType,
       createdAt: form.createdAt
         ? String(form.createdAt)
         : new Date().toISOString(),
     };
-    onSave?.(payload);
+    // Only include _id if editing (i.e. initial has _id)
+    if (initial && initial._id) {
+      payload._id = initial._id;
+    }
+    onSave?.(payload as Supplier);
     close(false);
   }
 
@@ -91,16 +90,9 @@ export default function SupplierForm({
     <Modal
       opened={open}
       onClose={() => close(false)}
-      title={initial?.id ? "Edit Supplier" : "Add Supplier"}
+      title={initial?._id ? <strong>Edit Supplier</strong> : "Add Supplier"}
     >
       <div style={{ display: "grid", gap: 12 }}>
-        <TextInput
-          label="Supplier Code"
-          value={String(form.supplierCode ?? "")}
-          onChange={(e) =>
-            setForm({ ...form, supplierCode: e.currentTarget.value })
-          }
-        />
         <TextInput
           label="Name"
           value={String(form.name ?? "")}
@@ -136,13 +128,6 @@ export default function SupplierForm({
             value={String(form.city ?? "")}
             onChange={(e) => setForm({ ...form, city: e.currentTarget.value })}
           />
-          <TextInput
-            label="GST Number"
-            value={String(form.gstNumber ?? "")}
-            onChange={(e) =>
-              setForm({ ...form, gstNumber: e.currentTarget.value })
-            }
-          />
         </div>
 
         <div
@@ -156,7 +141,7 @@ export default function SupplierForm({
                 const val = Number(v || 0);
                 setForm({
                   ...form,
-                  openingBalance: openingType === "debit" ? -val : val,
+                  openingBalance: openingType === "Debit" ? -val : val,
                 });
               }}
             />
@@ -164,28 +149,18 @@ export default function SupplierForm({
               label="Type"
               value={openingType}
               data={[
-                { value: "credit", label: "Credit" },
-                { value: "debit", label: "Debit" },
+                { value: "Credit", label: "Credit" },
+                { value: "Debit", label: "Debit" },
               ]}
               onChange={(v) => {
-                const newType = (v ?? "credit") as "credit" | "debit";
+                const newType = (v ?? "Credit") as paymentType;
                 setOpeningType(newType);
                 const abs = Math.abs(Number(form.openingBalance ?? 0));
                 setForm({
                   ...form,
-                  openingBalance: newType === "debit" ? -abs : abs,
+                  openingBalance: newType === "Debit" ? -abs : abs,
                 });
               }}
-            />
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ fontSize: 12, color: "#666" }}>Active</div>
-            <Switch
-              checked={Boolean(form.isActive)}
-              onChange={(e) =>
-                setForm({ ...form, isActive: e.currentTarget.checked })
-              }
             />
           </div>
         </div>

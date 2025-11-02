@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Button, NumberInput, Select, TextInput } from "@mantine/core";
+import { Button, NumberInput, TextInput, Select } from "@mantine/core";
+import SafeSelect from "../../../lib/SafeSelect";
 import Table from "../../../lib/AppTable";
 import { Plus, Trash2 } from "lucide-react";
 import { useDataContext } from "../../Context/DataContext";
@@ -17,7 +18,7 @@ export function PurchaseLineItemsTable({
 
   const products = inventory.map((p) => ({
     id: String(p.id),
-    name: p.name,
+    name: (p as any).itemName ?? (p as any).name ?? "",
     unit: p.unit,
     salesRate: p.salesRate || 0,
   }));
@@ -29,11 +30,8 @@ export function PurchaseLineItemsTable({
       0
     );
     const net = items.reduce((sum, i) => sum + (i.netAmount || 0), 0);
-    const tax = items.reduce(
-      (sum, i) => sum + ((i.taxRate || 0) * (i.netAmount || 0)) / 100,
-      0
-    );
-    return { sub, totalDiscount, net, tax, total: net + tax };
+    // No tax/GST in totals anymore
+    return { sub, totalDiscount, net, total: net };
   }, [items]);
 
   function addRow() {
@@ -52,7 +50,6 @@ export function PurchaseLineItemsTable({
       unit: p.unit || "pcs",
       quantity: 1,
       rate,
-      rateSource: "old",
       color: undefined,
       thickness: undefined,
       length: undefined,
@@ -60,8 +57,7 @@ export function PurchaseLineItemsTable({
       percent: 0,
       discountAmount: 0,
       netAmount: rate * 1,
-      taxRate: 18,
-      amount: rate * 1 * 1.18,
+      amount: rate * 1,
     };
     onChange([...items, row]);
   }
@@ -88,8 +84,7 @@ export function PurchaseLineItemsTable({
           0,
           next.grossAmount - (next.discountAmount || 0)
         );
-        const tax = ((next.taxRate || 0) * (next.netAmount || 0)) / 100;
-        next.amount = Number((next.netAmount || 0) + tax || 0);
+        next.amount = Number((next.netAmount || 0) || 0);
         return next;
       })
     );
@@ -124,9 +119,7 @@ export function PurchaseLineItemsTable({
               <Table.Th style={{ textAlign: "left", padding: 8, width: 100 }}>
                 Length
               </Table.Th>
-              <Table.Th style={{ textAlign: "left", padding: 8, width: 120 }}>
-                Price Source
-              </Table.Th>
+              
               <Table.Th style={{ textAlign: "right", padding: 8, width: 80 }}>
                 Qty
               </Table.Th>
@@ -145,9 +138,6 @@ export function PurchaseLineItemsTable({
               <Table.Th style={{ textAlign: "right", padding: 8, width: 120 }}>
                 Net
               </Table.Th>
-              <Table.Th style={{ textAlign: "right", padding: 8, width: 80 }}>
-                GST
-              </Table.Th>
               <Table.Th style={{ textAlign: "right", padding: 8, width: 120 }}>
                 Amount
               </Table.Th>
@@ -160,12 +150,14 @@ export function PurchaseLineItemsTable({
             {items.map((row) => (
               <Table.Tr key={row.id}>
                 <Table.Td style={{ padding: 8 }}>
-                  <Select
+                  <SafeSelect
                     searchable
-                    data={products.map((p) => ({
-                      value: String(p.id),
-                      label: `${p.name} — ${p.id}`,
-                    }))}
+                    data={products
+                      .filter((p) => p && (p.name || p.id))
+                      .map((p) => ({
+                        value: String(p.id),
+                        label: `${p.name || "Unnamed"} — ${p.id}`,
+                      }))}
                     value={row.productId}
                     onChange={(productId) => {
                       const p = products.find(
@@ -177,7 +169,7 @@ export function PurchaseLineItemsTable({
                       if (prod) {
                         // Use salesRate from the current inventory interface
                         const mappedRate = Number(prod.salesRate ?? 0);
-                        const mappedRateSource = "old"; // Default to "old" since we don't have separate price fields
+                        // no price source concept anymore
                         const ext = prod as unknown as {
                           thickness?: string | number;
                           weight?: string | number;
@@ -189,14 +181,12 @@ export function PurchaseLineItemsTable({
 
                         updateRow(row.id, {
                           productId: String(prod.id),
-                          productName: prod.name,
+                          productName:
+                            (prod as any).itemName ?? (prod as any).name ?? "",
                           code: undefined,
                           unit: prod.unit || "pcs",
                           rate: mappedRate,
-                          rateSource: mappedRateSource as
-                            | "old"
-                            | "new"
-                            | "manual",
+                          
                           color: prod.color ?? undefined,
                           thickness:
                             ext.thickness ?? ext.weight ?? ext.msl ?? ext.length
@@ -226,7 +216,7 @@ export function PurchaseLineItemsTable({
                     placeholder="Color"
                     data={colors.map((c) => ({ value: c.name, label: c.name }))}
                     value={row.color}
-                    onChange={(v) =>
+                    onChange={(v: string | null) =>
                       updateRow(row.id, {
                         color: v ?? undefined,
                       })
@@ -251,32 +241,7 @@ export function PurchaseLineItemsTable({
                     placeholder="Length"
                   />
                 </Table.Td>
-                <Table.Td style={{ padding: 8 }}>
-                  <Select
-                    data={[
-                      { value: "old", label: "Old" },
-                      { value: "new", label: "New" },
-                    ]}
-                    value={row.rateSource}
-                    onChange={(v) => {
-                      const source = (v ?? "old") as "old" | "new";
-                      // look up product in inventory to pick corresponding price
-                      const prod = inventory.find(
-                        (p) => String(p.id) === String(row.productId)
-                      );
-                      if (prod) {
-                        // Since we only have salesRate, use it for both old and new
-                        const chosen = prod.salesRate ?? 0;
-                        updateRow(row.id, {
-                          rate: Number(chosen || 0),
-                          rateSource: source,
-                        });
-                      } else {
-                        updateRow(row.id, { rateSource: source });
-                      }
-                    }}
-                  />
-                </Table.Td>
+                
                 <Table.Td style={{ padding: 8, textAlign: "right" }}>
                   <NumberInput
                     value={row.quantity}
@@ -320,17 +285,8 @@ export function PurchaseLineItemsTable({
                 <Table.Td style={{ padding: 8 }}>
                   <NumberInput value={row.netAmount} readOnly />
                 </Table.Td>
-                <Table.Td style={{ padding: 8 }}>
-                  <NumberInput
-                    value={row.taxRate}
-                    onChange={(v) =>
-                      updateRow(row.id, { taxRate: Number(v || 0) })
-                    }
-                    min={0}
-                  />
-                </Table.Td>
                 <Table.Td style={{ padding: 8, textAlign: "right" }}>
-                  {formatCurrency(row.amount)}
+                  {formatCurrency(row.amount ?? row.netAmount ?? 0)}
                 </Table.Td>
                 <Table.Td style={{ padding: 8, textAlign: "right" }}>
                   <Button variant="subtle" onClick={() => removeRow(row.id)}>
@@ -366,8 +322,6 @@ export function PurchaseLineItemsTable({
           </div>
           <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Net</div>
           <div style={{ fontSize: 14 }}>{formatCurrency(totals.net)}</div>
-          <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Tax</div>
-          <div style={{ fontSize: 14 }}>{formatCurrency(totals.tax)}</div>
           <div style={{ fontSize: 16, fontWeight: 600, marginTop: 6 }}>
             Total: {formatCurrency(totals.total)}
           </div>

@@ -3,11 +3,11 @@ import {
   TextInput,
   Group,
   Button,
-  Select,
   NumberInput,
   Textarea,
   Box,
 } from "@mantine/core";
+import SafeSelect from "../../lib/SafeSelect";
 import { showNotification } from "@mantine/notifications";
 import { useDataContext } from "../../Dashboard/Context/DataContext";
 import type { InventoryItem } from "../../Dashboard/Context/DataContext";
@@ -18,11 +18,11 @@ interface Props {
 }
 
 export function ProductForm({ product, onClose }: Props) {
-  const { createInventoryItem, updateInventoryItem, categories } =
+  const { createInventoryItem, updateInventoryItem, categoriesForSelect } =
     useDataContext();
 
   const [form, setForm] = useState({
-    itemName: product?.name || "",
+    itemName: product?.itemName || "",
     category: product?.category || "",
     thickness: product?.thickness || 0,
     unit: product?.unit || "",
@@ -62,9 +62,9 @@ export function ProductForm({ product, onClose }: Props) {
 
     try {
       console.log("Submitting payload:", payload);
-      if (product && product.id !== undefined) {
-        console.log("Updating product with ID:", product.id);
-        await updateInventoryItem(product.id, payload);
+      if (product && product._id !== undefined) {
+        console.log("Updating product with ID:", product._id);
+        await updateInventoryItem(product._id, payload);
       } else {
         console.log("Creating new product");
         await createInventoryItem(payload);
@@ -86,13 +86,9 @@ export function ProductForm({ product, onClose }: Props) {
             setForm({ ...form, itemName: e.currentTarget.value })
           }
         />
-        <Select
+        <SafeSelect
           label="Category"
-          data={categories.map((c: { name?: string } | string) =>
-            typeof c === "string"
-              ? { value: c, label: c }
-              : { value: c.name ?? String(c), label: c.name ?? String(c) }
-          )}
+          data={categoriesForSelect || []}
           value={form.category}
           onChange={(v) => setForm({ ...form, category: v || "" })}
           searchable
@@ -106,13 +102,13 @@ export function ProductForm({ product, onClose }: Props) {
           value={form.thickness}
           onChange={(v) => setForm({ ...form, thickness: Number(v) })}
         />
-        <Select
+        <SafeSelect
           label="Unit"
           data={["ft", "pcs", "kg", "m", "sqft"]}
           value={form.unit}
           onChange={(v) => setForm({ ...form, unit: v || "" })}
         />
-        <Select
+        <SafeSelect
           label="Color"
           required
           data={[

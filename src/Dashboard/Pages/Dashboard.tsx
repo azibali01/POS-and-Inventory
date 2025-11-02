@@ -13,17 +13,7 @@ import { Link } from "react-router-dom";
 import { useDataContext, type SaleRecord } from "../Context/DataContext";
 import { formatCurrency } from "../../lib/format-utils";
 import dayjs from "dayjs";
-import {
-  BarChart,
-  Bar,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  LineChart,
-  Line,
-} from "recharts";
+// ...existing code...
 
 export default function Dashboard() {
   const {
@@ -33,7 +23,6 @@ export default function Dashboard() {
     customers = [],
     categories = [],
     expenses = [],
-    grns = [],
   } = useDataContext();
 
   const salesArray: SaleRecord[] = useMemo(() => {
@@ -72,31 +61,9 @@ export default function Dashboard() {
     }));
   }, [salesArray]);
 
-  const monthlyPurchases = useMemo(() => {
-    const byMonth: Record<string, number> = {};
-    purchases.forEach((p) => {
-      const m = dayjs(p.date).format("MMM YYYY");
-      byMonth[m] = (byMonth[m] || 0) + (p.total || 0);
-    });
-    const months = Array.from({ length: 7 }).map((_, i) =>
-      dayjs()
-        .subtract(6 - i, "month")
-        .format("MMM YYYY")
-    );
-    return months.map((m) => ({
-      month: m,
-      amount: Math.round(byMonth[m] || 0),
-    }));
-  }, [purchases]);
+  // ...existing code...
 
-  const monthlyProfit = useMemo(
-    () =>
-      monthlyRevenue.map((r, idx) => ({
-        month: r.month,
-        amount: r.amount - (monthlyPurchases[idx]?.amount || 0),
-      })),
-    [monthlyRevenue, monthlyPurchases]
-  );
+  // ...existing code...
 
   const purchasesTotal = useMemo(
     () => purchases.reduce((s, p) => s + (p.total || 0), 0),
@@ -105,7 +72,6 @@ export default function Dashboard() {
   const customersCount = customers.length;
   const categoriesCount = categories.length;
   const expensesTotal = expenses.reduce((s, e) => s + (e.amount || 0), 0);
-  const grnCount = grns.length;
 
   const lowStock = inventory.filter((i) => (i.stock ?? 0) <= 15);
 
@@ -120,16 +86,6 @@ export default function Dashboard() {
       value: String(inventoryCount),
       icon: <IconPackage size={20} color="#868e96" />,
     },
-    {
-      title: "Monthly Revenue",
-      value: formatCurrency(monthlyRevenue.reduce((s, m) => s + m.amount, 0)),
-      icon: <IconChartBar size={20} color="#868e96" />,
-    },
-    {
-      title: "Today's Revenue",
-      value: formatCurrency(todayRevenue),
-      icon: <IconCalendar size={20} color="#868e96" />,
-    },
   ];
 
   type CardDef = {
@@ -137,6 +93,7 @@ export default function Dashboard() {
     path: string;
     icon: React.ReactNode;
     meta?: string;
+    renderExtra?: () => React.ReactNode;
   };
 
   const quickLinks: CardDef[] = [
@@ -157,6 +114,28 @@ export default function Dashboard() {
       path: "/products/stock-report",
       icon: <IconChartBar size={18} />,
       meta: `${lowStock.length} low`,
+      renderExtra: () => {
+        // Find unique categories with low stock
+        const lowStockCategories = Array.from(
+          new Set(lowStock.map((item) => item.category))
+        );
+        return (
+          <Box mt={6}>
+            <Text size="xs" color="red" fw={600}>
+              {lowStockCategories.length > 0 ? "Low Stock Categories:" : ""}
+            </Text>
+            {lowStockCategories.length > 0 && (
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                {lowStockCategories.map((cat) => (
+                  <li key={cat} style={{ fontSize: 12, color: "#d7263d" }}>
+                    {cat}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Box>
+        );
+      },
     },
     {
       label: "Customers",
@@ -170,12 +149,7 @@ export default function Dashboard() {
       icon: <IconFileInvoice size={18} />,
       meta: `${salesArray.length} · ${formatCurrency(totalSales)}`,
     },
-    {
-      label: "GRN",
-      path: "/purchase/grn",
-      icon: <IconFileInvoice size={18} />,
-      meta: `${grnCount} GRNs`,
-    },
+
     {
       label: "Purchase Invoices",
       path: "/purchase/invoices",
@@ -187,6 +161,38 @@ export default function Dashboard() {
       path: "/expenses",
       icon: <IconReportAnalytics size={18} />,
       meta: `${expenses.length} · ${formatCurrency(expensesTotal)}`,
+    },
+    // --- Vouchers & Books ---
+    {
+      label: "Receipt Voucher",
+      path: "/accounts/receipt-voucher",
+      icon: <IconFileInvoice size={18} />,
+    },
+    {
+      label: "Payment Voucher",
+      path: "/accounts/payment-voucher",
+      icon: <IconFileInvoice size={18} />,
+    },
+    {
+      label: "Journal Voucher",
+      path: "/accounts/journal-voucher",
+      icon: <IconFileInvoice size={18} />,
+    },
+    {
+      label: "Cash Book",
+      path: "/accounts/cash-book",
+      icon: <IconReportAnalytics size={18} />,
+    },
+    {
+      label: "Bank Book",
+      path: "/accounts/bank-book",
+      icon: <IconReportAnalytics size={18} />,
+    },
+    // --- Reports ---
+    {
+      label: "Profit & Loss",
+      path: "/reports/profit-loss",
+      icon: <IconChartBar size={18} />,
     },
   ];
 
@@ -221,6 +227,34 @@ export default function Dashboard() {
         ))}
       </SimpleGrid>
 
+      {/* Monthly/Today's Revenue Section */}
+      <Box mb="xl">
+        <SimpleGrid cols={{ base: 1, md: 2, lg: 2 }} spacing="lg">
+          <Card shadow="sm" padding="lg" radius="md" withBorder>
+            <Group justify="space-between" mb="xs">
+              <Text size="sm" fw={500}>
+                Monthly Revenue (Last 7 Months)
+              </Text>
+              <IconChartBar size={20} color="#868e96" />
+            </Group>
+            <Text size="xl" fw={700}>
+              {formatCurrency(monthlyRevenue.reduce((s, m) => s + m.amount, 0))}
+            </Text>
+          </Card>
+          <Card shadow="sm" padding="lg" radius="md" withBorder>
+            <Group justify="space-between" mb="xs">
+              <Text size="sm" fw={500}>
+                Today's Revenue
+              </Text>
+              <IconCalendar size={20} color="#868e96" />
+            </Group>
+            <Text size="xl" fw={700}>
+              {formatCurrency(todayRevenue)}
+            </Text>
+          </Card>
+        </SimpleGrid>
+      </Box>
+
       <Box mb="lg">
         <Title order={3} mb="sm">
           Quick Links
@@ -252,6 +286,8 @@ export default function Dashboard() {
                   Open {p.label}
                 </Text>
               )}
+              {/* Show low stock categories if this is the Stock Report card */}
+              {typeof p.renderExtra === "function" && p.renderExtra()}
             </Card>
           ))}
         </SimpleGrid>
@@ -259,67 +295,7 @@ export default function Dashboard() {
 
       {/* Low stock/negative stock alerts and Recent Sales removed per user request */}
 
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg" mt="xl">
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Title order={4}>Monthly Sales Trend</Title>
-          <Text c="dimmed" size="sm" mb="md">
-            Last 7 months sales performance
-          </Text>
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyRevenue}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="amount" fill="#5E78D9" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-          <Title order={4}>Monthly Purchases</Title>
-          <Text c="dimmed" size="sm" mb="md">
-            Purchase trends over last 7 months
-          </Text>
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={monthlyPurchases}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="amount" fill="#4caf50" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      </SimpleGrid>
-
-      <Card shadow="sm" padding="lg" radius="md" withBorder mt="xl">
-        <Title order={4}>Profit / Loss</Title>
-        <Text c="dimmed" size="sm" mb="md">
-          Profit / Loss over last 7 months
-        </Text>
-        <div style={{ height: 300 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={monthlyProfit}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="amount"
-                stroke="#ff9800"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
+      {/* Graphs removed as per user request */}
     </div>
   );
 }

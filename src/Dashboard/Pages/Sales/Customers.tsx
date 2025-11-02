@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -22,6 +22,7 @@ import { CustomerForm } from "../../../components/sales/CustomerForm";
 import { CustomerDetails } from "../../../components/sales/CustomerDetails";
 import { useDataContext } from "../../Context/DataContext";
 import type { Customer } from "../../Context/DataContext";
+
 import { deleteCustomer } from "../../../lib/api";
 import { showNotification } from "@mantine/notifications";
 // local helpers
@@ -32,33 +33,38 @@ function formatCurrency(n: number) {
 // Local Customer interface is provided by DataContext; the page reads data from context
 
 export default function CustomersPage() {
-  // Read customers from DataContext
-  const { customers, setCustomers } = useDataContext();
-
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Customer | null>(null);
   const [openAdd, setOpenAdd] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [openView, setOpenView] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
-  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(
+    null
+  );
   const [deleting, setDeleting] = useState(false);
+  const { customers, setCustomers, refreshFromBackend } = useDataContext();
+  useEffect(() => {
+    refreshFromBackend();
+  }, []);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return customers.filter((c) =>
-      [c.name, c.city, c.phone].some(
-        (v) => (v || "").toLowerCase().includes(q)
-      )
+      [c.name, c.city, c.phone].some((v) => (v || "").toLowerCase().includes(q))
     );
   }, [customers, search]);
 
   const handleDeleteConfirm = async () => {
     if (!customerToDelete) return;
-    
+
     // Validate ID exists and is valid
-    if (!customerToDelete.id || customerToDelete.id === "undefined" || customerToDelete.id.includes("undefined")) {
-      console.error("Invalid customer ID:", customerToDelete.id);
+    if (
+      !customerToDelete._id ||
+      customerToDelete._id === "undefined" ||
+      customerToDelete._id.includes("undefined")
+    ) {
+      console.error("Invalid customer ID:", customerToDelete._id);
       showNotification({
         title: "Error",
         message: "Cannot delete customer: Invalid ID",
@@ -68,13 +74,13 @@ export default function CustomersPage() {
       setCustomerToDelete(null);
       return;
     }
-    
+
     setDeleting(true);
     try {
-      console.log("Deleting customer with MongoDB ID:", customerToDelete.id);
-      await deleteCustomer(customerToDelete.id);
+      console.log("Deleting customer with MongoDB ID:", customerToDelete._id);
+      await deleteCustomer(customerToDelete._id);
       setCustomers((prev) =>
-        prev.filter((x) => x.id !== customerToDelete.id)
+        prev.filter((x) => x._id !== customerToDelete._id)
       );
       showNotification({
         title: "Success",
@@ -84,7 +90,7 @@ export default function CustomersPage() {
     } catch (error) {
       console.error("Error deleting customer:", error);
       showNotification({
-        title: "Error", 
+        title: "Error",
         message: "Failed to delete customer",
         color: "red",
       });
@@ -148,13 +154,17 @@ export default function CustomersPage() {
               </Table.Thead>
               <Table.Tbody>
                 {filtered.map((c: Customer, index) => (
-                  <Table.Tr key={c.id || `customer-fallback-${index}`}>
+                  <Table.Tr key={c._id || `customer-fallback-${index}`}>
                     <Table.Td style={{ fontWeight: 600 }}>{c.name}</Table.Td>
                     <Table.Td style={{ color: "#666" }}>{c.city}</Table.Td>
                     <Table.Td>{c.phone}</Table.Td>
                     <Table.Td>
-                      <span style={{ color: c.paymentType === "debit" ? "red" : "green" }}>
-                        {c.paymentType === "debit" ? "Debit" : "Credit"}{" "}
+                      <span
+                        style={{
+                          color: c.paymentType === "Debit" ? "red" : "green",
+                        }}
+                      >
+                        {c.paymentType === "Debit" ? "Debit" : "Credit"}{" "}
                         {formatCurrency(c.openingAmount || 0)}
                       </span>
                     </Table.Td>
@@ -222,23 +232,23 @@ export default function CustomersPage() {
         </Box>
       </Modal>
 
-      <Modal 
-        opened={openDelete} 
+      <Modal
+        opened={openDelete}
         onClose={() => {
           setOpenDelete(false);
           setCustomerToDelete(null);
-        }} 
+        }}
         size="sm"
         title="Delete Customer"
       >
         <Box p="md">
           <Text mb="md">
-            Are you sure you want to delete customer "{customerToDelete?.name}"? 
+            Are you sure you want to delete customer "{customerToDelete?.name}"?
             This action cannot be undone.
           </Text>
           <Group justify="flex-end" gap="sm">
-            <Button 
-              variant="default" 
+            <Button
+              variant="default"
               onClick={() => {
                 setOpenDelete(false);
                 setCustomerToDelete(null);
@@ -247,8 +257,8 @@ export default function CustomersPage() {
             >
               Cancel
             </Button>
-            <Button 
-              color="red" 
+            <Button
+              color="red"
               onClick={handleDeleteConfirm}
               loading={deleting}
             >
