@@ -29,19 +29,6 @@ export interface SalesPayload {
   terms: string;
 }
 
-function generateId() {
-  try {
-    // use crypto.randomUUID when available
-    return typeof crypto !== "undefined" &&
-      typeof (crypto as Crypto & { randomUUID?: () => string }).randomUUID ===
-        "function"
-      ? (crypto as Crypto & { randomUUID?: () => string }).randomUUID!()
-      : Math.random().toString(36).slice(2);
-  } catch {
-    return Math.random().toString(36).slice(2);
-  }
-}
-
 export default function SalesDocShell({
   mode,
   onSubmit,
@@ -62,20 +49,25 @@ export default function SalesDocShell({
   );
   const [validUntil, setValidUntil] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>(
-    String(customers[0]?.id ?? "")
+    String(customers[0]?._id ?? "")
   );
   const [remarks, setRemarks] = useState("");
 
   const [items, setItems] = useState<LineItem[]>([
     {
-      id: generateId(),
-      productId: "",
-      productName: "",
+      itemName: "",
       unit: "pcs",
       quantity: 1,
-      rate: 0,
+      salesRate: 0,
       discount: 0,
+      discountAmount: 0,
+      color: "",
+      openingStock: 0,
+      thickness: 0,
       amount: 0,
+      length: 0,
+      totalGrossAmount: 0,
+      totalNetAmount: 0,
     },
   ]);
 
@@ -83,14 +75,17 @@ export default function SalesDocShell({
 
   const totals = useMemo(() => {
     const sub = items.reduce(
-      (s, i) => s + i.quantity * i.rate - (i.discount || 0),
+      (s, i) =>
+        s +
+        Number(i.quantity ?? 0) * Number(i.salesRate ?? 0) -
+        Number(i.discount ?? 0),
       0
     );
     return { sub, total: sub };
   }, [items]);
 
   const selectedCustomer = customers.find(
-    (c) => String(c.id) === String(customerId)
+    (c) => String(c._id) === String(customerId)
   );
 
   function handleSubmit(e: React.FormEvent) {
@@ -104,7 +99,7 @@ export default function SalesDocShell({
       items,
       totals,
       remarks,
-      terms,
+      terms: "", // Remove or set to empty string if not used
     };
     onSubmit?.(payload);
   }
@@ -202,7 +197,7 @@ export default function SalesDocShell({
                 value={String(customerId)}
                 onChange={(v) => setCustomerId(String(v ?? ""))}
                 data={customers.map((c) => ({
-                  value: String(c.id),
+                  value: String(c._id),
                   label: `${c.name} — ${c.city}`,
                 }))}
               />
@@ -240,14 +235,19 @@ export default function SalesDocShell({
                   setItems((prev) => [
                     ...prev,
                     {
-                      id: generateId(),
-                      productId: "",
-                      productName: "",
+                      itemName: "",
                       unit: "pcs",
                       quantity: 1,
-                      rate: 0,
+                      salesRate: 0,
                       discount: 0,
+                      discountAmount: 0,
+                      color: "",
+                      openingStock: 0,
+                      thickness: 0,
                       amount: 0,
+                      length: 0,
+                      totalGrossAmount: 0,
+                      totalNetAmount: 0,
                     },
                   ])
                 }
@@ -296,7 +296,7 @@ export default function SalesDocShell({
             style={{ fontSize: 13, color: "var(--mantine-color-dimmed, #666)" }}
           >
             Date: {new Date(docDate).toLocaleDateString()} • Customer Balance:{" "}
-            {selectedCustomer?.paymentType === "debit" ? "-" : ""}
+            {selectedCustomer?.paymentType === "Debit" ? "-" : ""}
             {Number(selectedCustomer?.openingAmount ?? 0).toLocaleString()}
           </div>
           <div style={{ textAlign: "right" }}>

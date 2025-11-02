@@ -58,6 +58,7 @@ export function ProductForm({ product, onClose }: Props) {
       minimumStockLevel: Number(form.minimumStockLevel) || 0,
       description: form.description.trim() || "",
       quantity: Number(form.openingStock) || 0, // Map openingStock to quantity for backend
+      discount: 0, // Required by InventoryItemPayload
     };
 
     try {
