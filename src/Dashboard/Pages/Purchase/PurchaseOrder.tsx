@@ -167,8 +167,7 @@ export default function PurchaseOrdersPage() {
     const subTotal =
       payload.subTotal ??
       products.reduce((s, it) => s + (it.quantity || 0) * (it.rate || 0), 0);
-    const total = payload.total ?? subTotal;
-    // You may want to call createPurchase({ ...payload, total }) here, if needed.
+    // You may want to call createPurchase({ ...payload, total: payload.total ?? subTotal }) here, if needed.
   }
 
   // (Removed duplicate JSX block before return statement)
