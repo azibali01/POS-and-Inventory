@@ -162,7 +162,7 @@ export default function PurchaseOrdersPage() {
     }
   }, [purchases, loadPurchases]);
 
-  async function handleCreate(payload: POFormPayload) {
+  async function handleCreate() {
     // const products = (payload.products || []) as PurchaseLineItem[]; // removed unused variable
     // You may want to call createPurchase({ ...payload, total: payload.total ?? (payload.subTotal ?? products.reduce((s, it) => s + (it.quantity || 0) * (it.rate || 0), 0)) }) here, if needed.
   }
