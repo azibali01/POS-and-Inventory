@@ -138,6 +138,11 @@ export default function Dashboard() {
       },
     },
     {
+      label: "Stock Summary",
+      path: "/products/stock-summary",
+      icon: <IconReportAnalytics size={18} />,
+    },
+    {
       label: "Customers",
       path: "/sales/customers",
       icon: <IconUsers size={18} />,

@@ -82,13 +82,8 @@ export default function SalesDocShell({
       : new Date().toISOString().slice(0, 10)
   );
 
-  const [customerId, setCustomerId] = useState<string>(
-    initial?.customer != null
-      ? String(initial.customer.name)
-      : customers.length > 0
-      ? String(customers[0]._id)
-      : ""
-  );
+  // Always start with empty customer field when modal opens
+  const [customerId, setCustomerId] = useState<string>("");
   const [remarks, setRemarks] = useState<string>(
     initial && typeof initial.remarks === "string" ? initial.remarks : ""
   );
@@ -97,47 +92,96 @@ export default function SalesDocShell({
       ? initial.terms
       : "Prices valid for 15 days.\nPayment terms: Due on receipt."
   );
-  const [items, setItems] = useState<LineItem[]>(
-    (initial?.items as LineItem[] | undefined)?.map((it) => ({
-      _id:
-        it._id ?? products.find((p) => p.itemName === it.itemName)?._id ?? "",
-      itemName: it.itemName ?? "",
-      invoiceNumber: it._id ?? generateId(),
-      unit: it.unit ?? "",
-      quantity: Number(it.quantity ?? 0),
-      salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
-      discount: it.discount ?? 0,
-      amount:
-        Number(it.quantity ?? 0) * Number(it.salesRate ?? it.salesRate ?? 0),
-      color: it.color ?? "",
-      openingStock: it.openingStock ?? 0,
-      thickness: it.thickness ?? 0,
-      length: it.length ?? 0,
-      totalGrossAmount: it.totalGrossAmount ?? 0,
-      totalNetAmount: it.totalNetAmount ?? 0,
-      discountAmount: it.discountAmount ?? 0,
-    })) ||
-      (initial?.products as LineItem[] | undefined)?.map((it) => ({
-        _id:
-          it._id ?? products.find((p) => p.itemName === it.itemName)?._id ?? "",
-        itemName: it.itemName ?? "",
-        invoiceNumber: it._id ?? generateId(),
-        unit: it.unit ?? "",
-        quantity: Number(it.quantity ?? 0),
-        salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
-        discount: it.discount ?? 0,
-        amount:
-          Number(it.quantity ?? 0) * Number(it.salesRate ?? it.salesRate ?? 0),
-        color: it.color ?? "",
-        openingStock: it.openingStock ?? 0,
-        thickness: it.thickness ?? 0,
-        length: it.length ?? 0,
-        totalGrossAmount: it.totalGrossAmount ?? 0,
-        totalNetAmount: it.totalNetAmount ?? 0,
-        discountAmount: it.discountAmount ?? 0,
-      })) ||
-      []
-  );
+  // Always start with at least one empty item row
+  const [items, setItems] = useState<LineItem[]>([
+    {
+      _id: generateId(),
+      itemName: "",
+      unit: "",
+      quantity: 1,
+      salesRate: 0,
+      discount: 0,
+      amount: 0,
+      color: "",
+      openingStock: 0,
+      thickness: 0,
+      length: 0,
+      totalGrossAmount: 0,
+      totalNetAmount: 0,
+      discountAmount: 0,
+    },
+  ]);
+
+  // Reset customer and items when modal opens (when initial changes)
+  useEffect(() => {
+    setCustomerId("");
+    if (initial?.items && Array.isArray(initial.items) && initial.items.length > 0) {
+      setItems(
+        (initial.items as LineItem[]).map((it) => ({
+          _id:
+            it._id ?? products.find((p) => p.itemName === it.itemName)?._id ?? "",
+          itemName: it.itemName ?? "",
+          invoiceNumber: it._id ?? generateId(),
+          unit: it.unit ?? "",
+          quantity: Number(it.quantity ?? 0),
+          salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
+          discount: it.discount ?? 0,
+          amount:
+            Number(it.quantity ?? 0) * Number(it.salesRate ?? it.salesRate ?? 0),
+          price: it.salesRate ?? 0,
+          color: it.color ?? "",
+          openingStock: it.openingStock ?? 0,
+          thickness: it.thickness ?? 0,
+          length: it.length ?? 0,
+          totalGrossAmount: it.totalGrossAmount ?? 0,
+          totalNetAmount: it.totalNetAmount ?? 0,
+          discountAmount: it.discountAmount ?? 0,
+        }))
+      );
+    } else if (initial?.products && Array.isArray(initial.products) && initial.products.length > 0) {
+      setItems(
+        (initial.products as LineItem[]).map((it) => ({
+          _id:
+            it._id ?? products.find((p) => p.itemName === it.itemName)?._id ?? "",
+          itemName: it.itemName ?? "",
+          invoiceNumber: it._id ?? generateId(),
+          unit: it.unit ?? "",
+          quantity: Number(it.quantity ?? 0),
+          salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
+          discount: it.discount ?? 0,
+          amount:
+            Number(it.quantity ?? 0) * Number(it.salesRate ?? it.salesRate ?? 0),
+          price: it.salesRate ?? 0,
+          color: it.color ?? "",
+          openingStock: it.openingStock ?? 0,
+          thickness: it.thickness ?? 0,
+          length: it.length ?? 0,
+          totalGrossAmount: it.totalGrossAmount ?? 0,
+          totalNetAmount: it.totalNetAmount ?? 0,
+          discountAmount: it.discountAmount ?? 0,
+        }))
+      );
+    } else {
+      setItems([
+        {
+          _id: generateId(),
+          itemName: "",
+          unit: "",
+          quantity: 1,
+          salesRate: 0,
+          discount: 0,
+          amount: 0,
+          color: "",
+          openingStock: 0,
+          thickness: 0,
+          length: 0,
+          totalGrossAmount: 0,
+          totalNetAmount: 0,
+          discountAmount: 0,
+        },
+      ]);
+    }
+  }, [initial, products]);
 
   const status = mode === "Quotation" ? "Draft" : "Confirmed";
 
@@ -176,21 +220,7 @@ export default function SalesDocShell({
     [customers, customerId]
   );
 
-  // If customers are loaded after mount, ensure we pick a sensible default
-  // When customers or initial.customerId changes, ensure customerId is valid
-  useEffect(() => {
-    if (
-      customers.length > 0 &&
-      (customerId === "" ||
-        customerId == null ||
-        !customers.some((c) => String(c._id) === String(customerId)))
-    ) {
-      const newId = String(customers[0]._id);
-      if (customerId !== newId) {
-        setCustomerId(newId);
-      }
-    }
-  }, [customers, customerId, initial?.customer]);
+  // No default customer selection; field remains empty unless user selects
 
   // If initial.docNo changes (e.g., pre-filled by parent), sync it into local state
   useEffect(() => {
@@ -445,6 +475,8 @@ export default function SalesDocShell({
                     value: String(c._id),
                     label: `${c.name} — ${c.city ?? ""}`,
                   }))}
+                  clearable
+
               />
             </div>
             <div>
@@ -452,7 +484,7 @@ export default function SalesDocShell({
                 Customer Details
               </Text>
               {selectedCustomer ? (
-                <Paper
+                <Paper withBorder
                   style={{ padding: 12, boxShadow: "var(--mantine-shadow-xs)" }}
                 >
                   <div style={{ fontWeight: 700 }}>{selectedCustomer.name}</div>

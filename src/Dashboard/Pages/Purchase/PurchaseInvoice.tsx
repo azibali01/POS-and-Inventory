@@ -246,6 +246,46 @@ export default function PurchaseInvoicesPage() {
       remarks: payload.remarks,
     };
     await createPurchaseInvoice(invoicePayload);
+    // Optimistically increment inventory locally for each purchased item
+    try {
+      setInventory((prev: any[] = []) =>
+        (prev || []).map((inv: any) => {
+          const match = (products || []).find((it) => {
+            const key = String(it.id ?? it.productName ?? "");
+            return (
+              key &&
+              (String(inv._id) === key ||
+                String(inv.itemName) === key ||
+                String(inv.itemName) === String(it.productName))
+            );
+          });
+          if (!match) return inv;
+          const qty = Number(match.quantity ?? 0);
+          if (!qty) return inv;
+          const current = Number(
+            inv.openingStock ?? inv.stock ?? inv.quantity ?? 0
+          );
+          const nextQty = current + qty;
+          return {
+            ...inv,
+            openingStock: nextQty,
+            stock: nextQty,
+          };
+        })
+      );
+    } catch (err) {
+      // non-fatal; just log
+      // eslint-disable-next-line no-console
+      console.warn("Failed to optimistically update inventory after purchase invoice:", err);
+    }
+    // Refresh inventory after creating purchase invoice so stock reflects received quantities
+    try {
+      await loadInventory();
+    } catch (err) {
+      // non-fatal; inventory reload failed
+      // eslint-disable-next-line no-console
+      console.warn("Failed to reload inventory after creating purchase invoice:", err);
+    }
     setOpen(false);
     setEditInvoice(null);
     // Refresh the list after creating a purchase invoice

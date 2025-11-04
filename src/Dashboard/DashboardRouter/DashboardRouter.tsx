@@ -23,6 +23,7 @@ import CategoryPage from "../Pages/Products/Category";
 import JournalVouchersPage from "../Pages/Accounts/JournalVoucher";
 import PaymentVouchersPage from "../Pages/Accounts/PaymentVoucher";
 import ReceiptsPage from "../Pages/Accounts/ReceiptVoucher";
+import Stocksummary from "../Pages/Reports/Stocksummary";
 
 const routes: RouteObject[] = [
   {
@@ -45,6 +46,10 @@ const routes: RouteObject[] = [
       {
         path: "products/stock-report",
         element: <StockReportPage />,
+      },
+      {
+        path: "products/stock-summary",
+        element: <Stocksummary />,
       },
       //-------------------Sales-----------------//
       {

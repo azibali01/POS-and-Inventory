@@ -885,6 +885,39 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
           message: "Sale has been recorded successfully",
           color: "green",
         });
+        // Update inventory quantities locally to reflect the sale
+        try {
+          const soldItems: any[] =
+            (payload as any)?.items || (payload as any)?.products ||
+            (created as any)?.items || [];
+          if (Array.isArray(soldItems) && soldItems.length > 0) {
+            setInventory((prev) =>
+              prev.map((inv) => {
+                // Find matching sold item by several possible keys
+                const match = soldItems.find((it: any) => {
+                  const key = String(it._id ?? it.id ?? it.sku ?? it.productId ?? it.itemName ?? "");
+                  return (
+                    key && (String(inv._id) === key || String(inv.itemName) === key || String(inv.itemName) === String(it.productName))
+                  );
+                });
+                if (!match) return inv;
+                const qty = Number(match.quantity ?? 0);
+                if (!qty) return inv;
+                const current = Number(inv.openingStock ?? inv.stock ?? inv.quantity ?? 0);
+                const nextQty = current - qty;
+                return {
+                  ...inv,
+                  openingStock: nextQty,
+                  stock: nextQty,
+                } as typeof inv;
+              })
+            );
+          }
+        } catch (err) {
+          // Non-fatal, just log
+          // eslint-disable-next-line no-console
+          console.warn("Failed to update inventory after sale:", err);
+        }
         return sale;
       } catch (err: unknown) {
         console.error("Create sale failed:", err);
@@ -1042,6 +1075,37 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
           message: "Purchase order has been created",
           color: "green",
         });
+        // Update inventory quantities locally to reflect the purchase
+        try {
+          const purchasedItems: any[] =
+            (payload as any)?.products || (created as any)?.products || [];
+          if (Array.isArray(purchasedItems) && purchasedItems.length > 0) {
+            setInventory((prev) =>
+              prev.map((inv) => {
+                const match = purchasedItems.find((it: any) => {
+                  const key = String(it.inventoryId ?? it.id ?? it._id ?? it.productName ?? it.productId ?? "");
+                  return (
+                    key && (String(inv._id) === key || String(inv.itemName) === key || String(inv.itemName) === String(it.productName))
+                  );
+                });
+                if (!match) return inv;
+                const qty = Number(match.quantity ?? match.received ?? 0);
+                if (!qty) return inv;
+                const current = Number(inv.openingStock ?? inv.stock ?? inv.quantity ?? 0);
+                const nextQty = current + qty;
+                return {
+                  ...inv,
+                  openingStock: nextQty,
+                  stock: nextQty,
+                } as typeof inv;
+              })
+            );
+          }
+        } catch (err) {
+          // Non-fatal; log for debugging
+          // eslint-disable-next-line no-console
+          console.warn("Failed to update inventory after purchase:", err);
+        }
         return purchase;
       } catch (err: unknown) {
         console.error("Create purchase failed:", err);

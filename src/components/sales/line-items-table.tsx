@@ -78,7 +78,7 @@ export function LineItemsTable({
                     value={String(it._id || "")}
                     data={products.map((p) => ({
                       value: String(p._id),
-                      label: p.itemName || String(p._id),
+                      label: `${p.itemName} (Thickness: ${p.thickness ?? '-'}, Color: ${p.color ?? '-'})`,
                     }))}
                     onChange={(val: string | null) => {
                       const prod = products.find(
@@ -93,7 +93,6 @@ export function LineItemsTable({
                           color: prod.color ?? "",
                           thickness: Number(prod.thickness ?? 0),
                           openingStock: prod.openingStock ?? 0,
-                          // length: prod.length ?? 0, // Remove if not in InventoryItem
                           amount: 0,
                           totalGrossAmount: 0,
                           totalNetAmount: 0,
@@ -105,6 +104,9 @@ export function LineItemsTable({
                         });
                       }
                     }}
+                    searchable
+                    clearable
+                    nothingFound="No products found"
                   />
                 ) : (
                   <TextInput
@@ -114,6 +116,7 @@ export function LineItemsTable({
                         itemName: e.currentTarget.value,
                       })
                     }
+                    placeholder="Product Name (Thickness, Color)"
                   />
                 )}
               </Table.Td>

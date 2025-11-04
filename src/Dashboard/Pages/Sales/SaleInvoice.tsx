@@ -301,7 +301,7 @@ export default function SaleInvoice() {
           opened={open && !initialPayload}
           onClose={() => setOpen(false)}
           title="Create Sale Invoice"
-          size="80%"
+          size="100%"
         >
           <ScrollArea style={{ height: "70vh", width: "100%" }}>
             <SalesDocShell
@@ -541,7 +541,7 @@ export default function SaleInvoice() {
           setEditingId(null);
         }}
         title={`Edit Invoice: ${editPayload?.docNo || editingId}`}
-        size="80%"
+        size="100%"
       >
         <ScrollArea>
           {editPayload && (
@@ -565,7 +565,7 @@ export default function SaleInvoice() {
         opened={importOpen}
         onClose={() => setImportOpen(false)}
         title="Import from Quotation"
-        size="80%"
+        size="100%"
       >
         <ScrollArea>
           <div style={{ padding: 12 }}>

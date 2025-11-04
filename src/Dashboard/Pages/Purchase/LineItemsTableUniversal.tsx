@@ -1,10 +1,11 @@
+
 import { useMemo } from "react";
-import { Button, NumberInput, TextInput, Select } from "@mantine/core";
+import { Button, NumberInput, TextInput, Select, Group } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { Trash2 } from "lucide-react";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency } from "../../../lib/format-utils";
-
+  import { useEffect } from "react";
 export interface LineItemsTableUniversalProps {
   items: PurchaseLineItem[];
   setItems: (items: PurchaseLineItem[]) => void;
@@ -49,6 +50,14 @@ export function LineItemsTableUniversal({
       })),
     [inventory]
   );
+
+  // Ensure at least one row is present on mount
+  useEffect(() => {
+    if (items.length === 0) {
+      addRow();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function addRow() {
     const p = products[0] ?? {
@@ -107,22 +116,24 @@ export function LineItemsTableUniversal({
 
   return (
     <div>
-      <div
-        style={{
-          overflowX: "auto",
-          border: "1px solid rgba(0,0,0,0.06)",
-          borderRadius: 6,
-        }}
-      >
+      <div>
+        <Group justify="flex-end">
+          <Button variant="outline" onClick={addRow} size="xs">
+            + {addRowLabel}
+          </Button>
+        </Group>
         <Table
           striped
           highlightOnHover
           verticalSpacing="sm"
           style={{ width: "100%" }}
+          withColumnBorders
+          withTableBorder
+          withRowBorders
         >
           <Table.Thead>
             <Table.Tr>
-              <Table.Th style={{ textAlign: "left", padding: 8 }}>
+              <Table.Th style={{ textAlign: "left", padding: 8, width: 180 }}>
                 Item
               </Table.Th>
               <Table.Th style={{ textAlign: "left", padding: 8, width: 120 }}>
@@ -134,20 +145,20 @@ export function LineItemsTableUniversal({
               <Table.Th style={{ textAlign: "left", padding: 8, width: 100 }}>
                 Length
               </Table.Th>
-              <Table.Th style={{ textAlign: "right", padding: 8, width: 80 }}>
+              <Table.Th style={{ textAlign: "left", padding: 8, width: 80 }}>
                 Qty
               </Table.Th>
-              <Table.Th style={{ textAlign: "right", padding: 8, width: 120 }}>
+              <Table.Th style={{ textAlign: "left", padding: 8, width: 120 }}>
                 Rate
               </Table.Th>
               {showAmountCol && (
                 <Table.Th
-                  style={{ textAlign: "right", padding: 8, width: 120 }}
+                  style={{ textAlign: "left", padding: 8, width: 120 }}
                 >
                   Amount
                 </Table.Th>
               )}
-              <Table.Th style={{ textAlign: "right", padding: 8, width: 80 }}>
+              <Table.Th style={{ textAlign: "left", padding: 8, width: 80 }}>
                 Action
               </Table.Th>
             </Table.Tr>
@@ -158,9 +169,11 @@ export function LineItemsTableUniversal({
                 <Table.Td style={{ padding: 8 }}>
                   <Select
                     searchable
+                    clearable
+                    nothingFound="No products found"
                     data={products.map((p) => ({
                       value: String(p.id),
-                      label: `${p.name || "Unnamed"} — ${p.id}`,
+                      label: `${p.name} (Thickness: ${p.thickness ?? '-'}, Color: ${p.color ?? '-'})`,
                     }))}
                     value={
                       products.find((p) => p.name === row.productName)?.id || ""
@@ -178,6 +191,14 @@ export function LineItemsTableUniversal({
                             ? String(p.thickness)
                             : undefined,
                           length: p.length ?? undefined,
+                        });
+                      } else {
+                        updateRow(row.id, {
+                          productName: "",
+                          rate: 0,
+                          color: undefined,
+                          thickness: undefined,
+                          length: undefined,
                         });
                       }
                     }}
@@ -239,13 +260,13 @@ export function LineItemsTableUniversal({
                   />
                 </Table.Td>
                 {showAmountCol && (
-                  <Table.Td style={{ padding: 8, textAlign: "right" }}>
+                  <Table.Td style={{ padding: 8, textAlign: "left" }}>
                     {formatCurrency(row.amount ?? 0)}
                   </Table.Td>
                 )}
-                <Table.Td style={{ padding: 8, textAlign: "right" }}>
+                <Table.Td style={{ padding: 8, textAlign: "left" }}>
                   <Button variant="subtle" onClick={() => removeRow(row.id)}>
-                    <Trash2 size={14} />
+                    <Trash2 size={16} />
                   </Button>
                 </Table.Td>
               </Table.Tr>
@@ -253,17 +274,7 @@ export function LineItemsTableUniversal({
           </Table.Tbody>
         </Table>
       </div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginTop: 12,
-        }}
-      >
-        <Button variant="outline" onClick={addRow}>
-          + {addRowLabel}
-        </Button>
-      </div>
+      
     </div>
   );
 }
