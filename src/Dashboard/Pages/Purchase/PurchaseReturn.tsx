@@ -25,9 +25,12 @@ import {
 import { LineItemsTableUniversal } from "./LineItemsTableUniversal";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
-import { IconDots } from "@tabler/icons-react";
+import { IconDots, IconEdit, IconPlus, IconPrinter, IconTrash } from "@tabler/icons-react";
+import { Search } from "lucide-react";
 
 export default function PurchaseReturnPage() {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   // State for editing
   const [editReturn, setEditReturn] = useState<PurchaseReturnRecord | null>(
     null
@@ -44,6 +47,8 @@ export default function PurchaseReturnPage() {
   // Fetch purchase return invoices from backend on mount
   useEffect(() => {
     (async () => {
+      setLoading(true);
+      setError(null);
       try {
         const api = await import("../../../lib/api");
         const returns = await api.getPurchaseReturns();
@@ -51,9 +56,9 @@ export default function PurchaseReturnPage() {
           Array.isArray(returns)
             ? returns.map((r: any) => ({
                 ...r,
-                id: String(r.id ?? r.returnNumber ?? `pret-${Date.now()}`),
-                returnNumber: r.returnNumber ?? r.id ?? "",
-                returnDate: r.returnDate ?? r.date ?? "",
+                id: typeof r.id === "string" ? r.id : String(r.id ?? r.returnNumber ?? `pret-${Date.now()}`),
+                returnNumber: typeof r.returnNumber === "string" ? r.returnNumber : String(r.returnNumber ?? r.id ?? ""),
+                returnDate: r.returnDate ?? (r as any).date ?? "",
                 subtotal: r.subtotal ?? r.total ?? 0,
                 total: r.total ?? r.subtotal ?? 0,
                 supplier: r.supplier ?? "",
@@ -64,12 +69,17 @@ export default function PurchaseReturnPage() {
               }))
             : []
         );
+  // Error/loading state for API calls
+  // loading and error state used only for fetch, not needed elsewhere
       } catch (err) {
+        setError("Failed to fetch purchase returns: " + String(err));
         showNotification({
           title: "Failed to fetch purchase returns",
           message: String(err),
           color: "red",
         });
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);
@@ -166,101 +176,105 @@ export default function PurchaseReturnPage() {
       >
         <div>
           <Title order={2}>Purchase Returns</Title>
-          <Text color="dimmed">Record product returns to suppliers</Text>
+          <Text c="dimmed">Record product returns to suppliers</Text>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <TextInput
             placeholder="Search returns..."
             value={q}
             onChange={(e) => setQ(e.currentTarget.value)}
-            style={{ width: 260 }}
+            style={{ width: 300 }}
+            leftSection={<Search size={16} />}
           />
-          <Button onClick={() => setOpen(true)}>New Return</Button>
+          <Button onClick={() => setOpen(true)} leftSection={<IconPlus size={16} />}>
+            New Return
+          </Button>
         </div>
       </div>
       <Card>
         <div style={{ padding: 12 }}>
           <Title order={4}>Recent Returns</Title>
           <Text color="dimmed">Last {data.length} purchase returns</Text>
+          {loading && (
+            <Text color="blue" role="status" aria-live="polite" style={{ marginTop: 8 }}>
+              Loading purchase returns...
+            </Text>
+          )}
+          {error && (
+            <Text color="red" role="alert" aria-live="assertive" style={{ marginTop: 8 }}>
+              {error}
+            </Text>
+          )}
           <div style={{ marginTop: 12, overflowX: "auto" }}>
             <Table
               withColumnBorders
               withRowBorders
               withTableBorder
               highlightOnHover
-              bg={"gray.1"}
+             
+              aria-label="Purchase Returns Table"
             >
-              <thead>
+              <thead style={{backgroundColor: "#F1F3F5"}}>
                 <tr>
-                  <th>Return#</th>
-                  <th>Date</th>
-                  <th>Supplier</th>
-                  <th style={{ textAlign: "right" }}>Amount</th>
-                  <th style={{ textAlign: "right" }}>Action</th>
+                  <th scope="col">Return#</th>
+                  <th scope="col">Date</th>
+                  <th scope="col">Supplier</th>
+                  <th scope="col" style={{ textAlign: "left" }}>Amount</th>
+                  <th scope="col" style={{ textAlign: "left" }}>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => (
-                  <tr key={r.id}>
-                    <td style={{ fontFamily: "monospace" }}>
-                      {r.returnNumber}
+                {filtered.length === 0 && !loading && !error && (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: "center", color: "#888" }}>
+                      No purchase returns found.
                     </td>
+                  </tr>
+                )}
+                {filtered.map((r) => (
+                  <tr key={r.id} tabIndex={0} aria-label={`Return ${r.returnNumber} for ${r.supplier}`}>
+                    <td style={{ fontFamily: "monospace" }}>{r.returnNumber}</td>
                     <td>{formatDate(r.date)}</td>
                     <td>{r.supplier}</td>
-                    <td style={{ textAlign: "right" }}>
-                      {formatCurrency(r.total)}
-                    </td>
-                    <td style={{ textAlign: "right" }}>
-                      <Menu width={200} position="bottom-end" withArrow>
+                    <td style={{ textAlign: "left" }}>{formatCurrency(r.total)}</td>
+                    <td style={{ textAlign: "left" }}>
+                      <Menu width={200} position="bottom-end" withArrow >
                         <Menu.Target>
-                          <ActionIcon>
-                            <IconDots />
+                          <ActionIcon aria-label={`Actions for return ${r.returnNumber}`} tabIndex={0}>
+                            <IconDots  />
                           </ActionIcon>
                         </Menu.Target>
                         <Menu.Dropdown>
                           <Menu.Item
                             onClick={() => {
                               const full = (
-                                fetchedReturns ??
-                                purchaseReturns ??
-                                []
-                              ).find((x) => x.id === r.id) as
-                                | PurchaseReturnRecord
-                                | undefined;
+                                fetchedReturns ?? purchaseReturns ?? []
+                              ).find((x) => x.id === r.id) as PurchaseReturnRecord | undefined;
                               if (full) setEditReturn(full);
                             }}
+                            aria-label={`Edit return ${r.returnNumber}`}
+                            leftSection={<IconEdit size={16} />}
                           >
                             Edit
                           </Menu.Item>
                           <Menu.Item
                             onClick={() => {
                               const full = (
-                                fetchedReturns ??
-                                purchaseReturns ??
-                                []
-                              ).find((x) => x.id === r.id) as
-                                | PurchaseReturnRecord
-                                | undefined;
+                                fetchedReturns ?? purchaseReturns ?? []
+                              ).find((x) => x.id === r.id) as PurchaseReturnRecord | undefined;
                               const items = (full?.items || [])
-                                .filter(
-                                  (it) =>
-                                    typeof it.itemName === "string" &&
-                                    it.itemName.trim() !== ""
-                                )
+                                .filter((it) => typeof it.itemName === "string" && it.itemName.trim() !== "")
                                 .map((it, idx) => ({
                                   sr: idx + 1,
                                   section: String(it.itemName),
                                   quantity: it.quantity,
                                   rate: it.salesRate || 0,
-                                  amount:
-                                    (it.quantity || 0) * (it.salesRate || 0),
+                                  amount: (it.quantity || 0) * (it.salesRate || 0),
                                 }));
                               const payload: InvoiceData = {
                                 title: "Purchase Return",
                                 companyName: "Seven Star Traders",
-                                addressLines: [
-                                  "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
-                                ],
+                                addressLines: ["Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan"],
                                 invoiceNo: r.returnNumber,
                                 date: String(r.date),
                                 customer: r.supplier,
@@ -273,6 +287,8 @@ export default function PurchaseReturnPage() {
                               };
                               openPrintWindow(payload);
                             }}
+                            aria-label={`Print return ${r.returnNumber}`}
+                            leftSection={<IconPrinter size={16} />}
                           >
                             Print
                           </Menu.Item>
@@ -284,28 +300,14 @@ export default function PurchaseReturnPage() {
                                 returnNumber: r.returnNumber,
                               });
                             }}
+                            aria-label={`Delete return ${r.returnNumber}`}
+                            leftSection={<IconTrash size={16} />}
                           >
                             Delete
                           </Menu.Item>
                         </Menu.Dropdown>
                       </Menu>
-                      {/* NOTE: delete modal removed from here and placed below (one shared modal) */}
                     </td>
-                    {/* Edit Modal (optional, for future: you can implement editing logic here) */}
-
-                    <Modal
-                      opened={!!editReturn}
-                      onClose={() => setEditReturn(null)}
-                      size="80%"
-                    >
-                      <ReturnForm
-                        purchases={purchases}
-                        suppliers={customers}
-                        onClose={() => setEditReturn(null)}
-                        onSave={handleEditSave}
-                        // Pass initial values for editing
-                      />
-                    </Modal>
                   </tr>
                 ))}
               </tbody>
@@ -432,6 +434,9 @@ function ReturnForm({
     colors = [],
     purchaseReturns = [],
   } = useDataContext();
+
+  // Local loading and error state for async actions in ReturnForm
+  // Local loading and error state for async actions in ReturnForm (not used for rendering)
 
   // Helper to get next return number in PRET-0001, PRET-0002... format
   function getNextReturnNumber(): string {
@@ -710,7 +715,6 @@ function ReturnForm({
 
   function handleConfirmSave() {
     if (!confirmPayload) return;
-    // attempt to persist to backend, then process locally
     (async () => {
       try {
         const api = await import("../../../lib/api");
@@ -723,9 +727,9 @@ function ReturnForm({
           supplierId: confirmPayload.supplierId,
           linkedPoId: confirmPayload.linkedPoId,
           items: (confirmPayload.items || []).map((it: any) => ({
-            itemName: it.itemName ?? "",
+            itemName: it.productName ?? it.itemName ?? "",
             quantity: it.quantity ?? 0,
-            salesRate: it.salesRate ?? 0,
+            salesRate: it.rate ?? it.salesRate ?? 0,
             color: it.color,
             thickness:
               typeof it.thickness === "string"
@@ -746,7 +750,7 @@ function ReturnForm({
       } finally {
         onSave(confirmPayload);
         setConfirmOpen(false);
-        if (setOpen) setOpen(false); // Ensure create modal closes after confirm
+        if (setOpen) setOpen(false);
       }
     })();
   }
@@ -754,157 +758,80 @@ function ReturnForm({
   return (
     <div>
       <Title order={3}>New Purchase Return</Title>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: 12,
-          marginTop: 12,
-        }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 12 }}>
         <div>
-          <label>Return Number</label>
-          <TextInput
-            value={returnNumber}
-            onChange={(e) => setReturnNumber(e.currentTarget.value)}
-          />
+          <label htmlFor="returnNumber">Return Number</label>
+          <TextInput id="returnNumber" value={returnNumber} onChange={e => setReturnNumber(e.currentTarget.value)} aria-label="Return Number" />
         </div>
         <div>
-          <label>Return Date</label>
-          <TextInput
-            type="date"
-            value={returnDate}
-            onChange={(e) => setReturnDate(e.currentTarget.value)}
-          />
+          <label htmlFor="returnDate">Return Date</label>
+          <TextInput id="returnDate" type="date" value={returnDate} onChange={e => setReturnDate(e.currentTarget.value)} aria-label="Return Date" />
         </div>
         <div>
-          <label>Link Purchase Order (optional)</label>
+          <label htmlFor="linkedPoId">Link Purchase Order (optional)</label>
           {poOptions.length > 0 ? (
             <Select
+              id="linkedPoId"
               data={poOptions}
               value={linkedPoId}
-              onChange={(v) => {
-                if (typeof v === "string") {
-                  setLinkedPoId(v);
-                }
-              }}
+              onChange={v => typeof v === "string" && setLinkedPoId(v)}
               clearable
               placeholder="(Optional) Link to PO"
+              aria-label="Link Purchase Order"
             />
           ) : (
-            <Text color="dimmed" size="sm">
-              No purchase orders available
-            </Text>
+            <Text color="dimmed" size="sm">No purchase orders available</Text>
           )}
         </div>
       </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 12,
-          marginTop: 12,
-        }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
         <div>
-          <label>Supplier</label>
+          <label htmlFor="supplierId">Supplier</label>
           {supplierOptions.length > 0 ? (
             <Select
+              id="supplierId"
               data={supplierOptions}
               value={supplierId}
-              onChange={(v) => {
-                if (typeof v === "string") setSupplierId(v);
-              }}
+              onChange={v => typeof v === "string" && setSupplierId(v)}
               allowDeselect={false}
               clearable={false}
+              aria-label="Supplier"
             />
           ) : (
-            <Text color="dimmed" size="sm">
-              No suppliers available
-            </Text>
+            <Text color="dimmed" size="sm">No suppliers available</Text>
           )}
         </div>
         <div>
-          <label>Reason</label>
-          <Textarea
-            value={reason}
-            onChange={(e) => setReason(e.currentTarget.value)}
-            minRows={3}
-          />
+          <label htmlFor="reason">Reason</label>
+          <Textarea id="reason" value={reason} onChange={e => setReason(e.currentTarget.value)} minRows={3} aria-label="Return Reason" />
         </div>
       </div>
-
       <div style={{ marginTop: 12 }}>
         <LineItemsTableUniversal
           items={items}
           setItems={setItems}
-          inventory={
-            inventory as {
-              id?: string;
-              _id?: string;
-              itemName?: string;
-              name?: string;
-              unit?: string;
-              salesRate?: number;
-              color?: string;
-              thickness?: string;
-              length?: string | number;
-            }[]
-          }
+          inventory={inventory as any}
           colors={colors}
           addRowLabel="Add Return Item"
         />
       </div>
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginTop: 12,
-        }}
-      >
-        <div style={{ color: "#666" }}>
-          Subtotal: {formatCurrency(totals.sub)}
-        </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+        <div style={{ color: "#666" }}>Subtotal: {formatCurrency(totals.sub)}</div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>
-            {formatCurrency(totals.total)}
-          </div>
+          <div style={{ fontSize: 18, fontWeight: 600 }}>{formatCurrency(totals.total)}</div>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <Button variant="outline" onClick={() => onClose()}>
-              Cancel
-            </Button>
-            <Button variant="default" onClick={handlePrintDraft}>
-              Print Draft
-            </Button>
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button variant="default" onClick={handlePrintDraft}>Print Draft</Button>
             <Button onClick={handleSave}>Save Return</Button>
           </div>
         </div>
       </div>
-      <Modal
-        opened={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        size="sm"
-      >
+      <Modal opened={confirmOpen} onClose={() => setConfirmOpen(false)} size="sm">
         <div style={{ padding: 12 }}>
           <Title order={4}>Confirm Return</Title>
-          <Text color="dimmed">
-            This will apply the return to inventory and create a supplier
-            credit. Proceed?
-          </Text>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 8,
-              marginTop: 12,
-            }}
-          >
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-              Cancel
-            </Button>
+          <Text color="dimmed">This will apply the return to inventory and create a supplier credit. Proceed?</Text>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
             <Button onClick={handleConfirmSave}>Confirm</Button>
           </div>
         </div>

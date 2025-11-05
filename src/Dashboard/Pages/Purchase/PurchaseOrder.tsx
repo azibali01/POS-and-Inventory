@@ -7,6 +7,7 @@ import {
   ActionIcon,
   Group,
   Text,
+  Title,
 } from "@mantine/core";
 import openPrintWindow from "../../../components/print/printWindow";
 import type { InvoiceData } from "../../../components/print/printTemplate";
@@ -17,6 +18,8 @@ import { deletePurchaseByNumber } from "../../../lib/api";
 import type { PurchaseLineItem } from "./types";
 import { PurchaseOrderForm as GeneratedPOForm } from "./PurchaseOrderForm.generated";
 import { useDataContext } from "../../Context/DataContext";
+import { Search } from "lucide-react";
+import { IconEdit, IconPlus, IconPrinter, IconTrash } from "@tabler/icons-react";
 
 type PO = {
   id: string;
@@ -196,29 +199,35 @@ export default function PurchaseOrdersPage() {
         />
       </Modal>
       <div style={{ marginTop: 16 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-          }}
-        >
+       <Group justify="space-between">
+       
+          <Title order={2}>Purchase Orders</Title>
+          <Group>
           <TextInput
             placeholder="Search PO number or supplier"
             value={q}
             onChange={(e) => setQ(e.currentTarget.value)}
             style={{ width: 300 }}
+            leftSection={<Search size={16} />}
           />
-          <Button onClick={() => setOpen(true)}>Create PO</Button>
-        </div>
+          
+          
+          <Button onClick={() => setOpen(true)}
+            leftSection={<IconPlus size={16} />}
+          >
+            Create PO
+          </Button>
+          </Group>
+        </Group>
       </div>
-      <Table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <Table.Thead>
+      <Table withColumnBorders withRowBorders striped highlightOnHover withTableBorder mt="md">
+        <Table.Thead style={{backgroundColor: "#F1F3F5"}}>
           <Table.Tr>
             <Table.Th>PO Number</Table.Th>
             <Table.Th>Date</Table.Th>
             <Table.Th>Supplier</Table.Th>
-            <Table.Th style={{ textAlign: "right" }}>Total</Table.Th>
-            <Table.Th style={{ textAlign: "right" }}>Action</Table.Th>
+            <Table.Th style={{ textAlign: "left" }}>Total</Table.Th>
+            <Table.Th style={{ textAlign: "left" }}>Action</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -234,19 +243,19 @@ export default function PurchaseOrdersPage() {
               );
             })
             .map((o) => (
-              <Table.Tr key={o.id}>
+              <Table.Tr key={o.id} tabIndex={0} aria-label={`PO ${o.poNumber} for ${o.supplier?.name || ''}`}> 
                 <Table.Td style={{ fontFamily: "monospace" }}>
                   {o.poNumber}
                 </Table.Td>
                 <Table.Td>{formatDate(o.poDate)}</Table.Td>
                 <Table.Td>{o.supplier?.name || ""}</Table.Td>
-                <Table.Td style={{ textAlign: "right" }}>
+                <Table.Td style={{ textAlign: "left" }}>
                   {formatCurrency(o.total)}
                 </Table.Td>
                 <Table.Td>
-                  <Menu position="bottom-end" withArrow>
+                  <Menu withArrow width={200} position="bottom-end">
                     <Menu.Target>
-                      <ActionIcon variant="subtle" color="gray">
+                      <ActionIcon variant="subtle" color="gray" aria-label={`Actions for PO ${o.poNumber}`} tabIndex={0}>
                         <span style={{ fontWeight: 600, fontSize: 18 }}>⋮</span>
                       </ActionIcon>
                     </Menu.Target>
@@ -256,6 +265,7 @@ export default function PurchaseOrdersPage() {
                           setEditPO(o);
                           setOpen(true);
                         }}
+                        leftSection={<IconEdit size={16} />}
                       >
                         Edit
                       </Menu.Item>
@@ -272,12 +282,10 @@ export default function PurchaseOrdersPage() {
                             customer: o.supplier?.name || "",
                             items: (o.products || []).map((it, idx) => ({
                               sr: idx + 1,
-                              section: it.productName,
+                              section: `${it.productName}${it.thickness || it.color ? ` (Thickness: ${it.thickness ?? '-'}, Color: ${it.color ?? '-'})` : ''}`,
                               quantity: it.quantity,
                               rate: Number(it.rate ?? 0),
-                              amount: Number(
-                                it.amount ?? (it.quantity || 0) * (it.rate || 0)
-                              ),
+                              amount: Number(it.amount ?? (it.quantity || 0) * (it.rate || 0)),
                             })),
                             totals: {
                               subtotal: o.subTotal ?? o.total,
@@ -286,10 +294,11 @@ export default function PurchaseOrdersPage() {
                           };
                           openPrintWindow(d);
                         }}
+                        leftSection={<IconPrinter size={16} />}
                       >
-                        Download PDF
+                        Print
                       </Menu.Item>
-                      <Menu.Item color="red" onClick={() => setDeletePO(o)}>
+                      <Menu.Item color="red" onClick={() => setDeletePO(o)} leftSection={<IconTrash size={16} />}>
                         Delete
                       </Menu.Item>
                     </Menu.Dropdown>
@@ -315,6 +324,8 @@ export default function PurchaseOrdersPage() {
             variant="default"
             onClick={() => setDeletePO(null)}
             disabled={deleteLoading}
+            style={{ color: '#222', backgroundColor: '#f3f3f3', border: '1px solid #ccc' }}
+            aria-label="Cancel Delete PO"
           >
             Cancel
           </Button>

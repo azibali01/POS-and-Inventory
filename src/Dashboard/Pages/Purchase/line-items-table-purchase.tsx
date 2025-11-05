@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo } from "react";
-import { Button, NumberInput, TextInput, Select } from "@mantine/core";
+import { Button, NumberInput } from "@mantine/core";
 import SafeSelect from "../../../lib/SafeSelect";
 import Table from "../../../lib/AppTable";
 import { Plus, Trash2 } from "lucide-react";
-import { useDataContext } from "../../Context/DataContext";
+import { useDataContext, type InventoryItem } from "../../Context/DataContext";
 import { formatCurrency } from "../../../lib/format-utils";
 import type { PurchaseLineItem } from "./types";
 
@@ -15,14 +15,19 @@ export function PurchaseLineItemsTable({
   items: PurchaseLineItem[];
   onChange: (next: PurchaseLineItem[]) => void;
 }) {
-  const { inventory, colors } = useDataContext();
+  const { inventory } = useDataContext();
+  // Error/loading states
+  const loading = !inventory || inventory.length === 0;
+  const error = !Array.isArray(inventory);
 
-  const products = inventory.map((p) => ({
-    id: String((p as any)._id ?? (p as any).id ?? ""),
-    name: (p as any).itemName ?? (p as any).name ?? "",
-    unit: p.unit,
-    salesRate: p.salesRate || 0,
-  }));
+  const products = Array.isArray(inventory)
+    ? inventory.map((p: InventoryItem) => ({
+        id: String(p._id ?? ""),
+        name: p.itemName ?? "",
+        unit: p.unit,
+        salesRate: p.salesRate || 0,
+      }))
+    : [];
 
   const totals = useMemo(() => {
     const sub = items.reduce((sum, i) => sum + (i.grossAmount || 0), 0);
@@ -91,14 +96,22 @@ export function PurchaseLineItemsTable({
     );
   }
 
+  if (error) {
+    return <div role="alert" aria-live="assertive" style={{ color: 'red', padding: 12 }}>Error loading inventory data.</div>;
+  }
+  if (loading) {
+    return <div role="status" aria-live="polite" style={{ color: '#1976d2', padding: 12 }}>Loading inventory...</div>;
+  }
   return (
     <div>
       <div
         style={{
           overflowX: "auto",
-          border: "1px solid rgba(0,0,0,0.06)",
+          border: "1px solid #1976d2",
           borderRadius: 6,
         }}
+        tabIndex={0}
+        aria-label="Purchase Line Items Table"
       >
         <Table
           striped
@@ -120,7 +133,6 @@ export function PurchaseLineItemsTable({
               <Table.Th style={{ textAlign: "left", padding: 8, width: 100 }}>
                 Length
               </Table.Th>
-
               <Table.Th style={{ textAlign: "right", padding: 8, width: 80 }}>
                 Qty
               </Table.Th>
@@ -165,47 +177,20 @@ export function PurchaseLineItemsTable({
                         (x) => String(x.id) === String(productId)
                       );
                       const prod = inventory.find(
-                        (inv) =>
-                          String((inv as any)._id ?? (inv as any).id ?? "") ===
-                          String(productId)
+                        (inv: InventoryItem) => String(inv._id ?? "") === String(productId)
                       );
                       if (prod) {
-                        // Use salesRate from the current inventory interface
-                        const mappedRate = Number(prod.salesRate ?? 0);
-                        // no price source concept anymore
-                        const ext = prod as unknown as {
-                          thickness?: string | number;
-                          weight?: string | number;
-                          msl?: string | number;
-                          length?: string | number;
-                          color?: string;
-                          colorId?: string;
-                        };
-
                         updateRow(row.id, {
-                          productId: String(
-                            (prod as any)._id ?? (prod as any).id ?? ""
-                          ),
-                          productName:
-                            (prod as any).itemName ?? (prod as any).name ?? "",
+                          productId: String(prod._id ?? ""),
+                          productName: prod.itemName ?? "",
                           code: undefined,
                           unit: prod.unit || "pcs",
-                          rate: mappedRate,
-
+                          rate: Number(prod.salesRate ?? 0),
                           color: prod.color ?? undefined,
-                          thickness:
-                            ext.thickness ?? ext.weight ?? ext.msl ?? ext.length
-                              ? String(
-                                  ext.thickness ??
-                                    ext.weight ??
-                                    ext.msl ??
-                                    ext.length
-                                )
-                              : undefined,
-                          length: ext.length ?? undefined,
+                          thickness: prod.thickness ? String(prod.thickness) : undefined,
+                          length: undefined,
                         });
                       } else {
-                        // fallback when product not found in inventory
                         updateRow(row.id, {
                           productId: String(productId || ""),
                           productName: p?.name || "",
@@ -214,59 +199,12 @@ export function PurchaseLineItemsTable({
                         });
                       }
                     }}
-                  />
-                </Table.Td>
-                <Table.Td style={{ padding: 8 }}>
-                  <Select
-                    placeholder="Color"
-                    data={colors.map((c) => ({ value: c.name, label: c.name }))}
-                    value={row.color}
-                    onChange={(v: string | null) =>
-                      updateRow(row.id, {
-                        color: v ?? undefined,
-                      })
-                    }
-                  />
-                </Table.Td>
-                <Table.Td style={{ padding: 8 }}>
-                  <TextInput
-                    value={row.thickness}
-                    onChange={(e) =>
-                      updateRow(row.id, { thickness: e.target.value })
-                    }
-                    placeholder="Thickness"
-                  />
-                </Table.Td>
-                <Table.Td style={{ padding: 8 }}>
-                  <TextInput
-                    value={String(row.length ?? "")}
-                    onChange={(e) =>
-                      updateRow(row.id, { length: e.target.value })
-                    }
-                    placeholder="Length"
-                  />
-                </Table.Td>
-
-                <Table.Td style={{ padding: 8, textAlign: "right" }}>
-                  <NumberInput
-                    value={row.quantity}
-                    onChange={(v) =>
-                      updateRow(row.id, { quantity: Number(v || 0) })
-                    }
                     min={0}
+                    aria-label={`Select product for row ${row.id}`}
                   />
                 </Table.Td>
                 <Table.Td style={{ padding: 8 }}>
-                  <NumberInput
-                    value={row.rate}
-                    onChange={(v) =>
-                      updateRow(row.id, { rate: Number(v || 0) })
-                    }
-                    min={0}
-                  />
-                </Table.Td>
-                <Table.Td style={{ padding: 8 }}>
-                  <NumberInput value={row.grossAmount} readOnly />
+                  <NumberInput value={row.grossAmount} readOnly aria-label={`Gross amount for row ${row.id}`} />
                 </Table.Td>
                 <Table.Td style={{ padding: 8 }}>
                   <NumberInput
@@ -276,6 +214,7 @@ export function PurchaseLineItemsTable({
                     }
                     min={0}
                     max={100}
+                    aria-label={`Discount percent for row ${row.id}`}
                   />
                 </Table.Td>
                 <Table.Td style={{ padding: 8 }}>
@@ -285,16 +224,17 @@ export function PurchaseLineItemsTable({
                       updateRow(row.id, { discountAmount: Number(v || 0) })
                     }
                     min={0}
+                    aria-label={`Discount amount for row ${row.id}`}
                   />
                 </Table.Td>
                 <Table.Td style={{ padding: 8 }}>
-                  <NumberInput value={row.netAmount} readOnly />
+                  <NumberInput value={row.netAmount} readOnly aria-label={`Net amount for row ${row.id}`} />
                 </Table.Td>
                 <Table.Td style={{ padding: 8, textAlign: "right" }}>
                   {formatCurrency(row.amount ?? row.netAmount ?? 0)}
                 </Table.Td>
                 <Table.Td style={{ padding: 8, textAlign: "right" }}>
-                  <Button variant="subtle" onClick={() => removeRow(row.id)}>
+                  <Button variant="subtle" onClick={() => removeRow(row.id)} aria-label={`Remove row ${row.id}`}>
                     <Trash2 size={14} />
                   </Button>
                 </Table.Td>
@@ -303,7 +243,6 @@ export function PurchaseLineItemsTable({
           </Table.Tbody>
         </Table>
       </div>
-
       <div
         style={{
           display: "flex",
@@ -312,22 +251,22 @@ export function PurchaseLineItemsTable({
           marginTop: 12,
         }}
       >
-        <Button variant="outline" onClick={addRow}>
+        <Button variant="outline" onClick={addRow} aria-label="Add Item" style={{ backgroundColor: '#1976d2', color: '#fff' }}>
           <Plus size={14} style={{ marginRight: 8 }} />
           Add Item
         </Button>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 12, color: "#666" }}>Subtotal</div>
+          <div style={{ fontSize: 12, color: "#1976d2" }}>Subtotal</div>
           <div style={{ fontSize: 14 }}>{formatCurrency(totals.sub)}</div>
-          <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>
+          <div style={{ fontSize: 12, color: "#1976d2", marginTop: 6 }}>
             Discount
           </div>
           <div style={{ fontSize: 14 }}>
             {formatCurrency(totals.totalDiscount)}
           </div>
-          <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Net</div>
+          <div style={{ fontSize: 12, color: "#1976d2", marginTop: 6 }}>Net</div>
           <div style={{ fontSize: 14 }}>{formatCurrency(totals.net)}</div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginTop: 6 }}>
+          <div style={{ fontSize: 16, fontWeight: 600, marginTop: 6, color: '#1976d2' }}>
             Total: {formatCurrency(totals.total)}
           </div>
         </div>

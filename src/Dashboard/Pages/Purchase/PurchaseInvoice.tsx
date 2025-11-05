@@ -33,7 +33,7 @@ function getInvoicePrintData(inv: PurchaseInvoiceTableRow) {
     customer: inv.supplier?.name || "",
     items: (inv.products || []).map((it, idx) => ({
       sr: idx + 1,
-      section: it.productName,
+      section: `${it.productName}${it.thickness || it.color ? ` (Thickness: ${it.thickness ?? '-'}, Color: ${it.color ?? '-'})` : ''}`,
       quantity: it.quantity,
       rate: Number(it.rate ?? 0),
       amount: Number(it.amount ?? (it.quantity || 0) * (it.rate || 0)),
@@ -86,7 +86,7 @@ export default function PurchaseInvoicesPage() {
 
   // Place useEffect after all hooks, before return
 
-  const { suppliers, inventory, purchases, loadInventory } = useDataContext();
+  const { suppliers, inventory, purchases, loadInventory, setInventory } = useDataContext();
 
   // Ensure products (inventory) are loaded on mount
   React.useEffect(() => {
@@ -248,7 +248,7 @@ export default function PurchaseInvoicesPage() {
     await createPurchaseInvoice(invoicePayload);
     // Optimistically increment inventory locally for each purchased item
     try {
-      setInventory((prev: any[] = []) =>
+      setInventory((prev = []) =>
         (prev || []).map((inv: any) => {
           const match = (products || []).find((it) => {
             const key = String(it.id ?? it.productName ?? "");
@@ -274,7 +274,6 @@ export default function PurchaseInvoicesPage() {
         })
       );
     } catch (err) {
-      // non-fatal; just log
       // eslint-disable-next-line no-console
       console.warn("Failed to optimistically update inventory after purchase invoice:", err);
     }
@@ -300,7 +299,7 @@ export default function PurchaseInvoicesPage() {
             invoiceDate: inv.invoiceDate,
             expectedDelivery: inv.expectedDelivery,
             supplier,
-            products: inv.products || [],
+            products: inv.products,
             subTotal: inv.subTotal ?? 0,
             total: inv.total ?? 0,
             amount: inv.amount ?? inv.total ?? 0,
@@ -379,7 +378,7 @@ export default function PurchaseInvoicesPage() {
         title="Import from Purchase Order"
         size="80%"
       >
-        <div style={{ padding: 12 }}>
+    <div style={{ padding: 12 }}>
           <h3>Purchase Orders</h3>
           <div style={{ marginBottom: 12 }}>
             <input
@@ -390,21 +389,27 @@ export default function PurchaseInvoicesPage() {
               style={{
                 padding: 6,
                 width: 260,
-                border: "1px solid #ccc",
+                border: "1px solid #1976d2",
                 borderRadius: 4,
+                outline: "none",
+                backgroundColor: "#f9f9f9",
+                color: "#222",
               }}
+              aria-label="Search by Purchase Order Number"
+              tabIndex={0}
             />
           </div>
-          {(purchases || []).filter((po) => {
-            const term = importPOSearch.trim().toLowerCase();
-            if (!term) return true;
-            return (
-              String(po.poNumber).toLowerCase().includes(term) ||
-              String(po.supplier?.name || "")
-                .toLowerCase()
-                .includes(term)
-            );
-          }).length === 0 && <div>No purchase orders found</div>}
+          {(purchases || [])
+            .filter((po) => {
+              const term = importPOSearch.trim().toLowerCase();
+              if (!term) return true;
+              return (
+                String(po.poNumber).toLowerCase().includes(term) ||
+                String(po.supplier?.name || "")
+                  .toLowerCase()
+                  .includes(term)
+              );
+            }).length === 0 && <div>No purchase orders found</div>}
           <div style={{ display: "grid", gap: 8 }}>
             {(purchases || [])
               .filter((po) => {
@@ -418,51 +423,18 @@ export default function PurchaseInvoicesPage() {
                 );
               })
               .map((po, idx) => (
-                <div
-                  key={po.poNumber ?? `po-${idx}`}
-                  style={{
-                    padding: 12,
-                    border: "1px solid #f0f0f0",
-                    borderRadius: 6,
-                    background: "#fff",
-                  }}
-                >
                   <div
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 700 }}>{po.poNumber}</div>
-                      <div style={{ color: "#666" }}>
-                        Date:{" "}
-                        {po.poDate
-                          ? new Date(po.poDate).toLocaleDateString()
-                          : ""}
-                      </div>
-                      <div style={{ color: "#666" }}>
-                        Supplier: {po.supplier?.name || ""}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 12, color: "#888" }}>
-                        {po.products?.length || 0} items
-                      </div>
-                      <div style={{ fontWeight: 700 }}>
-                        {formatCurrency(po.total ?? 0)}
-                      </div>
-                    </div>
-                  </div>
-                  {/* ...items table, remarks, and import button as in previous logic... */}
-                  <div
+                    key={po.poNumber ?? `po-${idx}`}
                     style={{
-                      marginTop: 8,
-                      display: "flex",
-                      justifyContent: "flex-end",
+                      padding: 12,
+                      border: "1px solid #1976d2",
+                      borderRadius: 6,
+                      background: "#fff",
                     }}
-                  >
-                    <Button
-                      size="xs"
-                      onClick={() => {
-                        // Convert PO to PurchaseInvoiceFormPayload-compatible import form
+                    tabIndex={0}
+                    aria-label={`Purchase Order ${po.poNumber}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
                         setInitialPayload({
                           purchaseInvoiceNumber: getNextInvoiceNumber(),
                           invoiceDate: new Date().toISOString(),
@@ -480,14 +452,69 @@ export default function PurchaseInvoicesPage() {
                         });
                         setImportOpen(false);
                         setOpen(true);
+                      }
+                    }}
+                  >
+                    <div
+                      style={{ display: "flex", justifyContent: "space-between" }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 700 }}>{po.poNumber}</div>
+                        <div style={{ color: "#333" }}>
+                          Date: {po.poDate ? new Date(po.poDate).toLocaleDateString() : ""}
+                        </div>
+                        <div style={{ color: "#333" }}>
+                          Supplier: {po.supplier?.name || ""}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 12, color: "#1976d2" }}>
+                          {po.products?.length || 0} items
+                        </div>
+                        <div style={{ fontWeight: 700 }}>
+                          {formatCurrency(po.total ?? 0)}
+                        </div>
+                      </div>
+                    </div>
+                    {/* ...items table, remarks, and import button as in previous logic... */}
+                    <div
+                      style={{
+                        marginTop: 8,
+                        display: "flex",
+                        justifyContent: "flex-end",
                       }}
                     >
-                      Import
-                    </Button>
+                      <Button
+                        size="xs"
+                        onClick={() => {
+                          setInitialPayload({
+                            purchaseInvoiceNumber: getNextInvoiceNumber(),
+                            invoiceDate: new Date().toISOString(),
+                            supplierId: po.supplier?._id,
+                            products: (po.products || []).map((item) => ({
+                              ...item,
+                              productId: item.id ?? "",
+                              unit: "pcs",
+                              grossAmount: item.amount ?? 0,
+                              netAmount: item.amount ?? 0,
+                            })),
+                            subTotal: po.subTotal ?? 0,
+                            total: po.total ?? 0,
+                            remarks: po.remarks ?? "",
+                          });
+                          setImportOpen(false);
+                          setOpen(true);
+                        }}
+                        aria-label={`Import Purchase Order ${po.poNumber}`}
+                        style={{ backgroundColor: '#1976d2', color: '#fff' }}
+                      >
+                        Import
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
-          </div>
+                ))}
+            </div>
+  {/* End Modal Content */}
         </div>
       </Modal>
 
@@ -601,7 +628,7 @@ export default function PurchaseInvoicesPage() {
                       );
                     })
                     .map((inv) => (
-                      <Table.Tr key={inv.id}>
+                      <Table.Tr key={inv.id} tabIndex={0} aria-label={`Invoice ${inv.purchaseInvoiceNumber} for ${inv.supplier?.name || ''}`}> 
                         <Table.Td style={{ fontFamily: "monospace" }}>
                           {inv.purchaseInvoiceNumber}
                         </Table.Td>
@@ -614,7 +641,7 @@ export default function PurchaseInvoicesPage() {
                           {/* Action menu */}
                           <Menu position="bottom-end" withArrow width={200}>
                             <Menu.Target>
-                              <ActionIcon variant="subtle" color="gray">
+                              <ActionIcon variant="subtle" color="gray" aria-label={`Actions for invoice ${inv.purchaseInvoiceNumber}`} tabIndex={0}>
                                 <span style={{ fontWeight: 600, fontSize: 18 }}>
                                   ⋮
                                 </span>
@@ -681,6 +708,8 @@ export default function PurchaseInvoicesPage() {
             variant="default"
             onClick={() => setDeleteInvoice(null)}
             disabled={deleteLoading}
+            style={{ color: '#222', backgroundColor: '#f3f3f3', border: '1px solid #ccc' }}
+            aria-label="Cancel Delete Invoice"
           >
             Cancel
           </Button>

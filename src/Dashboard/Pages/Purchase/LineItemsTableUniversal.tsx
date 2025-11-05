@@ -60,27 +60,18 @@ export function LineItemsTableUniversal({
   }, []);
 
   function addRow() {
-    const p = products[0] ?? {
-      id: "",
-      name: "New Product",
-      unit: "pcs",
-      salesRate: 0,
-      color: "",
-      thickness: "",
-      length: "",
-    };
     setItems([
       ...items,
       {
         id: crypto.randomUUID(),
-        productId: p.id || "",
-        productName: p.name || "",
+        productId: "",
+        productName: "",
         quantity: 1,
-        rate: p.salesRate ?? 0,
-        unit: typeof p.unit === "string" ? p.unit : String(p.unit ?? "pcs"),
-        color: p.color ?? "",
-        thickness: p.thickness ?? "",
-        length: p.length ?? "",
+        rate: 0,
+        unit: "pcs",
+        color: "",
+        thickness: "",
+        length: "",
         grossAmount: 0,
         percent: 0,
         discountAmount: 0,
@@ -171,10 +162,10 @@ export function LineItemsTableUniversal({
                     searchable
                     clearable
                     nothingFound="No products found"
-                    data={products.map((p) => ({
-                      value: String(p.id),
-                      label: `${p.name} (Thickness: ${p.thickness ?? '-'}, Color: ${p.color ?? '-'})`,
-                    }))}
+                      data={products.map((p) => ({
+                        value: String(p.id),
+                        label: `${p.name}${p.thickness || p.color ? ` (Thickness: ${p.thickness ?? '-'}, Color: ${p.color ?? '-'})` : ''}`,
+                      }))}
                     value={
                       products.find((p) => p.name === row.productName)?.id || ""
                     }

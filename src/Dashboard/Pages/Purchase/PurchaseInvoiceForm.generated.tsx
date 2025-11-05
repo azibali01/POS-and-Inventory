@@ -437,7 +437,7 @@ export function PurchaseInvoiceForm({
                             searchable
                             data={inventory.map((p: InventoryItem) => ({
                               value: String(p._id),
-                              label: p.itemName || "Unnamed",
+                              label: `${p.itemName}${p.thickness || p.color ? ` (Thickness: ${p.thickness ?? '-'}, Color: ${p.color ?? '-'})` : ''}`,
                             }))}
                             value={
                               it.productName &&

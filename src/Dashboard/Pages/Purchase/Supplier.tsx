@@ -204,15 +204,21 @@ export default function SuppliersPage() {
               </Table.Thead>
               <Table.Tbody>
                 {filtered.map((s, index) => (
-                  <Table.Tr key={s._id || `supplier-fallback-${index}`}>
+                  <Table.Tr
+                    key={s._id || `supplier-fallback-${index}`}
+                    tabIndex={0}
+                    aria-label={`Supplier ${s.name} in ${s.city}`}
+                  >
                     <Table.Td style={{ fontWeight: 600 }}>{s.name}</Table.Td>
-                    <Table.Td style={{ color: "#666" }}>{s.city}</Table.Td>
+                    <Table.Td style={{ color: "#222" }}>{s.city}</Table.Td>
                     <Table.Td>{s.phone}</Table.Td>
                     <Table.Td>
                       <span
                         style={{
-                          color: (s.openingBalance ?? 0) < 0 ? "red" : "green",
+                          color: (s.openingBalance ?? 0) < 0 ? "#c92a2a" : "#2b8a3e",
+                          fontWeight: 600,
                         }}
+                        aria-label={`Opening balance is ${(s.openingBalance ?? 0) < 0 ? "Debit" : "Credit"}`}
                       >
                         {(s.openingBalance ?? 0) < 0 ? "Debit" : "Credit"}{" "}
                         {formatCurrency(Math.abs(s.openingBalance || 0))}
@@ -223,6 +229,9 @@ export default function SuppliersPage() {
                         <Button
                           variant="subtle"
                           size="xs"
+                          aria-label={`View supplier ${s.name}`}
+                          tabIndex={0}
+                          style={{ color: '#1864ab', backgroundColor: '#e7f5ff' }}
                           onClick={() => {
                             setSelected(s);
                             setOpenView(true);
@@ -233,6 +242,9 @@ export default function SuppliersPage() {
                         <Button
                           variant="subtle"
                           size="xs"
+                          aria-label={`Edit supplier ${s.name}`}
+                          tabIndex={0}
+                          style={{ color: '#5c940d', backgroundColor: '#f4fce3' }}
                           onClick={() => {
                             setSelected(s);
                             setOpenEdit(true);
@@ -244,6 +256,9 @@ export default function SuppliersPage() {
                           variant="subtle"
                           color="red"
                           size="xs"
+                          aria-label={`Delete supplier ${s.name}`}
+                          tabIndex={0}
+                          style={{ color: '#c92a2a', backgroundColor: '#fff5f5' }}
                           onClick={() => {
                             setSupplierToDelete(s);
                             setOpenDelete(true);
