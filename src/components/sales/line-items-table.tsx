@@ -108,7 +108,7 @@ export function LineItemsTable({
                     }}
                     searchable
                     clearable
-                    nothingFoundMessage="No products found"
+                    nothingFound="No products found"
                   />
                 ) : (
                   <TextInput
