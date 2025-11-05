@@ -158,7 +158,7 @@ export function LineItemsTableUniversal({
                   <Select
                     searchable
                     clearable
-                    nothingFound="No products found"
+                    nothingFoundMessage="No products found"
                     data={products.map((p) => ({
                       value: String(p.id),
                       label: `${p.name}${
