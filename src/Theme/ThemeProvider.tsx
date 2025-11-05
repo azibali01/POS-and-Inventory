@@ -1,5 +1,5 @@
 import { MantineProvider, type MantineThemeOverride } from "@mantine/core";
-import "@mantine/core/styles.css";
+// import "@mantine/core/styles.css";
 import type { PropsWithChildren } from "react";
 
 const theme: MantineThemeOverride = {

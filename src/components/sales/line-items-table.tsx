@@ -78,7 +78,9 @@ export function LineItemsTable({
                     value={String(it._id || "")}
                     data={products.map((p) => ({
                       value: String(p._id),
-                      label: `${p.itemName} (Thickness: ${p.thickness ?? '-'}, Color: ${p.color ?? '-'})`,
+                      label: `${p.itemName} (Thickness: ${
+                        p.thickness ?? "-"
+                      }, Color: ${p.color ?? "-"})`,
                     }))}
                     onChange={(val: string | null) => {
                       const prod = products.find(
@@ -106,7 +108,7 @@ export function LineItemsTable({
                     }}
                     searchable
                     clearable
-                    nothingFound="No products found"
+                    nothingFoundMessage="No products found"
                   />
                 ) : (
                   <TextInput

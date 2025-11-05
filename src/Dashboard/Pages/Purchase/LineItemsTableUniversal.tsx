@@ -1,11 +1,10 @@
-
 import { useMemo } from "react";
 import { Button, NumberInput, TextInput, Select, Group } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { Trash2 } from "lucide-react";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency } from "../../../lib/format-utils";
-  import { useEffect } from "react";
+import { useEffect } from "react";
 export interface LineItemsTableUniversalProps {
   items: PurchaseLineItem[];
   setItems: (items: PurchaseLineItem[]) => void;
@@ -143,9 +142,7 @@ export function LineItemsTableUniversal({
                 Rate
               </Table.Th>
               {showAmountCol && (
-                <Table.Th
-                  style={{ textAlign: "left", padding: 8, width: 120 }}
-                >
+                <Table.Th style={{ textAlign: "left", padding: 8, width: 120 }}>
                   Amount
                 </Table.Th>
               )}
@@ -161,11 +158,17 @@ export function LineItemsTableUniversal({
                   <Select
                     searchable
                     clearable
-                    nothingFound="No products found"
-                      data={products.map((p) => ({
-                        value: String(p.id),
-                        label: `${p.name}${p.thickness || p.color ? ` (Thickness: ${p.thickness ?? '-'}, Color: ${p.color ?? '-'})` : ''}`,
-                      }))}
+                    nothingFoundMessage="No products found"
+                    data={products.map((p) => ({
+                      value: String(p.id),
+                      label: `${p.name}${
+                        p.thickness || p.color
+                          ? ` (Thickness: ${p.thickness ?? "-"}, Color: ${
+                              p.color ?? "-"
+                            })`
+                          : ""
+                      }`,
+                    }))}
                     value={
                       products.find((p) => p.name === row.productName)?.id || ""
                     }
@@ -265,7 +268,6 @@ export function LineItemsTableUniversal({
           </Table.Tbody>
         </Table>
       </div>
-      
     </div>
   );
 }
