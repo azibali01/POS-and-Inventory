@@ -360,6 +360,7 @@ export interface InventoryItemPayload {
   discountAmount?: number;
   totalGrossAmount?: number;
   totalNetAmount?: number;
+  supplier?: string;
   color?: string;
   discount: number;
   length?: number;

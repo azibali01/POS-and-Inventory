@@ -114,12 +114,44 @@ export default function SalesDocShell({
 
   // Reset customer and items when modal opens (when initial changes)
   useEffect(() => {
+    // Helper to get supplier name for selected product
+    const getSupplierForItem = (item: LineItem) => {
+      if (!item || !item.itemName) return "";
+      const product = products.find(
+        (p) => p.itemName === item.itemName || p._id === item._id
+      );
+      if (product && (product as any).supplier) {
+        const supplier = (product as any).supplier;
+        if (typeof supplier === "string") return supplier;
+        if (typeof supplier === "object" && supplier.name) return supplier.name;
+      }
+      if (product && (product as any).supplierName) {
+        return (product as any).supplierName;
+      }
+      return "";
+    };
     setCustomerId("");
-    if (initial?.items && Array.isArray(initial.items) && initial.items.length > 0) {
+    if (
+      initial?.items &&
+      Array.isArray(initial.items) &&
+      initial.items.length > 0
+    ) {
+      {
+        /* Supplier label for selected product (first item) */
+      }
+      {
+        items && items.length > 0 && getSupplierForItem(items[0]) ? (
+          <Text size="sm" color="dimmed" mb={8}>
+            <b>Supplier:</b> {getSupplierForItem(items[0])}
+          </Text>
+        ) : null;
+      }
       setItems(
         (initial.items as LineItem[]).map((it) => ({
           _id:
-            it._id ?? products.find((p) => p.itemName === it.itemName)?._id ?? "",
+            it._id ??
+            products.find((p) => p.itemName === it.itemName)?._id ??
+            "",
           itemName: it.itemName ?? "",
           invoiceNumber: it._id ?? generateId(),
           unit: it.unit ?? "",
@@ -127,7 +159,8 @@ export default function SalesDocShell({
           salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
           discount: it.discount ?? 0,
           amount:
-            Number(it.quantity ?? 0) * Number(it.salesRate ?? it.salesRate ?? 0),
+            Number(it.quantity ?? 0) *
+            Number(it.salesRate ?? it.salesRate ?? 0),
           price: it.salesRate ?? 0,
           color: it.color ?? "",
           openingStock: it.openingStock ?? 0,
@@ -138,11 +171,17 @@ export default function SalesDocShell({
           discountAmount: it.discountAmount ?? 0,
         }))
       );
-    } else if (initial?.products && Array.isArray(initial.products) && initial.products.length > 0) {
+    } else if (
+      initial?.products &&
+      Array.isArray(initial.products) &&
+      initial.products.length > 0
+    ) {
       setItems(
         (initial.products as LineItem[]).map((it) => ({
           _id:
-            it._id ?? products.find((p) => p.itemName === it.itemName)?._id ?? "",
+            it._id ??
+            products.find((p) => p.itemName === it.itemName)?._id ??
+            "",
           itemName: it.itemName ?? "",
           invoiceNumber: it._id ?? generateId(),
           unit: it.unit ?? "",
@@ -150,7 +189,8 @@ export default function SalesDocShell({
           salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
           discount: it.discount ?? 0,
           amount:
-            Number(it.quantity ?? 0) * Number(it.salesRate ?? it.salesRate ?? 0),
+            Number(it.quantity ?? 0) *
+            Number(it.salesRate ?? it.salesRate ?? 0),
           price: it.salesRate ?? 0,
           color: it.color ?? "",
           openingStock: it.openingStock ?? 0,
@@ -475,8 +515,7 @@ export default function SalesDocShell({
                     value: String(c._id),
                     label: `${c.name} — ${c.city ?? ""}`,
                   }))}
-                  clearable
-
+                clearable
               />
             </div>
             <div>
@@ -484,7 +523,8 @@ export default function SalesDocShell({
                 Customer Details
               </Text>
               {selectedCustomer ? (
-                <Paper withBorder
+                <Paper
+                  withBorder
                   style={{ padding: 12, boxShadow: "var(--mantine-shadow-xs)" }}
                 >
                   <div style={{ fontWeight: 700 }}>{selectedCustomer.name}</div>
@@ -543,6 +583,35 @@ export default function SalesDocShell({
           </div>
 
           <div style={{ marginTop: 16 }}>
+            {/* Supplier label for selected product (first item) */}
+            {items &&
+              items.length > 0 &&
+              (() => {
+                const item = items[0];
+                const product = products.find(
+                  (p) => p.itemName === item.itemName || p._id === item._id
+                );
+                let supplier = "";
+                if (product) {
+                  const customProduct = product as any;
+                  if (customProduct.supplier) {
+                    if (typeof customProduct.supplier === "string")
+                      supplier = customProduct.supplier;
+                    else if (
+                      typeof customProduct.supplier === "object" &&
+                      customProduct.supplier.name
+                    )
+                      supplier = customProduct.supplier.name;
+                  }
+                  if (!supplier && customProduct.supplierName)
+                    supplier = customProduct.supplierName;
+                }
+                return supplier ? (
+                  <Badge color="green" variant="filled" mb={8}>
+                    Supplier: {supplier}
+                  </Badge>
+                ) : null;
+              })()}
             <div
               style={{
                 display: "flex",
