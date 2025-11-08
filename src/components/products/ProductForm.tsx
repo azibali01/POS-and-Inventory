@@ -28,12 +28,12 @@ export function ProductForm({ product, onClose }: Props) {
   const [form, setForm] = useState({
     itemName: product?.itemName || "",
     category: product?.category || "",
-    thickness: product?.thickness || 0,
+    thickness: product?.thickness?.toString() ?? "",
     unit: product?.unit || "",
     color: product?.color || "",
-    salesRate: product?.salesRate || 0,
-    openingStock: product?.openingStock ?? 0,
-    minimumStockLevel: product?.minimumStockLevel || 0,
+    salesRate: product?.salesRate?.toString() ?? "",
+    openingStock: product?.openingStock?.toString() ?? "",
+    minimumStockLevel: product?.minimumStockLevel?.toString() ?? "",
     description: product?.description || "",
     brand: product?.brand || "",
   });
@@ -55,15 +55,20 @@ export function ProductForm({ product, onClose }: Props) {
     const payload = {
       itemName: form.itemName.trim(),
       category: form.category || "General",
-      thickness: Number(form.thickness) || 0,
+      thickness: form.thickness === "" ? undefined : Number(form.thickness),
       unit: form.unit || "ft",
       color: form.color || "",
-      salesRate: Number(form.salesRate) || 0,
-      openingStock: Number(form.openingStock) || 0,
-      minimumStockLevel: Number(form.minimumStockLevel) || 0,
+      salesRate: form.salesRate === "" ? undefined : Number(form.salesRate),
+      openingStock:
+        form.openingStock === "" ? undefined : Number(form.openingStock),
+      minimumStockLevel:
+        form.minimumStockLevel === ""
+          ? undefined
+          : Number(form.minimumStockLevel),
       description: form.description.trim() || "",
       brand: form.brand.trim() || "",
-      quantity: Number(form.openingStock) || 0, // Map openingStock to quantity for backend
+      quantity:
+        form.openingStock === "" ? undefined : Number(form.openingStock), // Map openingStock to quantity for backend
       discount: 0, // Required by InventoryItemPayload
     };
 
@@ -116,7 +121,7 @@ export function ProductForm({ product, onClose }: Props) {
         <NumberInput
           label="Thickness"
           value={form.thickness}
-          onChange={(v) => setForm({ ...form, thickness: Number(v) })}
+          onChange={(v) => setForm({ ...form, thickness: v?.toString() ?? "" })}
         />
         <SafeSelect
           label="Unit"
@@ -145,17 +150,21 @@ export function ProductForm({ product, onClose }: Props) {
         <NumberInput
           label="Sales Rate"
           value={form.salesRate}
-          onChange={(v) => setForm({ ...form, salesRate: Number(v) })}
+          onChange={(v) => setForm({ ...form, salesRate: v?.toString() ?? "" })}
         />
         <NumberInput
           label="Opening Stock"
           value={form.openingStock}
-          onChange={(v) => setForm({ ...form, openingStock: Number(v) })}
+          onChange={(v) =>
+            setForm({ ...form, openingStock: v?.toString() ?? "" })
+          }
         />
         <NumberInput
           label="Minimum Stock Level"
           value={form.minimumStockLevel}
-          onChange={(v) => setForm({ ...form, minimumStockLevel: Number(v) })}
+          onChange={(v) =>
+            setForm({ ...form, minimumStockLevel: v?.toString() ?? "" })
+          }
         />
       </Group>
 

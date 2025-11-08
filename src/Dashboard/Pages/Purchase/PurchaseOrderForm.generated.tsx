@@ -164,21 +164,21 @@ export function PurchaseOrderForm({
           productName: p.productName || "Select product",
           code: p.code || "",
           unit: inv?.unit || p.unit || "",
-          percent: p.percent ?? 0,
-          quantity: Number(p.quantity) || 1,
-          rate: Number(p.rate) || 0,
+          percent: Math.floor(p.percent ?? 0),
+          quantity: Math.floor(Number(p.quantity) || 1),
+          rate: Math.floor(Number(p.rate) || 0),
           color: p.color || inv?.color || "",
-          grossAmount: p.grossAmount ?? 0,
-          discountAmount: p.discountAmount ?? 0,
-          netAmount: p.netAmount ?? 0,
+          grossAmount: Math.floor(p.grossAmount ?? 0),
+          discountAmount: Math.floor(p.discountAmount ?? 0),
+          netAmount: Math.floor(p.netAmount ?? 0),
           thickness: p.thickness || inv?.thickness?.toString() || "",
-          length: p.length ?? 0,
-          amount: p.amount ?? 0,
+          length: Math.floor(Number(p.length ?? 0)),
+          amount: Math.floor(Number(p.amount ?? 0)),
         };
       }),
       remarks,
-      subTotal,
-      total,
+      subTotal: Math.floor(subTotal),
+      total: Math.floor(total),
     };
     onSubmit?.(purchasePayload);
   }
@@ -370,7 +370,7 @@ export function PurchaseOrderForm({
                       productId: "",
                       productName: "Select product",
                       code: "",
-                      unit: "",
+                      unit: "pcs",
                       percent: 0,
                       quantity: 1,
                       rate: 0,
@@ -445,7 +445,13 @@ export function PurchaseOrderForm({
                             searchable
                             data={inventory.map((p: InventoryItem) => ({
                               value: String(p._id),
-                              label: `${p.itemName}${p.thickness || p.color ? ` (Thickness: ${p.thickness ?? '-'}, Color: ${p.color ?? '-'})` : ''}`,
+                              label: `${p.itemName}${
+                                p.thickness || p.color
+                                  ? ` (Thickness: ${
+                                      p.thickness ?? "-"
+                                    }, Color: ${p.color ?? "-"})`
+                                  : ""
+                              }`,
                             }))}
                             value={
                               it.productName &&
@@ -532,27 +538,33 @@ export function PurchaseOrderForm({
                         </Table.Td>
                         <Table.Td style={{ padding: 8, textAlign: "right" }}>
                           <NumberInput
-                            value={it.quantity}
+                            value={it.quantity === 0 ? "" : it.quantity}
                             onChange={(v) =>
                               setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
-                                    ? { ...row, quantity: Number(v || 0) }
+                                    ? {
+                                        ...row,
+                                        quantity: v === "" ? 1 : Number(v),
+                                      }
                                     : row
                                 )
                               )
                             }
-                            min={0}
+                            min={1}
                           />
                         </Table.Td>
                         <Table.Td style={{ padding: 8 }}>
                           <NumberInput
-                            value={it.rate}
+                            value={it.rate === 0 ? "" : it.rate}
                             onChange={(v) =>
                               setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
-                                    ? { ...row, rate: Number(v || 0) }
+                                    ? {
+                                        ...row,
+                                        rate: v === "" ? 0 : Number(v),
+                                      }
                                     : row
                                 )
                               )

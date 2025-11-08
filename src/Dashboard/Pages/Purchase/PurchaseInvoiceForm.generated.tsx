@@ -154,24 +154,29 @@ export function PurchaseInvoiceForm({
           inventory.find((inv) => inv.itemName === p.productName)?._id ??
           "",
         productName: p.productName,
-        quantity: Number(p.quantity) || 0,
-        rate: Number(p.rate) || 0,
+        quantity: Math.floor(Number(p.quantity) || 0),
+        rate: Math.floor(Number(p.rate) || 0),
         unit: typeof p.unit === "string" ? p.unit : "pcs",
         color: p.color,
         thickness: p.thickness,
-        length: p.length,
-        grossAmount: typeof p.grossAmount === "number" ? p.grossAmount : 0,
-        netAmount: typeof p.netAmount === "number" ? p.netAmount : 0,
-        percent: typeof p.percent === "number" ? p.percent : 0,
-        discountAmount:
-          typeof p.discountAmount === "number" ? p.discountAmount : 0,
-        amount: typeof p.amount === "number" ? p.amount : 0,
+        length: Math.floor(Number(p.length) || 0),
+        grossAmount: Math.floor(
+          typeof p.grossAmount === "number" ? p.grossAmount : 0
+        ),
+        netAmount: Math.floor(
+          typeof p.netAmount === "number" ? p.netAmount : 0
+        ),
+        percent: Math.floor(typeof p.percent === "number" ? p.percent : 0),
+        discountAmount: Math.floor(
+          typeof p.discountAmount === "number" ? p.discountAmount : 0
+        ),
+        amount: Math.floor(typeof p.amount === "number" ? p.amount : 0),
         inventoryId: inventory.find((inv) => inv.itemName === p.productName)
           ?._id,
       })),
       remarks,
-      subTotal,
-      total,
+      subTotal: Math.floor(subTotal),
+      total: Math.floor(total),
     };
     onSubmit?.(invoicePayload);
   }
@@ -437,7 +442,13 @@ export function PurchaseInvoiceForm({
                             searchable
                             data={inventory.map((p: InventoryItem) => ({
                               value: String(p._id),
-                              label: `${p.itemName}${p.thickness || p.color ? ` (Thickness: ${p.thickness ?? '-'}, Color: ${p.color ?? '-'})` : ''}`,
+                              label: `${p.itemName}${
+                                p.thickness || p.color
+                                  ? ` (Thickness: ${
+                                      p.thickness ?? "-"
+                                    }, Color: ${p.color ?? "-"})`
+                                  : ""
+                              }`,
                             }))}
                             value={
                               it.productName &&
@@ -524,27 +535,33 @@ export function PurchaseInvoiceForm({
                         </Table.Td>
                         <Table.Td style={{ padding: 8, textAlign: "right" }}>
                           <NumberInput
-                            value={it.quantity}
+                            value={it.quantity === 0 ? "" : it.quantity}
                             onChange={(v) =>
                               setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
-                                    ? { ...row, quantity: Number(v || 0) }
+                                    ? {
+                                        ...row,
+                                        quantity: v === "" ? 1 : Number(v),
+                                      }
                                     : row
                                 )
                               )
                             }
-                            min={0}
+                            min={1}
                           />
                         </Table.Td>
                         <Table.Td style={{ padding: 8 }}>
                           <NumberInput
-                            value={it.rate}
+                            value={it.rate === 0 ? "" : it.rate}
                             onChange={(v) =>
                               setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
-                                    ? { ...row, rate: Number(v || 0) }
+                                    ? {
+                                        ...row,
+                                        rate: v === "" ? 0 : Number(v),
+                                      }
                                     : row
                                 )
                               )

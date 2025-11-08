@@ -25,7 +25,13 @@ import {
 import { LineItemsTableUniversal } from "./LineItemsTableUniversal";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
-import { IconDots, IconEdit, IconPlus, IconPrinter, IconTrash } from "@tabler/icons-react";
+import {
+  IconDots,
+  IconEdit,
+  IconPlus,
+  IconPrinter,
+  IconTrash,
+} from "@tabler/icons-react";
 import { Search } from "lucide-react";
 
 export default function PurchaseReturnPage() {
@@ -56,8 +62,14 @@ export default function PurchaseReturnPage() {
           Array.isArray(returns)
             ? returns.map((r: any) => ({
                 ...r,
-                id: typeof r.id === "string" ? r.id : String(r.id ?? r.returnNumber ?? `pret-${Date.now()}`),
-                returnNumber: typeof r.returnNumber === "string" ? r.returnNumber : String(r.returnNumber ?? r.id ?? ""),
+                id:
+                  typeof r.id === "string"
+                    ? r.id
+                    : String(r.id ?? r.returnNumber ?? `pret-${Date.now()}`),
+                returnNumber:
+                  typeof r.returnNumber === "string"
+                    ? r.returnNumber
+                    : String(r.returnNumber ?? r.id ?? ""),
                 returnDate: r.returnDate ?? (r as any).date ?? "",
                 subtotal: r.subtotal ?? r.total ?? 0,
                 total: r.total ?? r.subtotal ?? 0,
@@ -69,8 +81,8 @@ export default function PurchaseReturnPage() {
               }))
             : []
         );
-  // Error/loading state for API calls
-  // loading and error state used only for fetch, not needed elsewhere
+        // Error/loading state for API calls
+        // loading and error state used only for fetch, not needed elsewhere
       } catch (err) {
         setError("Failed to fetch purchase returns: " + String(err));
         showNotification({
@@ -186,7 +198,10 @@ export default function PurchaseReturnPage() {
             style={{ width: 300 }}
             leftSection={<Search size={16} />}
           />
-          <Button onClick={() => setOpen(true)} leftSection={<IconPlus size={16} />}>
+          <Button
+            onClick={() => setOpen(true)}
+            leftSection={<IconPlus size={16} />}
+          >
             New Return
           </Button>
         </div>
@@ -196,12 +211,22 @@ export default function PurchaseReturnPage() {
           <Title order={4}>Recent Returns</Title>
           <Text color="dimmed">Last {data.length} purchase returns</Text>
           {loading && (
-            <Text color="blue" role="status" aria-live="polite" style={{ marginTop: 8 }}>
+            <Text
+              color="blue"
+              role="status"
+              aria-live="polite"
+              style={{ marginTop: 8 }}
+            >
               Loading purchase returns...
             </Text>
           )}
           {error && (
-            <Text color="red" role="alert" aria-live="assertive" style={{ marginTop: 8 }}>
+            <Text
+              color="red"
+              role="alert"
+              aria-live="assertive"
+              style={{ marginTop: 8 }}
+            >
               {error}
             </Text>
           )}
@@ -211,45 +236,66 @@ export default function PurchaseReturnPage() {
               withRowBorders
               withTableBorder
               highlightOnHover
-             
               aria-label="Purchase Returns Table"
             >
-              <thead style={{backgroundColor: "#F1F3F5"}}>
+              <thead style={{ backgroundColor: "#F1F3F5" }}>
                 <tr>
                   <th scope="col">Return#</th>
                   <th scope="col">Date</th>
                   <th scope="col">Supplier</th>
-                  <th scope="col" style={{ textAlign: "left" }}>Amount</th>
-                  <th scope="col" style={{ textAlign: "left" }}>Action</th>
+                  <th scope="col" style={{ textAlign: "left" }}>
+                    Amount
+                  </th>
+                  <th scope="col" style={{ textAlign: "left" }}>
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && !loading && !error && (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: "center", color: "#888" }}>
+                    <td
+                      colSpan={5}
+                      style={{ textAlign: "center", color: "#888" }}
+                    >
                       No purchase returns found.
                     </td>
                   </tr>
                 )}
                 {filtered.map((r) => (
-                  <tr key={r.id} tabIndex={0} aria-label={`Return ${r.returnNumber} for ${r.supplier}`}>
-                    <td style={{ fontFamily: "monospace" }}>{r.returnNumber}</td>
+                  <tr
+                    key={r.id}
+                    tabIndex={0}
+                    aria-label={`Return ${r.returnNumber} for ${r.supplier}`}
+                  >
+                    <td style={{ fontFamily: "monospace" }}>
+                      {r.returnNumber}
+                    </td>
                     <td>{formatDate(r.date)}</td>
                     <td>{r.supplier}</td>
-                    <td style={{ textAlign: "left" }}>{formatCurrency(r.total)}</td>
                     <td style={{ textAlign: "left" }}>
-                      <Menu width={200} position="bottom-end" withArrow >
+                      {formatCurrency(r.total)}
+                    </td>
+                    <td style={{ textAlign: "left" }}>
+                      <Menu width={200} position="bottom-end" withArrow>
                         <Menu.Target>
-                          <ActionIcon aria-label={`Actions for return ${r.returnNumber}`} tabIndex={0}>
-                            <IconDots  />
+                          <ActionIcon
+                            aria-label={`Actions for return ${r.returnNumber}`}
+                            tabIndex={0}
+                          >
+                            <IconDots />
                           </ActionIcon>
                         </Menu.Target>
                         <Menu.Dropdown>
                           <Menu.Item
                             onClick={() => {
                               const full = (
-                                fetchedReturns ?? purchaseReturns ?? []
-                              ).find((x) => x.id === r.id) as PurchaseReturnRecord | undefined;
+                                fetchedReturns ??
+                                purchaseReturns ??
+                                []
+                              ).find((x) => x.id === r.id) as
+                                | PurchaseReturnRecord
+                                | undefined;
                               if (full) setEditReturn(full);
                             }}
                             aria-label={`Edit return ${r.returnNumber}`}
@@ -260,21 +306,32 @@ export default function PurchaseReturnPage() {
                           <Menu.Item
                             onClick={() => {
                               const full = (
-                                fetchedReturns ?? purchaseReturns ?? []
-                              ).find((x) => x.id === r.id) as PurchaseReturnRecord | undefined;
+                                fetchedReturns ??
+                                purchaseReturns ??
+                                []
+                              ).find((x) => x.id === r.id) as
+                                | PurchaseReturnRecord
+                                | undefined;
                               const items = (full?.items || [])
-                                .filter((it) => typeof it.itemName === "string" && it.itemName.trim() !== "")
+                                .filter(
+                                  (it) =>
+                                    typeof it.itemName === "string" &&
+                                    it.itemName.trim() !== ""
+                                )
                                 .map((it, idx) => ({
                                   sr: idx + 1,
                                   section: String(it.itemName),
                                   quantity: it.quantity,
                                   rate: it.salesRate || 0,
-                                  amount: (it.quantity || 0) * (it.salesRate || 0),
+                                  amount:
+                                    (it.quantity || 0) * (it.salesRate || 0),
                                 }));
                               const payload: InvoiceData = {
                                 title: "Purchase Return",
                                 companyName: "Seven Star Traders",
-                                addressLines: ["Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan"],
+                                addressLines: [
+                                  "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
+                                ],
                                 invoiceNo: r.returnNumber,
                                 date: String(r.date),
                                 customer: r.supplier,
@@ -586,12 +643,12 @@ function ReturnForm({
         id: `${Math.random()}`,
         productId: it.productId ?? "",
         productName: it.productName,
-        quantity: 0,
-        rate: it.rate ?? 0,
-        unit: typeof it.unit === "string" ? it.unit : String(it.unit ?? "pcs"),
+        quantity: 1,
+        rate: 0,
+        unit: typeof it.unit === "string" ? it.unit : "pcs",
         color: it.color,
         thickness: it.thickness,
-        length: it.length,
+        length: 0,
         grossAmount: 0,
         percent: 0,
         discountAmount: 0,
@@ -641,10 +698,12 @@ function ReturnForm({
   }, [linkedPoId, purchases]);
 
   const totals = useMemo(() => {
-    const sub = items.reduce((s, i) => s + (i.amount || 0), 0);
+    const sub = Math.floor(
+      items.reduce((s, i) => s + Math.floor(i.amount || 0), 0)
+    );
     // If you want to support discounts, add a discount property to PurchaseLineItem and use it here
     const total = sub; // No discountAmount property exists
-    return { sub, total };
+    return { sub, total: Math.floor(total) };
   }, [items]);
 
   function handleSave() {
@@ -758,14 +817,32 @@ function ReturnForm({
   return (
     <div>
       <Title order={3}>New Purchase Return</Title>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 12 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 12,
+          marginTop: 12,
+        }}
+      >
         <div>
           <label htmlFor="returnNumber">Return Number</label>
-          <TextInput id="returnNumber" value={returnNumber} onChange={e => setReturnNumber(e.currentTarget.value)} aria-label="Return Number" />
+          <TextInput
+            id="returnNumber"
+            value={returnNumber}
+            onChange={(e) => setReturnNumber(e.currentTarget.value)}
+            aria-label="Return Number"
+          />
         </div>
         <div>
           <label htmlFor="returnDate">Return Date</label>
-          <TextInput id="returnDate" type="date" value={returnDate} onChange={e => setReturnDate(e.currentTarget.value)} aria-label="Return Date" />
+          <TextInput
+            id="returnDate"
+            type="date"
+            value={returnDate}
+            onChange={(e) => setReturnDate(e.currentTarget.value)}
+            aria-label="Return Date"
+          />
         </div>
         <div>
           <label htmlFor="linkedPoId">Link Purchase Order (optional)</label>
@@ -774,17 +851,26 @@ function ReturnForm({
               id="linkedPoId"
               data={poOptions}
               value={linkedPoId}
-              onChange={v => typeof v === "string" && setLinkedPoId(v)}
+              onChange={(v) => typeof v === "string" && setLinkedPoId(v)}
               clearable
               placeholder="(Optional) Link to PO"
               aria-label="Link Purchase Order"
             />
           ) : (
-            <Text color="dimmed" size="sm">No purchase orders available</Text>
+            <Text color="dimmed" size="sm">
+              No purchase orders available
+            </Text>
           )}
         </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 12,
+          marginTop: 12,
+        }}
+      >
         <div>
           <label htmlFor="supplierId">Supplier</label>
           {supplierOptions.length > 0 ? (
@@ -792,18 +878,26 @@ function ReturnForm({
               id="supplierId"
               data={supplierOptions}
               value={supplierId}
-              onChange={v => typeof v === "string" && setSupplierId(v)}
+              onChange={(v) => typeof v === "string" && setSupplierId(v)}
               allowDeselect={false}
               clearable={false}
               aria-label="Supplier"
             />
           ) : (
-            <Text color="dimmed" size="sm">No suppliers available</Text>
+            <Text color="dimmed" size="sm">
+              No suppliers available
+            </Text>
           )}
         </div>
         <div>
           <label htmlFor="reason">Reason</label>
-          <Textarea id="reason" value={reason} onChange={e => setReason(e.currentTarget.value)} minRows={3} aria-label="Return Reason" />
+          <Textarea
+            id="reason"
+            value={reason}
+            onChange={(e) => setReason(e.currentTarget.value)}
+            minRows={3}
+            aria-label="Return Reason"
+          />
         </div>
       </div>
       <div style={{ marginTop: 12 }}>
@@ -815,23 +909,54 @@ function ReturnForm({
           addRowLabel="Add Return Item"
         />
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-        <div style={{ color: "#666" }}>Subtotal: {formatCurrency(totals.sub)}</div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 12,
+        }}
+      >
+        <div style={{ color: "#666" }}>
+          Subtotal: {formatCurrency(totals.sub)}
+        </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>{formatCurrency(totals.total)}</div>
+          <div style={{ fontSize: 18, fontWeight: 600 }}>
+            {formatCurrency(totals.total)}
+          </div>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
-            <Button variant="default" onClick={handlePrintDraft}>Print Draft</Button>
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button variant="default" onClick={handlePrintDraft}>
+              Print Draft
+            </Button>
             <Button onClick={handleSave}>Save Return</Button>
           </div>
         </div>
       </div>
-      <Modal opened={confirmOpen} onClose={() => setConfirmOpen(false)} size="sm">
+      <Modal
+        opened={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        size="sm"
+      >
         <div style={{ padding: 12 }}>
           <Title order={4}>Confirm Return</Title>
-          <Text color="dimmed">This will apply the return to inventory and create a supplier credit. Proceed?</Text>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancel</Button>
+          <Text color="dimmed">
+            This will apply the return to inventory and create a supplier
+            credit. Proceed?
+          </Text>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8,
+              marginTop: 12,
+            }}
+          >
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleConfirmSave}>Confirm</Button>
           </div>
         </div>

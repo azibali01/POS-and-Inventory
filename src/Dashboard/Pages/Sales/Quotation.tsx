@@ -273,26 +273,27 @@ function Quotation() {
                   .unitPrice ??
                 0
             ),
-            amount:
+            amount: Math.floor(
               ((it as InventoryItemPayload & { quantity?: number }).quantity ||
                 0) *
-              Number(
-                (
-                  it as InventoryItemPayload & {
-                    price?: number;
-                    rate?: number;
-                    unitPrice?: number;
-                  }
-                ).price ??
-                  (it as InventoryItemPayload & { rate?: number }).rate ??
-                  (it as InventoryItemPayload & { unitPrice?: number })
-                    .unitPrice ??
-                  0
-              ),
+                Number(
+                  (
+                    it as InventoryItemPayload & {
+                      price?: number;
+                      rate?: number;
+                      unitPrice?: number;
+                    }
+                  ).price ??
+                    (it as InventoryItemPayload & { rate?: number }).rate ??
+                    (it as InventoryItemPayload & { unitPrice?: number })
+                      .unitPrice ??
+                    0
+                )
+            ),
           };
         }
       ),
-      totals: { total: Number(q.total ?? 0) },
+      totals: { total: Math.floor(Number(q.total ?? 0)) },
     };
   }
 
@@ -346,47 +347,54 @@ function Quotation() {
           unit: it.unit ?? "",
           discount:
             typeof (it as { discount?: unknown }).discount === "number"
-              ? Number((it as { discount?: number }).discount)
+              ? Math.floor(Number((it as { discount?: number }).discount))
               : 0,
           discountAmount:
             typeof (it as { discountAmount?: unknown }).discountAmount ===
             "number"
-              ? Number((it as { discountAmount?: number }).discountAmount)
+              ? Math.floor(
+                  Number((it as { discountAmount?: number }).discountAmount)
+                )
               : 0,
-          salesRate: it.salesRate ?? 0,
+          salesRate: Math.floor(it.salesRate ?? 0),
           color: it.color ?? "",
-          openingStock: it.openingStock ?? 0,
-          quantity: it.quantity ?? 0,
-          thickness: it.thickness ?? 0,
+          openingStock: Math.floor(it.openingStock ?? 0),
+          quantity: Math.floor(it.quantity ?? 0),
+          thickness: Math.floor(it.thickness ?? 0),
           amount:
             typeof (it as { amount?: unknown }).amount === "number"
-              ? Number((it as { amount?: number }).amount)
+              ? Math.floor(Number((it as { amount?: number }).amount))
               : 0,
           length:
             typeof (it as { length?: unknown }).length === "number"
-              ? Number((it as { length?: number }).length)
+              ? Math.floor(Number((it as { length?: number }).length))
               : 0,
           totalGrossAmount:
             typeof (it as { totalGrossAmount?: unknown }).totalGrossAmount ===
             "number"
-              ? Number((it as { totalGrossAmount?: number }).totalGrossAmount)
+              ? Math.floor(
+                  Number((it as { totalGrossAmount?: number }).totalGrossAmount)
+                )
               : 0,
           totalNetAmount:
             typeof (it as { totalNetAmount?: unknown }).totalNetAmount ===
             "number"
-              ? Number((it as { totalNetAmount?: number }).totalNetAmount)
+              ? Math.floor(
+                  Number((it as { totalNetAmount?: number }).totalNetAmount)
+                )
               : 0,
         })) ?? [],
       quotationDate: payload.docDate ?? new Date().toISOString(),
       customer: cust ? [cust] : [],
       remarks: payload.remarks ?? "",
-      subTotal: payload.totals?.subTotal ?? gross,
+      subTotal: Math.floor(payload.totals?.subTotal ?? gross),
       // Accept either spelling from various places: `totalGrossAmount` or `totalGrossAmmount`
-      totalGrossAmount:
+      totalGrossAmount: Math.floor(
         (payload as SalesPayload & { totalGrossAmount?: number })
           .totalGrossAmount ??
-        payload.totals?.total ??
-        gross,
+          payload.totals?.total ??
+          gross
+      ),
       // totalDiscount may be provided under different keys in different forms
       totalDiscount:
         (
@@ -544,7 +552,24 @@ function Quotation() {
                   await loadInventory();
                 }
                 const gen = generateNextQuotationNumber(quotes);
-                setInitialPayload({ docNo: gen });
+                setInitialPayload({
+                  docNo: gen,
+                  items: [
+                    {
+                      itemName: "Select product",
+                      quantity: 1,
+                      salesRate: 0,
+                      discount: 0,
+                      discountAmount: 0,
+                      length: 0,
+                      color: "",
+                      unit: "pcs",
+                      amount: 0,
+                      totalGrossAmount: 0,
+                      totalNetAmount: 0,
+                    },
+                  ],
+                });
                 setOpen(true);
               }}
             >
