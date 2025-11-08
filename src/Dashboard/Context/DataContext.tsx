@@ -28,6 +28,7 @@ export interface InventoryItem {
   stock?: number;
   lastUpdated?: string;
   quantity?: number;
+  brand?: string;
 }
 
 export interface Customer {
@@ -154,6 +155,7 @@ interface DataContextType {
   suppliersError: string | null;
   setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>>;
   loadSuppliers: () => Promise<Supplier[]>;
+  suppliersForSelect: Array<{ value: string; label: string }>;
   // ===== INVENTORY MODULE =====
   inventory: InventoryItem[];
   inventoryLoading: boolean;
@@ -556,6 +558,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     return filtered;
   }, [categories]);
 
+  const suppliersForSelect = React.useMemo(() => {
+    const filtered = (suppliers || [])
+      .filter((s) => s && s.name && s.name.trim().length > 0)
+      .map((s) => ({
+        value: s.name.trim(),
+        label: s.name.trim(),
+      }));
+    return filtered;
+  }, [suppliers]);
+
   const loadCategories = useCallback(async () => {
     if (loaderLoadedRef.current["categories"]) {
       return categories;
@@ -888,22 +900,36 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         // Update inventory quantities locally to reflect the sale
         try {
           const soldItems: any[] =
-            (payload as any)?.items || (payload as any)?.products ||
-            (created as any)?.items || [];
+            (payload as any)?.items ||
+            (payload as any)?.products ||
+            (created as any)?.items ||
+            [];
           if (Array.isArray(soldItems) && soldItems.length > 0) {
             setInventory((prev) =>
               prev.map((inv) => {
                 // Find matching sold item by several possible keys
                 const match = soldItems.find((it: any) => {
-                  const key = String(it._id ?? it.id ?? it.sku ?? it.productId ?? it.itemName ?? "");
+                  const key = String(
+                    it._id ??
+                      it.id ??
+                      it.sku ??
+                      it.productId ??
+                      it.itemName ??
+                      ""
+                  );
                   return (
-                    key && (String(inv._id) === key || String(inv.itemName) === key || String(inv.itemName) === String(it.productName))
+                    key &&
+                    (String(inv._id) === key ||
+                      String(inv.itemName) === key ||
+                      String(inv.itemName) === String(it.productName))
                   );
                 });
                 if (!match) return inv;
                 const qty = Number(match.quantity ?? 0);
                 if (!qty) return inv;
-                const current = Number(inv.openingStock ?? inv.stock ?? inv.quantity ?? 0);
+                const current = Number(
+                  inv.openingStock ?? inv.stock ?? inv.quantity ?? 0
+                );
                 const nextQty = current - qty;
                 return {
                   ...inv,
@@ -1083,15 +1109,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
             setInventory((prev) =>
               prev.map((inv) => {
                 const match = purchasedItems.find((it: any) => {
-                  const key = String(it.inventoryId ?? it.id ?? it._id ?? it.productName ?? it.productId ?? "");
+                  const key = String(
+                    it.inventoryId ??
+                      it.id ??
+                      it._id ??
+                      it.productName ??
+                      it.productId ??
+                      ""
+                  );
                   return (
-                    key && (String(inv._id) === key || String(inv.itemName) === key || String(inv.itemName) === String(it.productName))
+                    key &&
+                    (String(inv._id) === key ||
+                      String(inv.itemName) === key ||
+                      String(inv.itemName) === String(it.productName))
                   );
                 });
                 if (!match) return inv;
                 const qty = Number(match.quantity ?? match.received ?? 0);
                 if (!qty) return inv;
-                const current = Number(inv.openingStock ?? inv.stock ?? inv.quantity ?? 0);
+                const current = Number(
+                  inv.openingStock ?? inv.stock ?? inv.quantity ?? 0
+                );
                 const nextQty = current + qty;
                 return {
                   ...inv,
@@ -1948,6 +1986,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         suppliersError,
         setSuppliers,
         loadSuppliers,
+        suppliersForSelect,
 
         // ===== INVENTORY MODULE =====
         inventory,

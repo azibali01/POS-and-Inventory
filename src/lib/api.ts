@@ -1,41 +1,23 @@
 import axios from "axios";
 
 
-// --- Journal Voucher endpoints ---
-export interface JournalVoucherPayload {
-  voucherNumber: number | string;
-  voucherDate: Date | string;
-  particulars: string;
-  debitAccount: string;
-  creditAccount: string;
-  amount: number;
-  remarks?: string;
-}
+// Base axios instance - configure via Vite env VITE_API_BASE_URL or default to /api
+export const api = axios.create({
+  baseURL: "https://aluminium-backend.onrender.com/",
+  // baseURL: "http://localhost:3000",
 
-export async function getAllJournalVouchers() {
-  const { data } = await api.get("/journal-voucher");
-  return data;
-}
+});
 
-export async function createJournalVoucher(payload: JournalVoucherPayload) {
-  const { data } = await api.post("/journal-voucher", payload);
-  return data;
-}
 
-export async function getJournalVoucherByNumber(voucherNumber: string | number) {
-  const { data } = await api.get(`/journal-voucher/${encodeURIComponent(voucherNumber)}`);
-  return data;
-}
 
-export async function updateJournalVoucher(voucherNumber: string | number, patch: Partial<JournalVoucherPayload>) {
-  const { data } = await api.put(`/journal-voucher/${encodeURIComponent(voucherNumber)}`, patch);
-  return data;
-}
 
-export async function deleteJournalVoucher(voucherNumber: string | number) {
-  const { data } = await api.delete(`/journal-voucher/${encodeURIComponent(voucherNumber)}`);
-  return data;
-}
+
+
+
+
+
+
+
 // Delete receipt voucher by id
 export async function deleteReceiptVoucher(id: string | number) {
   const { data } = await api.delete(`/reciept-voucher/${id}`);
@@ -280,12 +262,6 @@ export async function deletePurchaseInvoice(id: string | number) {
 }
 
 
-// Base axios instance - configure via Vite env VITE_API_BASE_URL or default to /api
-export const api = axios.create({
-  baseURL: "https://aluminium-backend.onrender.com/",
-  // baseURL: "http://localhost:3000",
-
-});
 
 // Dev-only request logger to help diagnose duplicate-request storms.
 // This logs method+url and a stack trace so we can see which component/effect

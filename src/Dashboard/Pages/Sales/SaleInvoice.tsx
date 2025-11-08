@@ -76,7 +76,8 @@ export default function SaleInvoice() {
     if (!inventory || inventory.length === 0) {
       loadInventory();
     }
-  }, [inventory, loadInventory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [importQuotationSearch, setImportQuotationSearch] = useState("");
   const [editOpen, setEditOpen] = useState(false);
@@ -147,37 +148,58 @@ export default function SaleInvoice() {
   async function handleCreateInvoiceSubmit(payload: SalesPayload) {
     const invoiceNumber = makeInvoiceNumber();
     const invoiceDate = payload.docDate || new Date().toISOString();
-    let cust = customers.find((c) => String(c._id) === String(payload.customer));
+    let cust = customers.find(
+      (c) => String(c._id) === String(payload.customer)
+    );
     if (!cust && payload.customer) {
       if (typeof payload.customer === "object" && "name" in payload.customer) {
-        const id = "_id" in payload.customer && payload.customer._id ? payload.customer._id : String(payload.customer.name);
-        cust = { _id: typeof id === "string" ? id : String(id), name: payload.customer.name };
+        const id =
+          "_id" in payload.customer && payload.customer._id
+            ? payload.customer._id
+            : String(payload.customer.name);
+        cust = {
+          _id: typeof id === "string" ? id : String(id),
+          name: payload.customer.name,
+        };
       } else {
-        cust = { _id: String(payload.customer), name: String(payload.customer) };
+        cust = {
+          _id: String(payload.customer),
+          name: String(payload.customer),
+        };
       }
     }
-    const products = payload.items?.map((it) => {
-      const inv = inventory.find((p) => String(p._id) === String(it._id) || String(p.itemName) === String(it.itemName));
-      return {
-        _id: inv?._id,
-        itemName: inv?.itemName ?? it.itemName,
-        category: inv?.category ?? "",
-        salesRate: Number(inv?.salesRate ?? it.salesRate ?? 0),
-        color: it.color ?? inv?.color ?? "",
-        thickness: it.thickness ?? inv?.thickness ?? undefined,
-        openingStock: Number(inv?.openingStock ?? 0),
-        minimumStockLevel: Number(inv?.minimumStockLevel ?? 0),
-        quantity: Number(it.quantity ?? 0),
-        unit: it.unit ?? inv?.unit ?? undefined,
-        discount: Number(it.discount ?? 0),
-        discountAmount: Number(it.discountAmount ?? 0),
-        length: it.length ?? undefined,
-        metadata: { price: it.salesRate ?? undefined },
-      } as SaleItem;
-    }) ?? [];
+    const products =
+      payload.items?.map((it) => {
+        const inv = inventory.find(
+          (p) =>
+            String(p._id) === String(it._id) ||
+            String(p.itemName) === String(it.itemName)
+        );
+        return {
+          _id: inv?._id,
+          itemName: inv?.itemName ?? it.itemName,
+          category: inv?.category ?? "",
+          salesRate: Number(inv?.salesRate ?? it.salesRate ?? 0),
+          color: it.color ?? inv?.color ?? "",
+          thickness: it.thickness ?? inv?.thickness ?? undefined,
+          openingStock: Number(inv?.openingStock ?? 0),
+          minimumStockLevel: Number(inv?.minimumStockLevel ?? 0),
+          quantity: Number(it.quantity ?? 0),
+          unit: it.unit ?? inv?.unit ?? undefined,
+          discount: Number(it.discount ?? 0),
+          discountAmount: Number(it.discountAmount ?? 0),
+          length: it.length ?? undefined,
+          metadata: { price: it.salesRate ?? undefined },
+        } as SaleItem;
+      }) ?? [];
     const mappedProducts = products.map((item) => ({
       ...item,
-      thickness: typeof item.thickness === "string" ? isNaN(Number(item.thickness)) ? undefined : Number(item.thickness) : item.thickness,
+      thickness:
+        typeof item.thickness === "string"
+          ? isNaN(Number(item.thickness))
+            ? undefined
+            : Number(item.thickness)
+          : item.thickness,
       discount: item.discount ?? 0,
       discountAmount: item.discountAmount ?? 0,
       quantity: item.quantity ?? 0,
@@ -201,12 +223,28 @@ export default function SaleInvoice() {
     };
     try {
       await createSale(apiPayload);
-      showNotification({ title: "Sale Invoice Created", message: `Invoice ${invoiceNumber} created successfully`, color: "green" });
+      showNotification({
+        title: "Sale Invoice Created",
+        message: `Invoice ${invoiceNumber} created successfully`,
+        color: "green",
+      });
       setOpen(false);
       setInitialPayload(null);
     } catch (err: unknown) {
-      const responseData = typeof err === "object" && err !== null && "response" in err ? (err as unknown as { response?: { data?: unknown } }).response?.data : undefined;
-      const message = (typeof responseData === "object" && responseData && "message" in responseData && (responseData as { message?: string }).message) || (typeof responseData === "string" ? responseData : undefined) || (typeof err === "object" && err !== null && "message" in err ? (err as { message?: string }).message : undefined) || String(err);
+      const responseData =
+        typeof err === "object" && err !== null && "response" in err
+          ? (err as unknown as { response?: { data?: unknown } }).response?.data
+          : undefined;
+      const message =
+        (typeof responseData === "object" &&
+          responseData &&
+          "message" in responseData &&
+          (responseData as { message?: string }).message) ||
+        (typeof responseData === "string" ? responseData : undefined) ||
+        (typeof err === "object" && err !== null && "message" in err
+          ? (err as { message?: string }).message
+          : undefined) ||
+        String(err);
       showNotification({ title: "Sale Persist Failed", message, color: "red" });
     }
   }
@@ -215,37 +253,58 @@ export default function SaleInvoice() {
   async function handleQuotationImportSubmit(payload: SalesPayload) {
     const invoiceNumber = makeInvoiceNumber();
     const invoiceDate = payload.docDate || new Date().toISOString();
-    let cust = customers.find((c) => String(c._id) === String(payload.customer));
+    let cust = customers.find(
+      (c) => String(c._id) === String(payload.customer)
+    );
     if (!cust && payload.customer) {
       if (typeof payload.customer === "object" && "name" in payload.customer) {
-        const id = "_id" in payload.customer && payload.customer._id ? payload.customer._id : String(payload.customer.name);
-        cust = { _id: typeof id === "string" ? id : String(id), name: payload.customer.name };
+        const id =
+          "_id" in payload.customer && payload.customer._id
+            ? payload.customer._id
+            : String(payload.customer.name);
+        cust = {
+          _id: typeof id === "string" ? id : String(id),
+          name: payload.customer.name,
+        };
       } else {
-        cust = { _id: String(payload.customer), name: String(payload.customer) };
+        cust = {
+          _id: String(payload.customer),
+          name: String(payload.customer),
+        };
       }
     }
-    const products = payload.items?.map((it) => {
-      const inv = inventory.find((p) => String(p._id) === String(it._id) || String(p.itemName) === String(it.itemName));
-      return {
-        _id: inv?._id,
-        itemName: inv?.itemName ?? it.itemName,
-        category: inv?.category ?? "",
-        salesRate: Number(inv?.salesRate ?? it.salesRate ?? 0),
-        color: it.color ?? inv?.color ?? "",
-        thickness: it.thickness ?? inv?.thickness ?? undefined,
-        openingStock: Number(inv?.openingStock ?? 0),
-        minimumStockLevel: Number(inv?.minimumStockLevel ?? 0),
-        quantity: Number(it.quantity ?? 0),
-        unit: it.unit ?? inv?.unit ?? undefined,
-        discount: Number(it.discount ?? 0),
-        discountAmount: Number(it.discountAmount ?? 0),
-        length: it.length ?? undefined,
-        metadata: { price: it.salesRate ?? undefined },
-      } as SaleItem;
-    }) ?? [];
+    const products =
+      payload.items?.map((it) => {
+        const inv = inventory.find(
+          (p) =>
+            String(p._id) === String(it._id) ||
+            String(p.itemName) === String(it.itemName)
+        );
+        return {
+          _id: inv?._id,
+          itemName: inv?.itemName ?? it.itemName,
+          category: inv?.category ?? "",
+          salesRate: Number(inv?.salesRate ?? it.salesRate ?? 0),
+          color: it.color ?? inv?.color ?? "",
+          thickness: it.thickness ?? inv?.thickness ?? undefined,
+          openingStock: Number(inv?.openingStock ?? 0),
+          minimumStockLevel: Number(inv?.minimumStockLevel ?? 0),
+          quantity: Number(it.quantity ?? 0),
+          unit: it.unit ?? inv?.unit ?? undefined,
+          discount: Number(it.discount ?? 0),
+          discountAmount: Number(it.discountAmount ?? 0),
+          length: it.length ?? undefined,
+          metadata: { price: it.salesRate ?? undefined },
+        } as SaleItem;
+      }) ?? [];
     const mappedProducts = products.map((item) => ({
       ...item,
-      thickness: typeof item.thickness === "string" ? isNaN(Number(item.thickness)) ? undefined : Number(item.thickness) : item.thickness,
+      thickness:
+        typeof item.thickness === "string"
+          ? isNaN(Number(item.thickness))
+            ? undefined
+            : Number(item.thickness)
+          : item.thickness,
       discount: item.discount ?? 0,
       discountAmount: item.discountAmount ?? 0,
       quantity: item.quantity ?? 0,
@@ -270,18 +329,42 @@ export default function SaleInvoice() {
     };
     try {
       await createSale(apiPayload);
-      showNotification({ title: "Sale Invoice Imported", message: `Invoice ${invoiceNumber} imported from quotation`, color: "green" });
+      showNotification({
+        title: "Sale Invoice Imported",
+        message: `Invoice ${invoiceNumber} imported from quotation`,
+        color: "green",
+      });
     } catch (err: unknown) {
-      const responseData = typeof err === "object" && err !== null && "response" in err ? (err as unknown as { response?: { data?: unknown } }).response?.data : undefined;
-      const message = (typeof responseData === "object" && responseData && "message" in responseData && (responseData as { message?: string }).message) || (typeof responseData === "string" ? responseData : undefined) || (typeof err === "object" && err !== null && "message" in err ? (err as { message?: string }).message : undefined) || String(err);
+      const responseData =
+        typeof err === "object" && err !== null && "response" in err
+          ? (err as unknown as { response?: { data?: unknown } }).response?.data
+          : undefined;
+      const message =
+        (typeof responseData === "object" &&
+          responseData &&
+          "message" in responseData &&
+          (responseData as { message?: string }).message) ||
+        (typeof responseData === "string" ? responseData : undefined) ||
+        (typeof err === "object" && err !== null && "message" in err
+          ? (err as { message?: string }).message
+          : undefined) ||
+        String(err);
       showNotification({ title: "Sale Persist Failed", message, color: "red" });
     }
     const now = new Date().toISOString();
     setQuotations((prev) =>
       prev.map((q) => {
         const key = q.quotationNumber;
-        if (key === payload.sourceQuotationId || String(key) === String(payload.sourceQuotationId)) {
-          return { ...q, status: "converted", convertedInvoiceId: invoiceNumber, convertedAt: now };
+        if (
+          key === payload.sourceQuotationId ||
+          String(key) === String(payload.sourceQuotationId)
+        ) {
+          return {
+            ...q,
+            status: "converted",
+            convertedInvoiceId: invoiceNumber,
+            convertedAt: now,
+          };
         }
         return q;
       })
@@ -323,7 +406,11 @@ export default function SaleInvoice() {
             setOpen(false);
             setInitialPayload(null);
           }}
-          title={initialPayload ? "Import Quotation as Sale Invoice" : "Create Sale Invoice"}
+          title={
+            initialPayload
+              ? "Import Quotation as Sale Invoice"
+              : "Create Sale Invoice"
+          }
           size="100%"
         >
           <ScrollArea style={{ height: "70vh", width: "100%" }}>
@@ -333,7 +420,11 @@ export default function SaleInvoice() {
               products={inventory}
               submitting={submitting}
               setSubmitting={setSubmitting}
-              onSubmit={initialPayload ? handleQuotationImportSubmit : handleCreateInvoiceSubmit}
+              onSubmit={
+                initialPayload
+                  ? handleQuotationImportSubmit
+                  : handleCreateInvoiceSubmit
+              }
               initial={
                 initialPayload ?? {
                   docNo: makeInvoiceNumber(),
@@ -342,7 +433,11 @@ export default function SaleInvoice() {
                     if (sales && sales.length > 0) {
                       // Find the latest invoice date
                       const latest = sales.reduce((max: Date | null, s) => {
-                        const d = s.invoiceDate ? new Date(s.invoiceDate) : (s.date ? new Date(s.date) : null);
+                        const d = s.invoiceDate
+                          ? new Date(s.invoiceDate)
+                          : s.date
+                          ? new Date(s.date)
+                          : null;
                         return d && (!max || d > max) ? d : max;
                       }, null as Date | null);
                       dateObj = latest ? latest : new Date();
@@ -762,7 +857,9 @@ export default function SaleInvoice() {
                         const apiPayload: SalesPayload = {
                           docNo: q.quotationNumber ?? `Quotation ${idx + 1}`,
                           docDate: q.quotationDate
-                            ? new Date(q.quotationDate as string).toISOString().slice(0, 10)
+                            ? new Date(q.quotationDate as string)
+                                .toISOString()
+                                .slice(0, 10)
                             : new Date().toISOString().slice(0, 10),
                           mode: "Invoice",
                           items,

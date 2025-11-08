@@ -18,8 +18,12 @@ interface Props {
 }
 
 export function ProductForm({ product, onClose }: Props) {
-  const { createInventoryItem, updateInventoryItem, categoriesForSelect } =
-    useDataContext();
+  const {
+    createInventoryItem,
+    updateInventoryItem,
+    categoriesForSelect,
+    suppliersForSelect,
+  } = useDataContext();
 
   const [form, setForm] = useState({
     itemName: product?.itemName || "",
@@ -31,6 +35,7 @@ export function ProductForm({ product, onClose }: Props) {
     openingStock: product?.openingStock ?? 0,
     minimumStockLevel: product?.minimumStockLevel || 0,
     description: product?.description || "",
+    brand: product?.brand || "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,6 +62,7 @@ export function ProductForm({ product, onClose }: Props) {
       openingStock: Number(form.openingStock) || 0,
       minimumStockLevel: Number(form.minimumStockLevel) || 0,
       description: form.description.trim() || "",
+      brand: form.brand.trim() || "",
       quantity: Number(form.openingStock) || 0, // Map openingStock to quantity for backend
       discount: 0, // Required by InventoryItemPayload
     };
@@ -94,6 +100,15 @@ export function ProductForm({ product, onClose }: Props) {
           onChange={(v) => setForm({ ...form, category: v || "" })}
           searchable
           clearable
+        />
+        <SafeSelect
+          label="Brand/Supplier"
+          data={suppliersForSelect || []}
+          value={form.brand}
+          onChange={(v) => setForm({ ...form, brand: v || "" })}
+          searchable
+          clearable
+          placeholder="Select brand or supplier"
         />
       </Group>
 

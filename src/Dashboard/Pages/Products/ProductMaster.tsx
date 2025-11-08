@@ -237,8 +237,17 @@ export default function ProductMaster() {
         </Group>
 
         <ScrollArea>
-          <Table withColumnBorders withRowBorders highlightOnHover>
-            <Table.Thead>
+          <Table
+            withColumnBorders
+            withRowBorders
+            highlightOnHover
+            withTableBorder
+          >
+            <Table.Thead
+              style={{
+                backgroundColor: "#F1F3F5",
+              }}
+            >
               <Table.Tr>
                 <Table.Th style={{ width: "40px", padding: "8px" }}>
                   Sr No.
@@ -247,6 +256,7 @@ export default function ProductMaster() {
                   Item Name
                 </Table.Th>
                 <Table.Th style={{ padding: "8px" }}>Category</Table.Th>
+                <Table.Th style={{ padding: "8px" }}>Brand/Supplier</Table.Th>
                 <Table.Th style={{ padding: "8px" }}>Color</Table.Th>
                 <Table.Th style={{ width: "100px", padding: "8px" }}>
                   Opening Stock
@@ -275,6 +285,10 @@ export default function ProductMaster() {
                     >
                       {p.category}
                     </Badge>
+                  </Table.Td>
+
+                  <Table.Td style={{ padding: "8px" }}>
+                    {p.brand ?? "-"}
                   </Table.Td>
 
                   <Table.Td style={{ padding: "8px" }}>

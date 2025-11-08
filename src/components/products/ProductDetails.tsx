@@ -29,6 +29,13 @@ export function ProductDetails({ product }: Props) {
             </Badge>
           </Grid.Col>
 
+          <Grid.Col span={6}>
+            <Text size="xs" c="dimmed">
+              Brand/Supplier
+            </Text>
+            <Text fw={600}>{product.brand || "-"}</Text>
+          </Grid.Col>
+
           <Grid.Col span={4}>
             <Text size="xs" c="dimmed">
               Thickness

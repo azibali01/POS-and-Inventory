@@ -18,9 +18,10 @@ import CashBookPage from "../Pages/Accounts/CashBook";
 import BankBookPage from "../Pages/Accounts/BankBook";
 
 import ProfitLoss from "../Pages/Reports/Profit&Loss";
+import JournalLedger from "../Pages/Reports/JournalLedger";
 
 import CategoryPage from "../Pages/Products/Category";
-import JournalVouchersPage from "../Pages/Accounts/JournalVoucher";
+
 import PaymentVouchersPage from "../Pages/Accounts/PaymentVoucher";
 import ReceiptsPage from "../Pages/Accounts/ReceiptVoucher";
 import Stocksummary from "../Pages/Reports/Stocksummary";
@@ -100,10 +101,7 @@ const routes: RouteObject[] = [
         path: "/accounts/payments",
         element: <PaymentVouchersPage />,
       },
-      {
-        path: "/accounts/journal",
-        element: <JournalVouchersPage />,
-      },
+
       {
         path: "/accounts/cash-book",
         element: <CashBookPage />,
@@ -117,6 +115,10 @@ const routes: RouteObject[] = [
       {
         path: "/reports/profit-loss",
         element: <ProfitLoss />,
+      },
+      {
+        path: "/reports/journal-ledger",
+        element: <JournalLedger />,
       },
       {},
     ],

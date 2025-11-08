@@ -48,7 +48,7 @@ const navigation: MenuItem[] = [
         label: "Stock Summary",
         icon: <FileBarChart size={14} />,
         path: "/products/stock-summary",
-      }
+      },
     ],
   },
   {
@@ -123,11 +123,7 @@ const navigation: MenuItem[] = [
         icon: <Wallet size={14} />,
         path: "/accounts/payments",
       },
-      {
-        label: "Journal Voucher",
-        icon: <Wallet size={14} />,
-        path: "/accounts/journal",
-      },
+
       {
         label: "Cash Book",
         icon: <Wallet size={14} />,
@@ -148,6 +144,11 @@ const navigation: MenuItem[] = [
         label: "Profit & Loss",
         icon: <FileBarChart size={14} />,
         path: "/reports/profit-loss",
+      },
+      {
+        label: "Journal Ledger",
+        icon: <FileBarChart size={14} />,
+        path: "/reports/journal-ledger",
       },
     ],
   },
