@@ -55,7 +55,7 @@ export default function CategoryPage() {
   }, [inventory, categories]);
 
   const totalCategories = categoriesList.length;
-
+  // test
   // Pagination logic
   const totalPages = Math.ceil(categoriesList.length / parseInt(itemsPerPage));
   const paginatedCategories = useMemo(() => {
