@@ -16,7 +16,7 @@ import Table from "../../../lib/AppTable";
 import { useDataContext } from "../../Context/DataContext";
 import type {
   SaleRecord,
-  PurchaseRecord,
+  PurchaseInvoiceRecord,
   Expense,
 } from "../../Context/DataContext";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
@@ -39,10 +39,10 @@ export default function ProfitLoss() {
   const [toDate, setToDate] = useState<string>("");
   const {
     sales = [],
-    purchases = [],
+    purchaseInvoices = [],
     expenses = [],
     loadSales,
-    loadPurchases,
+    loadPurchaseInvoices,
     loadExpenses,
   } = useDataContext();
 
@@ -60,31 +60,61 @@ export default function ProfitLoss() {
     return {
       sales:
         start || end ? sales.filter((s: SaleRecord) => inRange(s.date)) : sales,
-      purchases:
+      purchaseInvoices:
         start || end
-          ? purchases.filter((p: PurchaseRecord) => inRange(p.poDate))
-          : purchases,
+          ? purchaseInvoices.filter((p: PurchaseInvoiceRecord) =>
+              inRange(p.invoiceDate)
+            )
+          : purchaseInvoices,
       expenses:
         start || end
           ? expenses.filter((e: Expense) => inRange(e.date))
           : expenses,
     };
-  }, [sales, purchases, expenses, fromDate, toDate]);
+  }, [sales, purchaseInvoices, expenses, fromDate, toDate]);
 
   useEffect(() => {
     // load the heavy datasets lazily when this report page mounts
     if (typeof loadSales === "function") loadSales().catch(() => {});
-    if (typeof loadPurchases === "function") loadPurchases().catch(() => {});
+    if (typeof loadPurchaseInvoices === "function")
+      loadPurchaseInvoices().catch(() => {});
     if (typeof loadExpenses === "function") loadExpenses().catch(() => {});
-  }, [loadSales, loadPurchases, loadExpenses]);
+  }, [loadSales, loadPurchaseInvoices, loadExpenses]);
   // simple aggregations ignoring tax/COGS details
   const totals = useMemo(() => {
-    const sTotal = filtered.sales.reduce(
-      (acc: number, r: SaleRecord) => acc + (r.total || 0),
-      0
-    );
-    const pTotal = filtered.purchases.reduce(
-      (acc: number, r: PurchaseRecord) => acc + (r.total || 0),
+    const sTotal = filtered.sales.reduce((acc: number, r: SaleRecord) => {
+      // Use total, totalNetAmount, or totalGrossAmount as fallback
+      const saleTotal = r.total || r.totalNetAmount || r.totalGrossAmount || 0;
+      return acc + saleTotal;
+    }, 0);
+    const pTotal = filtered.purchaseInvoices.reduce(
+      (acc: number, r: PurchaseInvoiceRecord) => {
+        // Calculate total from purchase invoice.total, subTotal, or sum of products
+        let purchaseTotal = 0;
+
+        // Try total first (handle undefined, null, 0)
+        if (r.total != null && r.total > 0) {
+          purchaseTotal = r.total;
+        }
+        // Try subTotal if total is not available
+        else if (r.subTotal != null && r.subTotal > 0) {
+          purchaseTotal = r.subTotal;
+        }
+        // Calculate from products as last resort
+        else if (
+          r.products &&
+          Array.isArray(r.products) &&
+          r.products.length > 0
+        ) {
+          purchaseTotal = r.products.reduce((sum, product) => {
+            const amount =
+              product.amount || product.quantity * product.rate || 0;
+            return sum + amount;
+          }, 0);
+        }
+
+        return acc + purchaseTotal;
+      },
       0
     );
     const eTotal = filtered.expenses.reduce(
@@ -113,15 +143,37 @@ export default function ProfitLoss() {
         2,
         "0"
       )}`;
-      add(key, "sales", s.total || 0);
+      // Use total, totalNetAmount, or totalGrossAmount as fallback
+      const saleTotal = s.total || s.totalNetAmount || s.totalGrossAmount || 0;
+      add(key, "sales", saleTotal);
     });
-    filtered.purchases.forEach((p: PurchaseRecord) => {
-      const d = new Date(p.poDate as string);
+    filtered.purchaseInvoices.forEach((p: PurchaseInvoiceRecord) => {
+      const d = new Date(p.invoiceDate as string);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
         2,
         "0"
       )}`;
-      add(key, "purchases", p.total || 0);
+
+      // Calculate total from purchase invoice.total, subTotal, or sum of products
+      let purchaseTotal = 0;
+
+      // Try total first (handle undefined, null, 0)
+      if (p.total != null && p.total > 0) {
+        purchaseTotal = p.total;
+      }
+      // Try subTotal if total is not available
+      else if (p.subTotal != null && p.subTotal > 0) {
+        purchaseTotal = p.subTotal;
+      }
+      // Calculate from products as last resort
+      else if (Array.isArray(p.products) && p.products.length > 0) {
+        purchaseTotal = p.products.reduce((sum, product) => {
+          const amount = product.amount || product.quantity * product.rate || 0;
+          return sum + amount;
+        }, 0);
+      }
+
+      add(key, "purchases", purchaseTotal);
     });
     // sort by month
     return Array.from(map.values()).sort((a, b) =>
@@ -321,7 +373,9 @@ export default function ProfitLoss() {
                         "N/A"}
                   </Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
-                    {formatCurrency(s.total)}
+                    {formatCurrency(
+                      s.total || s.totalNetAmount || s.totalGrossAmount || 0
+                    )}
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -334,7 +388,7 @@ export default function ProfitLoss() {
 
       <div style={{ marginTop: 12 }}>
         <Text style={{ fontWeight: 600, marginBottom: 8 }}>
-          Purchases (latest)
+          Purchase Invoices (latest)
         </Text>
         <ScrollArea style={{ maxHeight: 240 }}>
           <Table
@@ -345,24 +399,51 @@ export default function ProfitLoss() {
           >
             <Table.Thead style={{ backgroundColor: "#f1f3f5" }}>
               <Table.Tr>
-                <Table.Th>ID</Table.Th>
+                <Table.Th>Purchase Invoice</Table.Th>
                 <Table.Th>Date</Table.Th>
                 <Table.Th>Supplier</Table.Th>
                 <Table.Th style={{ textAlign: "right" }}>Total</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {filtered.purchases.map((p: PurchaseRecord) => (
+              {filtered.purchaseInvoices.map((p: PurchaseInvoiceRecord) => (
                 <Table.Tr key={p.id}>
-                  <Table.Td>{p.id}</Table.Td>
-                  <Table.Td>{formatDate(p.poDate as string)}</Table.Td>
+                  <Table.Td>{p.purchaseInvoiceNumber || p.id || "-"}</Table.Td>
+                  <Table.Td>{formatDate(p.invoiceDate as string)}</Table.Td>
                   <Table.Td>
                     {typeof p.supplier === "string"
                       ? p.supplier
                       : p.supplier?.name ?? "N/A"}
                   </Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
-                    {formatCurrency(p.total)}
+                    {(() => {
+                      // Calculate total from purchase invoice.total, subTotal, or sum of products
+                      let purchaseTotal = 0;
+
+                      // Try total first (handle undefined, null, 0)
+                      if (p.total != null && p.total > 0) {
+                        purchaseTotal = p.total;
+                      }
+                      // Try subTotal if total is not available
+                      else if (p.subTotal != null && p.subTotal > 0) {
+                        purchaseTotal = p.subTotal;
+                      }
+                      // Calculate from products as last resort
+                      else if (
+                        Array.isArray(p.products) &&
+                        p.products.length > 0
+                      ) {
+                        purchaseTotal = p.products.reduce((sum, product) => {
+                          const amount =
+                            product.amount ||
+                            product.quantity * product.rate ||
+                            0;
+                          return sum + amount;
+                        }, 0);
+                      }
+
+                      return formatCurrency(purchaseTotal);
+                    })()}
                   </Table.Td>
                 </Table.Tr>
               ))}

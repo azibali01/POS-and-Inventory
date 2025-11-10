@@ -179,6 +179,10 @@ export default function SaleInvoice() {
           _id: inv?._id,
           itemName: inv?.itemName ?? it.itemName,
           category: inv?.category ?? "",
+          // include supplier/brand if available on inventory item
+          supplier:
+            (inv as any)?.supplier ?? (inv as any)?.supplierName ?? undefined,
+          brand: inv?.brand ?? undefined,
           salesRate: Number(inv?.salesRate ?? it.salesRate ?? 0),
           color: it.color ?? inv?.color ?? "",
           thickness: it.thickness ?? inv?.thickness ?? undefined,
@@ -284,6 +288,10 @@ export default function SaleInvoice() {
           _id: inv?._id,
           itemName: inv?.itemName ?? it.itemName,
           category: inv?.category ?? "",
+          // include supplier/brand if available on inventory item
+          supplier:
+            (inv as any)?.supplier ?? (inv as any)?.supplierName ?? undefined,
+          brand: inv?.brand ?? undefined,
           salesRate: Number(inv?.salesRate ?? it.salesRate ?? 0),
           color: it.color ?? inv?.color ?? "",
           thickness: it.thickness ?? inv?.thickness ?? undefined,

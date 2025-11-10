@@ -11,6 +11,8 @@ import {
   Modal,
   Stack,
   Divider,
+  Pagination,
+  Select,
 } from "@mantine/core";
 // Removed DatePickerInput import
 import Table from "../../../lib/AppTable";
@@ -50,6 +52,8 @@ export default function BankBookPage() {
   const [openingBalance, setOpeningBalance] = useState<number>(0);
   const [editingOpening, setEditingOpening] = useState(false);
   const [tempOpening, setTempOpening] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<string>("25");
 
   useEffect(() => {
     async function fetchData() {
@@ -221,6 +225,19 @@ export default function BankBookPage() {
     { receipt: 0, payment: 0 }
   );
 
+  // Pagination logic
+  const totalPages = Math.ceil(filtered.length / parseInt(itemsPerPage));
+  const paginatedEntries = useMemo(() => {
+    const startIndex = (currentPage - 1) * parseInt(itemsPerPage);
+    const endIndex = startIndex + parseInt(itemsPerPage);
+    return filtered.slice(startIndex, endIndex);
+  }, [filtered, currentPage, itemsPerPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [q, fromDate, toDate]);
+
   useEffect(() => {
     let balance = openingBalance;
     const withBalance = data.map((entry) => {
@@ -331,6 +348,28 @@ export default function BankBookPage() {
         </div>
       </Group>
       <Card>
+        <Group justify="space-between" mb="md" p="sm">
+          <Stack gap={0}>
+            <Text fw={600}>Bank Book Entries</Text>
+            <Text size="sm" c="dimmed">
+              Showing {paginatedEntries.length} of {filtered.length} entries
+            </Text>
+          </Stack>
+          <Select
+            value={itemsPerPage}
+            onChange={(value) => {
+              setItemsPerPage(value || "25");
+              setCurrentPage(1);
+            }}
+            data={[
+              { value: "10", label: "10 per page" },
+              { value: "25", label: "25 per page" },
+              { value: "50", label: "50 per page" },
+              { value: "100", label: "100 per page" },
+            ]}
+            style={{ width: 140 }}
+          />
+        </Group>
         <Card.Section>
           <ScrollArea>
             <Table
@@ -361,7 +400,7 @@ export default function BankBookPage() {
                     {formatCurrency(openingBalance)}
                   </td>
                 </tr>
-                {filtered.map((v, idx) => (
+                {paginatedEntries.map((v, idx) => (
                   <tr
                     key={idx}
                     style={{ cursor: "pointer" }}
@@ -463,6 +502,18 @@ export default function BankBookPage() {
             </Table>
           </ScrollArea>
         </Card.Section>
+
+        {totalPages > 1 && (
+          <Group justify="center" mt="md" pb="md">
+            <Pagination
+              value={currentPage}
+              onChange={setCurrentPage}
+              total={totalPages}
+              size="sm"
+              withEdges
+            />
+          </Group>
+        )}
       </Card>
     </div>
   );

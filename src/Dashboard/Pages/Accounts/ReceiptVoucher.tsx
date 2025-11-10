@@ -13,6 +13,8 @@ import {
   Button,
   Title,
   Stack,
+  Pagination,
+  Select,
 } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { ReceiptForm } from "../../../components/accounts/receipt-form";
@@ -57,6 +59,9 @@ export default function ReceiptsPage() {
   const [open, setOpen] = useState(false);
   const [editVoucher, setEditVoucher] = useState<ReceiptVoucher | null>(null);
   const [nextVoucherNumber, setNextVoucherNumber] = useState("RV-0001");
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<string>("25");
 
   // Load all receipts on mount and calculate next voucher number
   useEffect(() => {
@@ -106,6 +111,19 @@ export default function ReceiptsPage() {
     );
   }, [q, data]);
 
+  // Pagination logic
+  const totalPages = Math.ceil(filtered.length / parseInt(itemsPerPage));
+  const paginatedEntries = useMemo(() => {
+    const start = (currentPage - 1) * parseInt(itemsPerPage);
+    const end = start + parseInt(itemsPerPage);
+    return filtered.slice(start, end);
+  }, [filtered, currentPage, itemsPerPage]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [q]);
+
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Group justify="apart" align="center">
@@ -123,9 +141,19 @@ export default function ReceiptsPage() {
           <Stack gap={0}>
             <Text fw={600}>All Receipts</Text>
             <Text size="sm" c="dimmed">
-              {filtered.length} found
+              Showing {paginatedEntries.length} of {filtered.length} entries
             </Text>
           </Stack>
+          <Select
+            label="Per page"
+            value={itemsPerPage}
+            onChange={(val) => {
+              setItemsPerPage(val || "25");
+              setCurrentPage(1);
+            }}
+            data={["10", "25", "50", "100"]}
+            w={100}
+          />
         </Group>
 
         {/* RIGHT SIDE */}
@@ -168,7 +196,7 @@ export default function ReceiptsPage() {
                 </tr>
               </Table.Thead>
               <tbody>
-                {filtered.map((v) => (
+                {paginatedEntries.map((v) => (
                   <tr key={v.id}>
                     <td style={{ fontFamily: "monospace", fontSize: 12 }}>
                       {v.voucherNumber}
@@ -246,6 +274,17 @@ export default function ReceiptsPage() {
             </Table>
           </ScrollArea>
         </Card.Section>
+        {totalPages > 1 && (
+          <Group justify="center" mt="md" pb="md">
+            <Pagination
+              value={currentPage}
+              onChange={setCurrentPage}
+              total={totalPages}
+              size="sm"
+              withEdges
+            />
+          </Group>
+        )}
       </Card>
 
       {/* Confirm Delete Modal (must be outside the table/menu) */}

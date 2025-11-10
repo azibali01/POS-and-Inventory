@@ -15,6 +15,7 @@ import {
   ScrollArea,
   Checkbox,
   NumberInput,
+  Pagination,
 } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { showNotification } from "@mantine/notifications";
@@ -76,6 +77,9 @@ export default function ProductMaster() {
   const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(
     null
   );
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<string>("25");
 
   // Fetch all products from backend on mount
   useEffect(() => {
@@ -126,6 +130,19 @@ export default function ProductMaster() {
     });
     return arr;
   }, [inventory, debouncedSearch, selectedCategory]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(filtered.length / parseInt(itemsPerPage));
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * parseInt(itemsPerPage);
+    const end = start + parseInt(itemsPerPage);
+    return filtered.slice(start, end);
+  }, [filtered, currentPage, itemsPerPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, selectedCategory]);
 
   const getStockStatus = (item: InventoryItem) => {
     const stock = item.openingStock ?? item.stock;
@@ -209,7 +226,21 @@ export default function ProductMaster() {
         <Group justify="space-between" style={{ marginBottom: 12 }}>
           <div>
             <Title order={4}>All Products</Title>
-            <Text c="dimmed">{filtered.length} products found</Text>
+            <Group gap="xs">
+              <Text c="dimmed">
+                Showing {paginatedProducts.length} of {filtered.length} products
+              </Text>
+              <Select
+                label="Per page"
+                value={itemsPerPage}
+                onChange={(val) => {
+                  setItemsPerPage(val || "25");
+                  setCurrentPage(1);
+                }}
+                data={["10", "25", "50", "100"]}
+                w={100}
+              />
+            </Group>
           </div>
 
           <div style={{ width: 520, display: "flex", gap: 8 }}>
@@ -271,9 +302,11 @@ export default function ProductMaster() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {filtered.map((p, index) => (
+              {paginatedProducts.map((p, index) => (
                 <Table.Tr key={p._id}>
-                  <Table.Td style={{ padding: "8px" }}>{index + 1}</Table.Td>
+                  <Table.Td style={{ padding: "8px" }}>
+                    {(currentPage - 1) * parseInt(itemsPerPage) + index + 1}
+                  </Table.Td>
                   <Table.Td style={{ padding: "8px" }}>
                     {p.itemName || "-"}
                   </Table.Td>
@@ -335,6 +368,17 @@ export default function ProductMaster() {
             </Table.Tbody>
           </Table>
         </ScrollArea>
+        {totalPages > 1 && (
+          <Group justify="center" mt="md" pb="md">
+            <Pagination
+              value={currentPage}
+              onChange={setCurrentPage}
+              total={totalPages}
+              size="sm"
+              withEdges
+            />
+          </Group>
+        )}
       </Card>
 
       <Modal

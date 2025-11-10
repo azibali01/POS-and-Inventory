@@ -8,6 +8,8 @@ import {
   Modal,
   TextInput,
   ActionIcon,
+  Pagination,
+  Select,
 } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { showNotification } from "@mantine/notifications";
@@ -36,6 +38,10 @@ export default function CategoryPage() {
 
   const [addValue, setAddValue] = useState("");
   const [renameValue, setRenameValue] = useState("");
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<string>("25");
+
   const categoriesList = useMemo(() => {
     const s = new Set<string>();
     for (const it of inventory || []) {
@@ -49,6 +55,14 @@ export default function CategoryPage() {
   }, [inventory, categories]);
 
   const totalCategories = categoriesList.length;
+
+  // Pagination logic
+  const totalPages = Math.ceil(categoriesList.length / parseInt(itemsPerPage));
+  const paginatedCategories = useMemo(() => {
+    const start = (currentPage - 1) * parseInt(itemsPerPage);
+    const end = start + parseInt(itemsPerPage);
+    return categoriesList.slice(start, end);
+  }, [categoriesList, currentPage, itemsPerPage]);
 
   function handleAdd() {
     const v = addValue.trim();
@@ -110,9 +124,22 @@ export default function CategoryPage() {
           <Text color="dimmed">
             Manage product categories used across inventory
           </Text>
-          <Text size="sm" color="dimmed">
-            Total categories: {totalCategories}
-          </Text>
+          <Group gap="xs" mt="xs">
+            <Text size="sm" color="dimmed">
+              Showing {paginatedCategories.length} of {totalCategories}{" "}
+              categories
+            </Text>
+            <Select
+              label="Per page"
+              value={itemsPerPage}
+              onChange={(val) => {
+                setItemsPerPage(val || "25");
+                setCurrentPage(1);
+              }}
+              data={["10", "25", "50", "100"]}
+              w={100}
+            />
+          </Group>
         </div>
         <div>
           <Button
@@ -138,9 +165,11 @@ export default function CategoryPage() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {categoriesList.map((name, index) => (
+            {paginatedCategories.map((name, index) => (
               <Table.Tr key={name}>
-                <Table.Td>{index + 1}</Table.Td>
+                <Table.Td>
+                  {(currentPage - 1) * parseInt(itemsPerPage) + index + 1}
+                </Table.Td>
                 <Table.Td>{name}</Table.Td>
                 <Table.Td style={{ textAlign: "right" }}>
                   <Group justify="flex-end">
@@ -164,7 +193,7 @@ export default function CategoryPage() {
                 </Table.Td>
               </Table.Tr>
             ))}
-            {categoriesList.length === 0 && (
+            {paginatedCategories.length === 0 && (
               <Table.Tr>
                 <Table.Td colSpan={3} style={{ textAlign: "center" }}>
                   <Text color="dimmed">No categories available</Text>
@@ -173,6 +202,17 @@ export default function CategoryPage() {
             )}
           </Table.Tbody>
         </Table>
+        {totalPages > 1 && (
+          <Group justify="center" mt="md" pb="md">
+            <Pagination
+              value={currentPage}
+              onChange={setCurrentPage}
+              total={totalPages}
+              size="sm"
+              withEdges
+            />
+          </Group>
+        )}
       </Card>
 
       <Modal

@@ -11,6 +11,8 @@ import {
   Badge,
   Stack,
   Tabs,
+  Pagination,
+  MultiSelect,
 } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { useDataContext } from "../../Context/DataContext";
@@ -36,15 +38,24 @@ export default function JournalLedger() {
     purchases = [],
     customers = [],
     suppliers = [],
+    receiptVouchers = [],
+    paymentVouchers = [],
     loadSales,
     loadPurchases,
     loadCustomers,
     loadSuppliers,
+    loadReceiptVouchers,
+    loadPaymentVouchers,
   } = useDataContext();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string | null>("all");
+  const [selectedDocTypes, setSelectedDocTypes] = useState<string[]>([]);
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<string>("25");
 
   // Load data on mount
   useEffect(() => {
@@ -52,6 +63,10 @@ export default function JournalLedger() {
     if (typeof loadPurchases === "function") loadPurchases().catch(() => {});
     if (typeof loadCustomers === "function") loadCustomers().catch(() => {});
     if (typeof loadSuppliers === "function") loadSuppliers().catch(() => {});
+    if (typeof loadReceiptVouchers === "function")
+      loadReceiptVouchers().catch(() => {});
+    if (typeof loadPaymentVouchers === "function")
+      loadPaymentVouchers().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -99,6 +114,21 @@ export default function JournalLedger() {
       const supplierId = supplier?._id || "";
       const supplierName = supplier?.name || "Unknown Supplier";
 
+      // Calculate total from purchase.total, subTotal, or sum of products
+      let purchaseTotal = purchase.total || purchase.subTotal || 0;
+
+      // If still 0, try to calculate from products
+      if (
+        purchaseTotal === 0 &&
+        purchase.products &&
+        Array.isArray(purchase.products)
+      ) {
+        purchaseTotal = purchase.products.reduce((sum, product) => {
+          const amount = product.amount || product.quantity * product.rate || 0;
+          return sum + amount;
+        }, 0);
+      }
+
       entries.push({
         id: uniqueId,
         date: purchase.poDate || new Date(),
@@ -106,10 +136,50 @@ export default function JournalLedger() {
         documentNumber: purchase.poNumber || String(purchase.id),
         particulars: `Purchase from ${supplierName}`,
         debit: 0,
-        credit: purchase.total || 0,
+        credit: purchaseTotal,
         balance: 0, // Will be calculated later
         customerOrSupplier: supplierName,
         customerOrSupplierId: String(supplierId),
+      });
+    });
+
+    // Add receipt vouchers (Credit for cash received from customers)
+    receiptVouchers.forEach((receipt) => {
+      const uniqueId = `receipt-${receipt.id}`;
+      if (seenIds.has(uniqueId)) return;
+      seenIds.add(uniqueId);
+
+      entries.push({
+        id: uniqueId,
+        date: receipt.voucherDate || new Date(),
+        documentType: "Receipt",
+        documentNumber: receipt.voucherNumber || String(receipt.id),
+        particulars: `Receipt from ${receipt.receivedFrom}`,
+        debit: 0,
+        credit: receipt.amount || 0,
+        balance: 0, // Will be calculated later
+        customerOrSupplier: receipt.receivedFrom,
+        customerOrSupplierId: "",
+      });
+    });
+
+    // Add payment vouchers (Debit for cash paid to suppliers)
+    paymentVouchers.forEach((payment) => {
+      const uniqueId = `payment-${payment.id}`;
+      if (seenIds.has(uniqueId)) return;
+      seenIds.add(uniqueId);
+
+      entries.push({
+        id: uniqueId,
+        date: payment.voucherDate || new Date(),
+        documentType: "Payment",
+        documentNumber: payment.voucherNumber || String(payment.id),
+        particulars: `Payment to ${payment.paidTo}`,
+        debit: payment.amount || 0,
+        credit: 0,
+        balance: 0, // Will be calculated later
+        customerOrSupplier: payment.paidTo,
+        customerOrSupplierId: "",
       });
     });
 
@@ -121,7 +191,7 @@ export default function JournalLedger() {
     });
 
     return entries;
-  }, [sales, purchases]);
+  }, [sales, purchases, receiptVouchers, paymentVouchers]);
 
   // Filter entries based on search and selected entity
   const filteredEntries = useMemo(() => {
@@ -129,12 +199,16 @@ export default function JournalLedger() {
 
     // Filter by tab (customers/suppliers/all)
     if (activeTab === "customers") {
-      filtered = filtered.filter((entry) =>
-        entry.documentType.includes("Sale")
+      filtered = filtered.filter(
+        (entry) =>
+          entry.documentType.includes("Sale") ||
+          entry.documentType === "Receipt"
       );
     } else if (activeTab === "suppliers") {
-      filtered = filtered.filter((entry) =>
-        entry.documentType.includes("Purchase")
+      filtered = filtered.filter(
+        (entry) =>
+          entry.documentType.includes("Purchase") ||
+          entry.documentType === "Payment"
       );
     }
 
@@ -160,6 +234,31 @@ export default function JournalLedger() {
       );
     }
 
+    // Filter by document types
+    if (selectedDocTypes.length > 0) {
+      filtered = filtered.filter((entry) =>
+        selectedDocTypes.includes(entry.documentType)
+      );
+    }
+
+    // Filter by date range
+    if (fromDate) {
+      const startDate = new Date(fromDate);
+      filtered = filtered.filter((entry) => {
+        const entryDate = new Date(entry.date);
+        return entryDate >= startDate;
+      });
+    }
+
+    if (toDate) {
+      const endDate = new Date(toDate);
+      endDate.setHours(23, 59, 59, 999); // Include the entire end date
+      filtered = filtered.filter((entry) => {
+        const entryDate = new Date(entry.date);
+        return entryDate <= endDate;
+      });
+    }
+
     // Filter by search term
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -172,7 +271,17 @@ export default function JournalLedger() {
     }
 
     return filtered;
-  }, [allEntries, searchTerm, selectedEntity, activeTab, customers, suppliers]);
+  }, [
+    allEntries,
+    searchTerm,
+    selectedEntity,
+    activeTab,
+    customers,
+    suppliers,
+    selectedDocTypes,
+    fromDate,
+    toDate,
+  ]);
 
   // Calculate running balance
   const entriesWithBalance = useMemo(() => {
@@ -230,6 +339,36 @@ export default function JournalLedger() {
       },
     ];
   }, [customers, suppliers]);
+
+  // Pagination logic
+  const totalPages = Math.ceil(
+    entriesWithBalance.length / parseInt(itemsPerPage)
+  );
+  const paginatedEntries = useMemo(() => {
+    const startIndex = (currentPage - 1) * parseInt(itemsPerPage);
+    const endIndex = startIndex + parseInt(itemsPerPage);
+    return entriesWithBalance.slice(startIndex, endIndex);
+  }, [entriesWithBalance, currentPage, itemsPerPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchTerm,
+    selectedEntity,
+    activeTab,
+    selectedDocTypes,
+    fromDate,
+    toDate,
+  ]);
+
+  // Document type options for filter
+  const documentTypeOptions = [
+    { value: "Sale Invoice", label: "Sale Invoice" },
+    { value: "Purchase Invoice", label: "Purchase Invoice" },
+    { value: "Receipt", label: "Receipt" },
+    { value: "Payment", label: "Payment" },
+  ];
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -300,13 +439,15 @@ export default function JournalLedger() {
             </Tabs.List>
           </Tabs>
 
-          <Group>
+          <Group align="flex-end" wrap="wrap">
             <TextInput
               placeholder="Search by document number, particulars, or name..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.currentTarget.value)}
+              onChange={(e) => {
+                setSearchTerm(e.currentTarget.value);
+              }}
               leftSection={<Search size={16} />}
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 250 }}
             />
             <Select
               placeholder="Select customer or supplier"
@@ -315,8 +456,47 @@ export default function JournalLedger() {
               onChange={setSelectedEntity}
               searchable
               clearable
-              style={{ width: 300 }}
+              style={{ minWidth: 250 }}
             />
+            <MultiSelect
+              placeholder="Filter by document type"
+              data={documentTypeOptions}
+              value={selectedDocTypes}
+              onChange={setSelectedDocTypes}
+              clearable
+              style={{ minWidth: 250 }}
+            />
+            <TextInput
+              type="date"
+              label="From Date"
+              value={fromDate}
+              onChange={(e) => {
+                setFromDate(e.currentTarget.value);
+              }}
+              style={{ minWidth: 150 }}
+            />
+            <TextInput
+              type="date"
+              label="To Date"
+              value={toDate}
+              onChange={(e) => {
+                setToDate(e.currentTarget.value);
+              }}
+              style={{ minWidth: 150 }}
+            />
+            <Button
+              variant="subtle"
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedEntity(null);
+                setSelectedDocTypes([]);
+                setFromDate("");
+                setToDate("");
+                setCurrentPage(1);
+              }}
+            >
+              Clear Filters
+            </Button>
           </Group>
 
           {selectedEntity && (
@@ -374,10 +554,25 @@ export default function JournalLedger() {
             <Stack gap={0}>
               <Text fw={600}>Journal Ledger Entries</Text>
               <Text size="sm" c="dimmed">
-                {entriesWithBalance.length} entries found
+                Showing {paginatedEntries.length} of {entriesWithBalance.length}{" "}
+                entries
               </Text>
             </Stack>
             <Group>
+              <Select
+                value={itemsPerPage}
+                onChange={(value) => {
+                  setItemsPerPage(value || "25");
+                  setCurrentPage(1);
+                }}
+                data={[
+                  { value: "10", label: "10 per page" },
+                  { value: "25", label: "25 per page" },
+                  { value: "50", label: "50 per page" },
+                  { value: "100", label: "100 per page" },
+                ]}
+                style={{ width: 140 }}
+              />
               <div>
                 <Text size="xs" c="dimmed">
                   Total Debit
@@ -441,7 +636,7 @@ export default function JournalLedger() {
                   </Table.Td>
                 </Table.Tr>
               )}
-              {entriesWithBalance.map((entry) => (
+              {paginatedEntries.map((entry) => (
                 <Table.Tr key={entry.id}>
                   <Table.Td>{formatDate(entry.date)}</Table.Td>
                   <Table.Td>
@@ -528,6 +723,18 @@ export default function JournalLedger() {
             </Table.Tbody>
           </Table>
         </ScrollArea>
+
+        {totalPages > 1 && (
+          <Group justify="center" mt="md">
+            <Pagination
+              value={currentPage}
+              onChange={setCurrentPage}
+              total={totalPages}
+              size="sm"
+              withEdges
+            />
+          </Group>
+        )}
       </Card>
     </div>
   );

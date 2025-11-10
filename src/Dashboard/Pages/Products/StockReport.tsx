@@ -8,6 +8,8 @@ import {
   Grid,
   Tabs,
   ScrollArea,
+  Pagination,
+  Select,
 } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import {
@@ -16,7 +18,7 @@ import {
   IconPackageExport,
 } from "@tabler/icons-react";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import api from "../../../lib/api";
 import type { InventoryItem } from "../../Context/DataContext";
 
@@ -29,6 +31,13 @@ function formatNumber(n: number | undefined) {
 
 export default function StockReportPage() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  // Pagination state for each tab
+  const [allPage, setAllPage] = useState(1);
+  const [allPerPage, setAllPerPage] = useState<string>("25");
+  const [lowPage, setLowPage] = useState(1);
+  const [lowPerPage, setLowPerPage] = useState<string>("25");
+  const [negPage, setNegPage] = useState(1);
+  const [negPerPage, setNegPerPage] = useState<string>("25");
 
   useEffect(() => {
     async function fetchProducts() {
@@ -61,6 +70,32 @@ export default function StockReportPage() {
   const inStockItems = products.filter(
     (p) => getStockValue(p) > (p.minimumStockLevel || 0)
   );
+
+  // Pagination for All Items
+  const allTotalPages = Math.ceil(products.length / parseInt(allPerPage));
+  const allPaginated = useMemo(() => {
+    const start = (allPage - 1) * parseInt(allPerPage);
+    const end = start + parseInt(allPerPage);
+    return products.slice(start, end);
+  }, [products, allPage, allPerPage]);
+
+  // Pagination for Low Stock
+  const lowTotalPages = Math.ceil(lowStockItems.length / parseInt(lowPerPage));
+  const lowPaginated = useMemo(() => {
+    const start = (lowPage - 1) * parseInt(lowPerPage);
+    const end = start + parseInt(lowPerPage);
+    return lowStockItems.slice(start, end);
+  }, [lowStockItems, lowPage, lowPerPage]);
+
+  // Pagination for Negative Stock
+  const negTotalPages = Math.ceil(
+    negativeStockItems.length / parseInt(negPerPage)
+  );
+  const negPaginated = useMemo(() => {
+    const start = (negPage - 1) * parseInt(negPerPage);
+    const end = start + parseInt(negPerPage);
+    return negativeStockItems.slice(start, end);
+  }, [negativeStockItems, negPage, negPerPage]);
 
   return (
     <div>
@@ -135,12 +170,26 @@ export default function StockReportPage() {
           <Card>
             <Card.Section>
               <Box p="md">
-                <Text size="lg" fw={600} mb="xs">
-                  All Products
-                </Text>
-                <Text size="sm" color="dimmed">
-                  Complete inventory stock report
-                </Text>
+                <Group justify="space-between">
+                  <div>
+                    <Text size="lg" fw={600} mb="xs">
+                      All Products
+                    </Text>
+                    <Text size="sm" color="dimmed">
+                      Showing {allPaginated.length} of {products.length} items
+                    </Text>
+                  </div>
+                  <Select
+                    label="Per page"
+                    value={allPerPage}
+                    onChange={(val) => {
+                      setAllPerPage(val || "25");
+                      setAllPage(1);
+                    }}
+                    data={["10", "25", "50", "100"]}
+                    w={100}
+                  />
+                </Group>
               </Box>
             </Card.Section>
             <Card.Section>
@@ -161,10 +210,10 @@ export default function StockReportPage() {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {products.map((product, index) => (
+                    {allPaginated.map((product, index) => (
                       <Table.Tr key={product._id}>
                         <Table.Td style={{ fontFamily: "monospace" }}>
-                          {index + 1}
+                          {(allPage - 1) * parseInt(allPerPage) + index + 1}
                         </Table.Td>
                         <Table.Td>{product.itemName}</Table.Td>
                         <Table.Td>
@@ -194,6 +243,17 @@ export default function StockReportPage() {
                 </Table>
               </ScrollArea>
             </Card.Section>
+            {allTotalPages > 1 && (
+              <Group justify="center" mt="md" pb="md">
+                <Pagination
+                  value={allPage}
+                  onChange={setAllPage}
+                  total={allTotalPages}
+                  size="sm"
+                  withEdges
+                />
+              </Group>
+            )}
           </Card>
         </Tabs.Panel>
 
@@ -201,12 +261,27 @@ export default function StockReportPage() {
           <Card>
             <Card.Section>
               <Box p="md">
-                <Text size="lg" fw={600} mb="xs">
-                  Low Stock Items
-                </Text>
-                <Text size="sm" c="dimmed">
-                  Items below minimum stock level
-                </Text>
+                <Group justify="space-between">
+                  <div>
+                    <Text size="lg" fw={600} mb="xs">
+                      Low Stock Items
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      Showing {lowPaginated.length} of {lowStockItems.length}{" "}
+                      items
+                    </Text>
+                  </div>
+                  <Select
+                    label="Per page"
+                    value={lowPerPage}
+                    onChange={(val) => {
+                      setLowPerPage(val || "25");
+                      setLowPage(1);
+                    }}
+                    data={["10", "25", "50", "100"]}
+                    w={100}
+                  />
+                </Group>
               </Box>
             </Card.Section>
             <Card.Section>
@@ -229,10 +304,10 @@ export default function StockReportPage() {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {lowStockItems.map((product, index) => (
+                    {lowPaginated.map((product, index) => (
                       <Table.Tr key={product._id}>
                         <Table.Td style={{ fontFamily: "monospace" }}>
-                          {index + 1}
+                          {(lowPage - 1) * parseInt(lowPerPage) + index + 1}
                         </Table.Td>
                         <Table.Td>{product.itemName}</Table.Td>
                         <Table.Td>
@@ -268,6 +343,17 @@ export default function StockReportPage() {
                 </Table>
               </ScrollArea>
             </Card.Section>
+            {lowTotalPages > 1 && (
+              <Group justify="center" mt="md" pb="md">
+                <Pagination
+                  value={lowPage}
+                  onChange={setLowPage}
+                  total={lowTotalPages}
+                  size="sm"
+                  withEdges
+                />
+              </Group>
+            )}
           </Card>
         </Tabs.Panel>
 
@@ -275,12 +361,27 @@ export default function StockReportPage() {
           <Card>
             <Card.Section>
               <Box p="md">
-                <Text size="lg" fw={600} mb="xs">
-                  Negative Stock Items
-                </Text>
-                <Text size="sm" c="dimmed">
-                  Items with minus stock balance - requires immediate attention
-                </Text>
+                <Group justify="space-between">
+                  <div>
+                    <Text size="lg" fw={600} mb="xs">
+                      Negative Stock Items
+                    </Text>
+                    <Text size="sm" c="dimmed">
+                      Showing {negPaginated.length} of{" "}
+                      {negativeStockItems.length} items
+                    </Text>
+                  </div>
+                  <Select
+                    label="Per page"
+                    value={negPerPage}
+                    onChange={(val) => {
+                      setNegPerPage(val || "25");
+                      setNegPage(1);
+                    }}
+                    data={["10", "25", "50", "100"]}
+                    w={100}
+                  />
+                </Group>
               </Box>
             </Card.Section>
             <Card.Section>
@@ -300,10 +401,10 @@ export default function StockReportPage() {
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
-                    {negativeStockItems.map((product, index) => (
+                    {negPaginated.map((product, index) => (
                       <Table.Tr key={product._id}>
                         <Table.Td style={{ fontFamily: "monospace" }}>
-                          {index + 1}
+                          {(negPage - 1) * parseInt(negPerPage) + index + 1}
                         </Table.Td>
                         <Table.Td>{product.itemName}</Table.Td>
                         <Table.Td>
@@ -327,6 +428,17 @@ export default function StockReportPage() {
                 </Table>
               </ScrollArea>
             </Card.Section>
+            {negTotalPages > 1 && (
+              <Group justify="center" mt="md" pb="md">
+                <Pagination
+                  value={negPage}
+                  onChange={setNegPage}
+                  total={negTotalPages}
+                  size="sm"
+                  withEdges
+                />
+              </Group>
+            )}
           </Card>
         </Tabs.Panel>
       </Tabs>

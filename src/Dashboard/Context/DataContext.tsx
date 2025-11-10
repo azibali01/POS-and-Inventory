@@ -92,6 +92,31 @@ export interface PurchaseRecord {
   createdAt?: Date;
 }
 
+export interface PurchaseInvoiceRecord {
+  id?: string;
+  purchaseInvoiceNumber: string;
+  invoiceDate: string | Date;
+  expectedDelivery?: string | Date;
+  supplier?: Supplier;
+  products: Array<{
+    id: string;
+    productName: string;
+    quantity: number;
+    rate: number;
+    color?: string;
+    thickness?: string;
+    length?: string | number;
+    amount?: number;
+    inventoryId?: string;
+    received?: number;
+  }>;
+  subTotal?: number;
+  total: number;
+  status?: string;
+  remarks?: string;
+  createdAt?: Date;
+}
+
 export interface GRNRecord {
   id: string;
   grnNumber: string;
@@ -142,6 +167,28 @@ export interface Expense {
 }
 
 export type ExpenseInput = Omit<Expense, "id" | "createdAt">;
+
+export interface ReceiptVoucher {
+  id: string;
+  voucherNumber: string;
+  voucherDate: string | Date;
+  receivedFrom: string;
+  amount: number;
+  referenceNumber?: string;
+  paymentMode: string;
+  remarks?: string;
+}
+
+export interface PaymentVoucher {
+  id: string;
+  voucherNumber: string;
+  voucherDate: string | Date;
+  paidTo: string;
+  amount: number;
+  referenceNumber?: string;
+  paymentMode: string;
+  remarks?: string;
+}
 
 // Color model used across the product module
 export interface Color {
@@ -227,6 +274,15 @@ interface DataContextType {
   ) => Promise<PurchaseRecord>;
   deletePurchase: (id: string | number) => Promise<void>;
 
+  // ===== PURCHASE INVOICES MODULE =====
+  purchaseInvoices: PurchaseInvoiceRecord[];
+  purchaseInvoicesLoading: boolean;
+  purchaseInvoicesError: string | null;
+  setPurchaseInvoices: React.Dispatch<
+    React.SetStateAction<PurchaseInvoiceRecord[]>
+  >;
+  loadPurchaseInvoices: () => Promise<PurchaseInvoiceRecord[]>;
+
   // ===== GRN MODULE =====
   grns: GRNRecord[];
   grnsLoading: boolean;
@@ -265,6 +321,20 @@ interface DataContextType {
   updateExpense: (id: string, payload: Partial<Expense>) => Promise<Expense>;
   deleteExpense: (id: string) => Promise<void>;
   addExpense: (e: ExpenseInput) => Expense;
+
+  // ===== RECEIPT VOUCHERS MODULE =====
+  receiptVouchers: ReceiptVoucher[];
+  receiptVouchersLoading: boolean;
+  receiptVouchersError: string | null;
+  setReceiptVouchers: React.Dispatch<React.SetStateAction<ReceiptVoucher[]>>;
+  loadReceiptVouchers: () => Promise<ReceiptVoucher[]>;
+
+  // ===== PAYMENT VOUCHERS MODULE =====
+  paymentVouchers: PaymentVoucher[];
+  paymentVouchersLoading: boolean;
+  paymentVouchersError: string | null;
+  setPaymentVouchers: React.Dispatch<React.SetStateAction<PaymentVoucher[]>>;
+  loadPaymentVouchers: () => Promise<PaymentVoucher[]>;
 
   // ===== COLORS (Static) =====
   colors: Color[];
@@ -512,6 +582,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [purchasesLoading, setPurchasesLoading] = useState(false);
   const [purchasesError, setPurchasesError] = useState<string | null>(null);
+  // ===== PURCHASE INVOICES STATE =====
+  const [purchaseInvoices, setPurchaseInvoices] = useState<
+    PurchaseInvoiceRecord[]
+  >([]);
+  const [purchaseInvoicesLoading, setPurchaseInvoicesLoading] = useState(false);
+  const [purchaseInvoicesError, setPurchaseInvoicesError] = useState<
+    string | null
+  >(null);
   // ===== GRN STATE =====
   const [grns, setGrns] = useState<GRNRecord[]>([]);
   const [grnsLoading, setGrnsLoading] = useState(false);
@@ -528,6 +606,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expensesLoading, setExpensesLoading] = useState(false);
   const [expensesError, setExpensesError] = useState<string | null>(null);
+  // ===== RECEIPT VOUCHERS STATE =====
+  const [receiptVouchers, setReceiptVouchers] = useState<ReceiptVoucher[]>([]);
+  const [receiptVouchersLoading, setReceiptVouchersLoading] = useState(false);
+  const [receiptVouchersError, setReceiptVouchersError] = useState<
+    string | null
+  >(null);
+  // ===== PAYMENT VOUCHERS STATE =====
+  const [paymentVouchers, setPaymentVouchers] = useState<PaymentVoucher[]>([]);
+  const [paymentVouchersLoading, setPaymentVouchersLoading] = useState(false);
+  const [paymentVouchersError, setPaymentVouchersError] = useState<
+    string | null
+  >(null);
   // ===== QUOTATIONS STATE =====
   const [quotations, setQuotations] = useState<api.QuotationRecordPayload[]>(
     []
@@ -1801,6 +1891,31 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     }) as Promise<PurchaseRecord[]>;
   };
 
+  const loadPurchaseInvoices = async () => {
+    if (loaderLoadedRef.current["purchaseInvoices"]) {
+      return purchaseInvoices;
+    }
+    return runLoader("purchaseInvoices", api.getPurchaseInvoices, (v) => {
+      // Ensure each purchase invoice has a full supplier object if present
+      const normalized = (normalizeResponse(v) as any[]).map((rec) => {
+        if (
+          rec.supplier &&
+          typeof rec.supplier === "object" &&
+          rec.supplier._id
+        ) {
+          return rec;
+        } else if (rec.supplierId) {
+          // fallback: try to find supplier from context
+          const found = suppliers.find((s) => s._id === rec.supplierId);
+          return { ...rec, supplier: found };
+        }
+        return rec;
+      }) as PurchaseInvoiceRecord[];
+      setPurchaseInvoices(normalized);
+      return normalized;
+    }) as Promise<PurchaseInvoiceRecord[]>;
+  };
+
   const loadGrns = async () => {
     if (loaderLoadedRef.current["grns"]) {
       return grns;
@@ -1831,6 +1946,46 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       setExpenses(normalized);
       return normalized;
     }) as Promise<Expense[]>;
+  };
+
+  const loadReceiptVouchers = async (): Promise<ReceiptVoucher[]> => {
+    if (loaderLoadedRef.current["receiptVouchers"]) {
+      return receiptVouchers;
+    }
+    return runLoader("receiptVouchers", api.getAllReceiptVouchers, (v) => {
+      const normalized = (normalizeResponse(v) as any[]).map((voucher) => ({
+        id: voucher._id || voucher.id || voucher.voucherNumber || "",
+        voucherNumber: voucher.voucherNumber || "",
+        voucherDate: voucher.voucherDate || new Date(),
+        receivedFrom: voucher.receivedFrom || "",
+        amount: voucher.amount || 0,
+        referenceNumber: voucher.referenceNumber || voucher.reference || "",
+        paymentMode: voucher.paymentMode || "",
+        remarks: voucher.remarks || "",
+      })) as ReceiptVoucher[];
+      setReceiptVouchers(normalized);
+      return normalized;
+    }) as Promise<ReceiptVoucher[]>;
+  };
+
+  const loadPaymentVouchers = async (): Promise<PaymentVoucher[]> => {
+    if (loaderLoadedRef.current["paymentVouchers"]) {
+      return paymentVouchers;
+    }
+    return runLoader("paymentVouchers", api.getAllPaymentVouchers, (v) => {
+      const normalized = (normalizeResponse(v) as any[]).map((voucher) => ({
+        id: voucher._id || voucher.id || voucher.voucherNumber || "",
+        voucherNumber: voucher.voucherNumber || "",
+        voucherDate: voucher.voucherDate || new Date(),
+        paidTo: voucher.paidTo || "",
+        amount: voucher.amount || 0,
+        referenceNumber: voucher.referenceNumber || voucher.reference || "",
+        paymentMode: voucher.paymentMode || "",
+        remarks: voucher.remarks || "",
+      })) as PaymentVoucher[];
+      setPaymentVouchers(normalized);
+      return normalized;
+    }) as Promise<PaymentVoucher[]>;
   };
 
   // Only one loadQuotations function, returns correct type and is in correct order
@@ -2041,6 +2196,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         updatePurchase,
         deletePurchase,
 
+        // ===== PURCHASE INVOICES MODULE =====
+        purchaseInvoices,
+        purchaseInvoicesLoading,
+        purchaseInvoicesError,
+        setPurchaseInvoices,
+        loadPurchaseInvoices,
+
         // ===== GRN MODULE =====
         grns,
         grnsLoading,
@@ -2072,6 +2234,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         updateExpense: updateExpenseItem,
         deleteExpense: deleteExpenseItem,
         addExpense,
+
+        // ===== RECEIPT VOUCHERS MODULE =====
+        receiptVouchers,
+        receiptVouchersLoading,
+        receiptVouchersError,
+        setReceiptVouchers,
+        loadReceiptVouchers,
+
+        // ===== PAYMENT VOUCHERS MODULE =====
+        paymentVouchers,
+        paymentVouchersLoading,
+        paymentVouchersError,
+        setPaymentVouchers,
+        loadPaymentVouchers,
 
         // ===== COLORS (Static) =====
         colors,

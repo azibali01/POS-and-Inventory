@@ -12,12 +12,6 @@ export const api = axios.create({
 
 
 
-
-
-
-
-
-
 // Delete receipt voucher by id
 export async function deleteReceiptVoucher(id: string | number) {
   const { data } = await api.delete(`/reciept-voucher/${id}`);
@@ -347,9 +341,7 @@ export async function deletePurchaseByNumber(poNumber: string) {
   return deletePurchase(id);
 }
 
-// Minimal types (mirror DataContext shapes as needed)
 export interface InventoryItemPayload {
-  // Common canonical fields
   _id?: string | number;
   itemName?: string;
   description?: string;
@@ -360,7 +352,7 @@ export interface InventoryItemPayload {
   discountAmount?: number;
   totalGrossAmount?: number;
   totalNetAmount?: number;
-  supplier?: string;
+  brand?: string;
   color?: string;
   discount: number;
   length?: number;

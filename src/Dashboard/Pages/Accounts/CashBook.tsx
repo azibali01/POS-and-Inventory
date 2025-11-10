@@ -11,6 +11,8 @@ import {
   Modal,
   Stack,
   Divider,
+  Pagination,
+  Select,
 } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
@@ -51,6 +53,9 @@ export default function CashBookPage() {
   const [openingBalance, setOpeningBalance] = useState<number>(0);
   const [editingOpening, setEditingOpening] = useState(false);
   const [tempOpening, setTempOpening] = useState<number>(0);
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState<string>("25");
 
   useEffect(() => {
     async function fetchData() {
@@ -204,6 +209,19 @@ export default function CashBookPage() {
     { receipt: 0, payment: 0 }
   );
 
+  // Pagination logic
+  const totalPages = Math.ceil(filtered.length / parseInt(itemsPerPage));
+  const paginatedEntries = useMemo(() => {
+    const start = (currentPage - 1) * parseInt(itemsPerPage);
+    const end = start + parseInt(itemsPerPage);
+    return filtered.slice(start, end);
+  }, [filtered, currentPage, itemsPerPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [q, fromDate, toDate]);
+
   // Recalculate running balance if opening balance changes
   useEffect(() => {
     let balance = openingBalance;
@@ -226,6 +244,21 @@ export default function CashBookPage() {
         </div>
       </Group>
       <Group justify="space-between" align="center" wrap="wrap" gap={10}>
+        <Group>
+          <Text size="sm" color="dimmed">
+            Showing {paginatedEntries.length} of {filtered.length} entries
+          </Text>
+          <Select
+            label="Per page"
+            value={itemsPerPage}
+            onChange={(val) => {
+              setItemsPerPage(val || "25");
+              setCurrentPage(1);
+            }}
+            data={["10", "25", "50", "100"]}
+            w={100}
+          />
+        </Group>
         <Group>
           <TextInput
             w={300}
@@ -345,7 +378,7 @@ export default function CashBookPage() {
                     {formatCurrency(openingBalance)}
                   </td>
                 </tr>
-                {filtered.map((v, idx) => (
+                {paginatedEntries.map((v, idx) => (
                   <tr
                     key={idx}
                     style={{ cursor: "pointer" }}
@@ -447,6 +480,17 @@ export default function CashBookPage() {
             </Table>
           </ScrollArea>
         </Card.Section>
+        {totalPages > 1 && (
+          <Group justify="center" mt="md" pb="md">
+            <Pagination
+              value={currentPage}
+              onChange={setCurrentPage}
+              total={totalPages}
+              size="sm"
+              withEdges
+            />
+          </Group>
+        )}
       </Card>
     </div>
   );
