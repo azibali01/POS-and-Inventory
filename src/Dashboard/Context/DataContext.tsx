@@ -586,8 +586,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [purchaseInvoices, setPurchaseInvoices] = useState<
     PurchaseInvoiceRecord[]
   >([]);
-  const [purchaseInvoicesLoading, setPurchaseInvoicesLoading] = useState(false);
-  const [purchaseInvoicesError, setPurchaseInvoicesError] = useState<
+  const [purchaseInvoicesLoading, ] = useState(false);
+  const [purchaseInvoicesError,] = useState<
     string | null
   >(null);
   // ===== GRN STATE =====
@@ -608,14 +608,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [expensesError, setExpensesError] = useState<string | null>(null);
   // ===== RECEIPT VOUCHERS STATE =====
   const [receiptVouchers, setReceiptVouchers] = useState<ReceiptVoucher[]>([]);
-  const [receiptVouchersLoading, setReceiptVouchersLoading] = useState(false);
-  const [receiptVouchersError, setReceiptVouchersError] = useState<
+  const [receiptVouchersLoading, ] = useState(false);
+  const [receiptVouchersError, ] = useState<
     string | null
   >(null);
   // ===== PAYMENT VOUCHERS STATE =====
   const [paymentVouchers, setPaymentVouchers] = useState<PaymentVoucher[]>([]);
-  const [paymentVouchersLoading, setPaymentVouchersLoading] = useState(false);
-  const [paymentVouchersError, setPaymentVouchersError] = useState<
+  const [paymentVouchersLoading, ] = useState(false);
+  const [paymentVouchersError, ] = useState<
     string | null
   >(null);
   // ===== QUOTATIONS STATE =====
