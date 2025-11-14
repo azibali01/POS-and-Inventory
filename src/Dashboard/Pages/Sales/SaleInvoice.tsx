@@ -19,6 +19,7 @@ import {
   IconDotsVertical,
 } from "@tabler/icons-react";
 import openPrintWindow from "../../../components/print/printWindow";
+import { generateGatePassHTML } from "../../../components/print/printTemplate";
 import SalesDocShell, {
   type SalesPayload,
 } from "../../../components/sales/SalesDocShell";
@@ -610,20 +611,40 @@ export default function SaleInvoice() {
                           leftSection={<IconPrinter size={16} />}
                           onClick={() => {
                             // Print logic: build invoice data and open print window
-                            const items = (inv.products ?? []).map((it) => ({
-                              ...it,
-                              unit:
-                                typeof it.unit === "string"
-                                  ? it.unit
-                                  : it.unit !== undefined
-                                  ? String(it.unit)
-                                  : "",
-                              amount: (it.quantity ?? 0) * (it.salesRate ?? 0),
-                              totalGrossAmount:
-                                (it.quantity ?? 0) * (it.salesRate ?? 0),
-                              totalNetAmount:
-                                (it.quantity ?? 0) * (it.salesRate ?? 0),
-                            }));
+                            const items = (inv.products ?? []).map((it, idx) => {
+                              const quantity = it.quantity ?? 0;
+                              const rate = it.salesRate ?? 0;
+                              const length = (it as any).length ?? 0;
+                              const gross = length * quantity * rate;
+                              const discountPercent = (it as any).discount ?? 0;
+                              const discountAmount = (it as any).discountAmount ?? ((gross * discountPercent) / 100);
+                              const net = gross - discountAmount;
+                              
+                              return {
+                                sr: idx + 1,
+                                itemName: it.itemName || "",
+                                section: it.itemName || "",
+                                color: it.color || "",
+                                thickness: it.thickness || "",
+                                length: length,
+                                sizeFt: length,
+                                quantity: quantity,
+                                qty: quantity,
+                                lengths: quantity,
+                                totalFeet: quantity * length,
+                                rate: rate,
+                                gross: gross,
+                                discountPercent: discountPercent,
+                                discount: discountAmount,
+                                net: net,
+                                amount: net,
+                              };
+                            });
+                            
+                            const totalGrossAmount = items.reduce((sum, it) => sum + it.gross, 0);
+                            const totalDiscount = items.reduce((sum, it) => sum + it.discount, 0);
+                            const totalNetAmount = inv.totalNetAmount ?? totalGrossAmount - totalDiscount;
+                            
                             openPrintWindow({
                               title: "Sales Invoice",
                               companyName: "Seven Star Traders",
@@ -651,11 +672,32 @@ export default function SaleInvoice() {
                                 inv.customer[0]?.name
                                   ? inv.customer[0].name
                                   : inv.customerName ?? "",
+                              customerPhone:
+                                Array.isArray(inv.customer) &&
+                                inv.customer[0] &&
+                                'phone' in inv.customer[0]
+                                  ? (inv.customer[0] as any).phone
+                                  : undefined,
+                              customerAddress:
+                                Array.isArray(inv.customer) &&
+                                inv.customer[0] &&
+                                'address' in inv.customer[0]
+                                  ? (inv.customer[0] as any).address
+                                  : undefined,
+                              customerCity:
+                                Array.isArray(inv.customer) &&
+                                inv.customer[0] &&
+                                'city' in inv.customer[0]
+                                  ? (inv.customer[0] as any).city
+                                  : undefined,
                               grn: null,
                               items,
                               totals: {
-                                subtotal: inv.subTotal ?? 0,
-                                total: inv.totalNetAmount ?? 0,
+                                subtotal: inv.subTotal ?? totalGrossAmount,
+                                totalGrossAmount: totalGrossAmount,
+                                totalDiscount: totalDiscount,
+                                totalNetAmount: totalNetAmount,
+                                total: totalNetAmount,
                               },
                               footerNotes: [
                                 "Extrusion & Powder Coating",
@@ -665,6 +707,63 @@ export default function SaleInvoice() {
                           }}
                         >
                           Print
+                        </Menu.Item>
+                        <Menu.Item
+                          leftSection={<IconPrinter size={16} />}
+                          onClick={() => {
+                            const items = (inv.products ?? []).map((p: any) => {
+                              const length = p.length ?? 0;
+                              const quantity = p.quantity ?? 0;
+                              const rate = p.rate ?? 0;
+                              const gross = length * quantity * rate;
+                              const discountPercent = p.discountPercent ?? 0;
+                              const discountAmount = (gross * discountPercent) / 100;
+                              const net = gross - discountAmount;
+                              
+                              return {
+                                itemName: p.itemName ?? "",
+                                color: p.color ?? "",
+                                thickness: p.thickness ?? "",
+                                length,
+                                qty: quantity,
+                                rate,
+                                gross,
+                                discountPercent,
+                                discount: discountAmount,
+                                net,
+                                amount: net,
+                              };
+                            });
+                            
+                            const totalGrossAmount = items.reduce((sum, it) => sum + it.gross, 0);
+                            const totalDiscount = items.reduce((sum, it) => sum + it.discount, 0);
+                            const totalNetAmount = inv.totalNetAmount ?? totalGrossAmount - totalDiscount;
+                            
+                            const gatePassHTML = generateGatePassHTML({
+                              title: "Sales Invoice",
+                              invoiceNo: String(inv.invoiceNumber ?? inv.id ?? ""),
+                              date: typeof inv.invoiceDate === "string" ? inv.invoiceDate : inv.invoiceDate ? String(inv.invoiceDate) : typeof inv.date === "string" ? inv.date : "",
+                              customer: Array.isArray(inv.customer) && inv.customer[0]?.name ? inv.customer[0].name : inv.customerName ?? "",
+                              customerPhone: Array.isArray(inv.customer) && inv.customer[0] && 'phone' in inv.customer[0] ? (inv.customer[0] as any).phone : undefined,
+                              customerAddress: Array.isArray(inv.customer) && inv.customer[0] && 'address' in inv.customer[0] ? (inv.customer[0] as any).address : undefined,
+                              customerCity: Array.isArray(inv.customer) && inv.customer[0] && 'city' in inv.customer[0] ? (inv.customer[0] as any).city : undefined,
+                              items,
+                              totals: {
+                                subtotal: inv.subTotal ?? totalGrossAmount,
+                                totalGrossAmount: totalGrossAmount,
+                                totalDiscount: totalDiscount,
+                                totalNetAmount: totalNetAmount,
+                                total: totalNetAmount,
+                              },
+                            });
+                            const printWindow = window.open("", "_blank");
+                            if (printWindow) {
+                              printWindow.document.write(gatePassHTML);
+                              printWindow.document.close();
+                            }
+                          }}
+                        >
+                          Print as Gate Pass
                         </Menu.Item>
                         <Menu.Item
                           color="red"

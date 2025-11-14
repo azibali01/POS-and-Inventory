@@ -23,6 +23,7 @@ export function ProductForm({ product, onClose }: Props) {
     updateInventoryItem,
     categoriesForSelect,
     suppliersForSelect,
+    colorsForSelect,
   } = useDataContext();
 
   const [form, setForm] = useState({
@@ -38,6 +39,8 @@ export function ProductForm({ product, onClose }: Props) {
     brand: product?.brand || "",
   });
 
+  const [loading, setLoading] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -50,6 +53,8 @@ export function ProductForm({ product, onClose }: Props) {
       });
       return;
     }
+
+    setLoading(true);
 
     // Create payload that matches the InventoryItemPayload interface
     const payload = {
@@ -85,6 +90,8 @@ export function ProductForm({ product, onClose }: Props) {
     } catch (error) {
       console.error("Form submission error:", error);
       // The error notification will be handled by the DataContext
+    } finally {
+      setLoading(false);
     }
   };
   return (
@@ -122,6 +129,7 @@ export function ProductForm({ product, onClose }: Props) {
           label="Thickness"
           value={form.thickness}
           onChange={(v) => setForm({ ...form, thickness: v?.toString() ?? "" })}
+          hideControls
         />
         <SafeSelect
           label="Unit"
@@ -131,18 +139,12 @@ export function ProductForm({ product, onClose }: Props) {
         />
         <SafeSelect
           label="Color"
-          required
-          data={[
-            { value: "DULL", label: "DULL" },
-            { value: "H23/PC-RAL", label: "H23/PC-RAL" },
-            { value: "SAHRA/BRN", label: "SAHRA/BRN" },
-            { value: "BLACK/MULTI", label: "BLACK/MULTI" },
-            { value: "WOODCOAT", label: "WOODCOAT" },
-          ]}
+          data={colorsForSelect || []}
           value={form.color}
           onChange={(v) => setForm({ ...form, color: v || "" })}
           placeholder="Select a color"
           searchable
+          clearable
         />
       </Group>
 
@@ -151,6 +153,7 @@ export function ProductForm({ product, onClose }: Props) {
           label="Sales Rate"
           value={form.salesRate}
           onChange={(v) => setForm({ ...form, salesRate: v?.toString() ?? "" })}
+          hideControls
         />
         <NumberInput
           label="Opening Stock"
@@ -158,6 +161,7 @@ export function ProductForm({ product, onClose }: Props) {
           onChange={(v) =>
             setForm({ ...form, openingStock: v?.toString() ?? "" })
           }
+          hideControls
         />
         <NumberInput
           label="Minimum Stock Level"
@@ -165,6 +169,7 @@ export function ProductForm({ product, onClose }: Props) {
           onChange={(v) =>
             setForm({ ...form, minimumStockLevel: v?.toString() ?? "" })
           }
+          hideControls
         />
       </Group>
 
@@ -179,10 +184,10 @@ export function ProductForm({ product, onClose }: Props) {
       </Group>
 
       <Group justify="flex-end" mt="md">
-        <Button variant="default" onClick={onClose}>
+        <Button variant="default" onClick={onClose} disabled={loading}>
           Cancel
         </Button>
-        <Button type="submit">
+        <Button type="submit" loading={loading}>
           {product ? "Update Product" : "Add Product"}
         </Button>
       </Group>

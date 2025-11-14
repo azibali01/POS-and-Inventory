@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useDebouncedValue } from "@mantine/hooks";
-import api from "../../../lib/api";
+
 import {
   Card,
   Group,
@@ -68,9 +68,8 @@ export default function ProductMaster() {
     categoriesForSelect = [],
     deleteInventoryItem,
     loadInventory,
-    setInventory: setGlobalInventory,
+    inventory,
   } = useDataContext();
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch] = useDebouncedValue(searchTerm, 200);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -81,26 +80,9 @@ export default function ProductMaster() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<string>("25");
 
-  // Fetch all products from backend on mount
+  // Load products from backend on mount
   useEffect(() => {
-    async function fetchProducts() {
-      try {
-        const { data } = await api.get("products");
-        // console.log("Fetched products:", data);
-        setInventory(data);
-        setGlobalInventory(data);
-      } catch (err) {
-        console.error("Error fetching products:", err);
-        setInventory([]);
-        setGlobalInventory([]);
-        showNotification({
-          title: "Error",
-          message: "Failed to fetch products. Check backend connection.",
-          color: "red",
-        });
-      }
-    }
-    fetchProducts();
+    loadInventory();
   }, []);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -168,15 +150,7 @@ export default function ProductMaster() {
     setDeleteLoading(true);
     try {
       await deleteInventoryItem(_id);
-      setInventory((prev) => {
-        const updated = prev.filter((item) => String(item._id) !== String(_id));
-        setGlobalInventory(updated);
-        return updated;
-      });
-      if (typeof loadInventory === "function") {
-        const global = await loadInventory();
-        setGlobalInventory(global);
-      }
+      await loadInventory();
       showNotification({
         title: "Deleted",
         message: `Product ${_id} deleted`,
@@ -584,24 +558,7 @@ export default function ProductMaster() {
                       // json.updated should contain updated product records
                       const updated = json.updated ?? [];
                       if (updated.length) {
-                        setInventory((prev) => {
-                          const map = new Map(
-                            updated.map((u) => [String(u._id), u] as const)
-                          );
-                          const newInv = prev.map((p) =>
-                            map.has(String(p._id))
-                              ? {
-                                  ...p,
-                                  ...(map.get(String(p._id)) as {
-                                    _id: string;
-                                    newPrice?: number;
-                                  }),
-                                }
-                              : p
-                          );
-                          setGlobalInventory(newInv);
-                          return newInv;
-                        });
+                        await loadInventory();
                       }
                       setIsUploadOpen(false);
                       setUploadPreview(null);
@@ -794,19 +751,7 @@ export default function ProductMaster() {
                 }
                 setUndoSnapshot(snap);
                 // apply locally
-                setInventory((prev) => {
-                  const newInv = prev.map((p) => {
-                    if (snap.has(String(p._id))) {
-                      const newVal = toApply.find(
-                        (x) => String(x.matchedProductId) === String(p._id)
-                      )!.newPrice!;
-                      return { ...p, newPrice: newVal };
-                    }
-                    return p;
-                  });
-                  setGlobalInventory(newInv);
-                  return newInv;
-                });
+                loadInventory();
                 setIsReviewOpen(false);
                 setIsUploadOpen(false);
                 setUploadPreview(null);
@@ -832,15 +777,7 @@ export default function ProductMaster() {
               color="yellow"
               onClick={() => {
                 // rollback
-                setInventory((prev) => {
-                  const newInv = prev.map((p) =>
-                    undoSnapshot.has(String(p._id))
-                      ? { ...p, newPrice: undoSnapshot.get(String(p._id))! }
-                      : p
-                  );
-                  setGlobalInventory(newInv);
-                  return newInv;
-                });
+                loadInventory();
                 setUndoSnapshot(null);
               }}
             >

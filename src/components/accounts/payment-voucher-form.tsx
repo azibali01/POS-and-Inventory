@@ -145,6 +145,7 @@ export function PaymentVoucherForm({
           step={1}
           {...form.getInputProps("amount")}
           required
+          hideControls
         />
         <Textarea
           label="Remarks"

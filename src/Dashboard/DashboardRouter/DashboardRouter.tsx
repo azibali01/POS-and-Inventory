@@ -21,15 +21,21 @@ import ProfitLoss from "../Pages/Reports/Profit&Loss";
 import JournalLedger from "../Pages/Reports/JournalLedger";
 
 import CategoryPage from "../Pages/Products/Category";
+import ColorPage from "../Pages/Products/ColorPage";
 
 import PaymentVouchersPage from "../Pages/Accounts/PaymentVoucher";
 import ReceiptsPage from "../Pages/Accounts/ReceiptVoucher";
 import Stocksummary from "../Pages/Reports/Stocksummary";
+import ProtectedRoute from "../../components/ProtectedRoute";
 
 const routes: RouteObject[] = [
   {
     path: "/",
-    element: <DashboardLayout />,
+    element: (
+      <ProtectedRoute>
+        <DashboardLayout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         path: "dashboard",
@@ -43,6 +49,10 @@ const routes: RouteObject[] = [
       {
         path: "products/categories",
         element: <CategoryPage />,
+      },
+      {
+        path: "products/colors",
+        element: <ColorPage />,
       },
       {
         path: "products/stock-report",

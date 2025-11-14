@@ -552,6 +552,7 @@ export function PurchaseOrderForm({
                               )
                             }
                             min={1}
+                            hideControls
                           />
                         </Table.Td>
                         <Table.Td style={{ padding: 8 }}>
@@ -569,6 +570,7 @@ export function PurchaseOrderForm({
                                 )
                               )
                             }
+                            hideControls
                             min={0}
                           />
                         </Table.Td>

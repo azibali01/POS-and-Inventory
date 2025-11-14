@@ -17,6 +17,7 @@ import type {
   InventoryItem,
 } from "../../Dashboard/Context/DataContext";
 import openPrintWindow from "../print/printWindow";
+import { generateGatePassHTML } from "../print/printTemplate";
 import type { InvoiceData } from "../print/printTemplate";
 import type { CustomerPayload } from "../../lib/api";
 
@@ -743,13 +744,47 @@ export default function SalesDocShell({
                 ],
                 invoiceNo: docNo,
                 date: docDate,
-                ms: selectedCustomer?.name ?? undefined,
-                customer: selectedCustomer?.name ?? undefined,
+                ms: selectedCustomer?.name ?? "",
+                customer: selectedCustomer?.name ?? "",
+                customerPhone: selectedCustomer?.phone,
+                customerAddress: selectedCustomer?.address,
+                customerCity: selectedCustomer?.city,
                 grn: null,
-                items: items,
+                items: items.map((it, idx) => {
+                  const quantity = Number(it.quantity || 0);
+                  const length = Number(it.length || 0);
+                  const rate = Number(it.salesRate || 0);
+                  const gross = length * quantity * rate;
+                  const discountPercent = Number(it.discount || 0);
+                  const discountAmount = Number(it.discountAmount || ((gross * discountPercent) / 100));
+                  const net = gross - discountAmount;
+                  
+                  return {
+                    sr: idx + 1,
+                    itemName: it.itemName || "",
+                    section: it.itemName || "",
+                    color: it.color || "",
+                    thickness: it.thickness || "",
+                    length: length,
+                    sizeFt: length,
+                    quantity: quantity,
+                    qty: quantity,
+                    lengths: quantity,
+                    totalFeet: quantity * length,
+                    rate: rate,
+                    gross: gross,
+                    discountPercent: discountPercent,
+                    discount: discountAmount,
+                    net: net,
+                    amount: net,
+                  };
+                }),
                 totals: {
-                  subtotal: totals.sub,
-                  total: totals.total ?? totals.totalNetAmount,
+                  subtotal: totals.totalGrossAmount,
+                  totalGrossAmount: totals.totalGrossAmount,
+                  totalDiscount: totals.totalDiscountAmount,
+                  totalNetAmount: totals.totalNetAmount,
+                  total: totals.totalNetAmount,
                 },
                 footerNotes: [
                   "Extrusion & Powder Coating",
@@ -764,6 +799,61 @@ export default function SalesDocShell({
           }}
         >
           Print
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            try {
+              const data = {
+                title: mode,
+                invoiceNo: docNo,
+                date: docDate,
+                customer: selectedCustomer?.name ?? "",
+                customerPhone: selectedCustomer?.phone ?? "",
+                customerAddress: selectedCustomer?.address ?? "",
+                customerCity: selectedCustomer?.city ?? "",
+                items: items.map((item) => {
+                  const length = item.length ?? 0;
+                  const quantity = item.quantity ?? 0;
+                  const rate = item.salesRate ?? 0;
+                  const gross = length * quantity * rate;
+                  const discountAmount = item.discountAmount ?? item.discount ?? 0;
+                  const net = gross - discountAmount;
+                  
+                  return {
+                    itemName: item.itemName ?? "",
+                    color: item.color ?? "",
+                    thickness: item.thickness ?? "",
+                    length: length,
+                    quantity: quantity,
+                    qty: quantity,
+                    rate: rate,
+                    gross: gross,
+                    discount: discountAmount,
+                    net: net,
+                    amount: net,
+                  };
+                }),
+                totals: {
+                  subtotal: totals.totalGrossAmount,
+                  totalGrossAmount: totals.totalGrossAmount,
+                  totalDiscount: totals.totalDiscountAmount,
+                  totalNetAmount: totals.totalNetAmount,
+                  total: totals.totalNetAmount,
+                },
+              };
+              const gatePassHTML = generateGatePassHTML(data);
+              const printWindow = window.open("", "_blank");
+              if (printWindow) {
+                printWindow.document.write(gatePassHTML);
+                printWindow.document.close();
+              }
+            } catch (err) {
+              console.error("Failed to open gate pass print", err);
+            }
+          }}
+        >
+          Print as Gate Pass
         </Button>
         <Button
           type="submit"

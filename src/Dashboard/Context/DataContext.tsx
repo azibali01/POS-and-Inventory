@@ -192,7 +192,10 @@ export interface PaymentVoucher {
 
 // Color model used across the product module
 export interface Color {
+  _id?: string;
+  id?: string;
   name: string;
+  description?: string;
 }
 
 interface DataContextType {
@@ -336,8 +339,16 @@ interface DataContextType {
   setPaymentVouchers: React.Dispatch<React.SetStateAction<PaymentVoucher[]>>;
   loadPaymentVouchers: () => Promise<PaymentVoucher[]>;
 
-  // ===== COLORS (Static) =====
+  // ===== COLORS MODULE =====
   colors: Color[];
+  colorsLoading: boolean;
+  colorsError: string | null;
+  setColors: React.Dispatch<React.SetStateAction<Color[]>>;
+  loadColors: () => Promise<Color[]>;
+  createColor: (payload: Color) => Promise<Color>;
+  updateColor: (id: string, payload: Partial<Color>) => Promise<Color>;
+  deleteColor: (id: string) => Promise<void>;
+  colorsForSelect: Array<{ value: string; label: string }>;
 
   // ===== QUOTATIONS =====
   quotations: api.QuotationRecordPayload[];
@@ -629,14 +640,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   // ===== BACKEND STATUS =====
   const [isBackendAvailable, setIsBackendAvailable] = useState(false);
   const [apiWarnings, setApiWarnings] = useState<string[]>([]);
-  // ===== COLORS (STATIC) =====
-  const [colors] = useState<Color[]>([
-    { name: "DULL" },
-    { name: "H23/PC-RAL" },
-    { name: "SAHRA/BRN" },
-    { name: "BLACK/MULTI" },
-    { name: "WOODCOAT" },
-  ]);
+  // ===== COLORS STATE =====
+  const [colors, setColors] = useState<Color[]>([]);
+  const [colorsLoading, setColorsLoading] = useState(false);
+  const [colorsError, setColorsError] = useState<string | null>(null);
   // ===== MEMOIZED SELECTS =====
   const categoriesForSelect = React.useMemo(() => {
     const filtered = (categories || [])
@@ -687,7 +694,145 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     }) as Promise<string[]>;
   }, [runLoader, categories]);
 
-  // colors are static — no runtime loader
+  // ===== COLORS LOADER =====
+  const loadColors = useCallback(async () => {
+    if (loaderLoadedRef.current["colors"]) {
+      return colors;
+    }
+    setColorsLoading(true);
+    setColorsError(null);
+    try {
+      const data = await api.getColors();
+      const mapped = (data || []).map((c) => ({
+        _id: c._id ?? c.id ?? "",
+        id: c.id ?? c._id ?? "",
+        name: c.name ?? "",
+        description: c.description ?? "",
+      }));
+      setColors(mapped);
+      loaderLoadedRef.current["colors"] = true;
+      return mapped;
+    } catch (err: unknown) {
+      setColorsError((err as Error).message || "Failed to load colors");
+      showNotification({
+        title: "Load Colors Failed",
+        message: (err as Error).message || "Failed to load colors",
+        color: "red",
+      });
+      return [];
+    } finally {
+      setColorsLoading(false);
+    }
+  }, [colors]);
+
+  // Auto-load colors on mount
+  useEffect(() => {
+    loadColors();
+  }, []);
+
+  // ===== COLORS CRUD FUNCTIONS =====
+  const createColor = useCallback(async (payload: Color) => {
+    setColorsLoading(true);
+    try {
+      const created = await api.createColor(payload);
+      const color: Color = {
+        _id: created._id ?? created.id ?? "",
+        id: created.id ?? created._id ?? "",
+        name: created.name,
+        description: created.description,
+      };
+      setColors((prev) => [...prev, color]);
+      showNotification({
+        title: "Color Created",
+        message: `${payload.name} has been added`,
+        color: "green",
+      });
+      return color;
+    } catch (err: unknown) {
+      console.error("Create color failed:", err);
+      setColorsError((err as Error).message || "Failed to create color");
+      showNotification({
+        title: "Create Failed",
+        message: (err as Error).message || "Failed to create color",
+        color: "red",
+      });
+      throw err;
+    } finally {
+      setColorsLoading(false);
+    }
+  }, []);
+
+  const updateColor = useCallback(
+    async (id: string, payload: Partial<Color>) => {
+      setColorsLoading(true);
+      try {
+        const updated = await api.updateColor(id, payload);
+        const color: Color = {
+          _id: updated._id ?? updated.id ?? id,
+          id: updated.id ?? updated._id ?? id,
+          name: updated.name,
+          description: updated.description,
+        };
+        setColors((prev) =>
+          prev.map((c) => (String(c._id) === String(id) || String(c.id) === String(id) ? color : c))
+        );
+        showNotification({
+          title: "Color Updated",
+          message: "Color has been updated successfully",
+          color: "blue",
+        });
+        return color;
+      } catch (err: unknown) {
+        console.error("Update color failed:", err);
+        setColorsError((err as Error).message || "Failed to update color");
+        showNotification({
+          title: "Update Failed",
+          message: (err as Error).message || "Failed to update color",
+          color: "red",
+        });
+        throw err;
+      } finally {
+        setColorsLoading(false);
+      }
+    },
+    []
+  );
+
+  const deleteColor = useCallback(async (id: string) => {
+    setColorsLoading(true);
+    try {
+      await api.deleteColor(id);
+      setColors((prev) => prev.filter((c) => String(c._id) !== String(id) && String(c.id) !== String(id)));
+      showNotification({
+        title: "Color Deleted",
+        message: "Color has been removed",
+        color: "orange",
+      });
+    } catch (err: unknown) {
+      const message = (err as Error).message || "Failed to delete color";
+      console.error("Delete color failed:", err);
+      setColorsError(message);
+      showNotification({
+        title: "Delete Failed",
+        message,
+        color: "red",
+      });
+      throw err;
+    } finally {
+      setColorsLoading(false);
+    }
+  }, []);
+
+  // Memoized select options for colors
+  const colorsForSelect = React.useMemo(() => {
+    const filtered = (colors || [])
+      .filter((c) => c && c.name && c.name.trim().length > 0)
+      .map((c) => ({
+        value: c.name.trim(),
+        label: c.name.trim(),
+      }));
+    return filtered;
+  }, [colors]);
 
   // ===== INVENTORY CRUD FUNCTIONS =====
   const createInventoryItem = useCallback(
@@ -2249,8 +2394,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         setPaymentVouchers,
         loadPaymentVouchers,
 
-        // ===== COLORS (Static) =====
+        // ===== COLORS MODULE =====
         colors,
+        colorsLoading,
+        colorsError,
+        setColors,
+        loadColors,
+        createColor,
+        updateColor,
+        deleteColor,
+        colorsForSelect,
 
         // ===== QUOTATIONS =====
         quotations,

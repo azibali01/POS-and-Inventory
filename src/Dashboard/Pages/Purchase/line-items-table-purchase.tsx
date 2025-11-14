@@ -204,7 +204,7 @@ export function PurchaseLineItemsTable({
                   />
                 </Table.Td>
                 <Table.Td style={{ padding: 8 }}>
-                  <NumberInput value={row.grossAmount} readOnly aria-label={`Gross amount for row ${row.id}`} />
+                  <NumberInput value={row.grossAmount} readOnly aria-label={`Gross amount for row ${row.id}`} hideControls />
                 </Table.Td>
                 <Table.Td style={{ padding: 8 }}>
                   <NumberInput
@@ -215,6 +215,7 @@ export function PurchaseLineItemsTable({
                     min={0}
                     max={100}
                     aria-label={`Discount percent for row ${row.id}`}
+                    hideControls
                   />
                 </Table.Td>
                 <Table.Td style={{ padding: 8 }}>
@@ -225,10 +226,11 @@ export function PurchaseLineItemsTable({
                     }
                     min={0}
                     aria-label={`Discount amount for row ${row.id}`}
+                    hideControls
                   />
                 </Table.Td>
                 <Table.Td style={{ padding: 8 }}>
-                  <NumberInput value={row.netAmount} readOnly aria-label={`Net amount for row ${row.id}`} />
+                  <NumberInput value={row.netAmount} readOnly aria-label={`Net amount for row ${row.id}`} hideControls />
                 </Table.Td>
                 <Table.Td style={{ padding: 8, textAlign: "right" }}>
                   {formatCurrency(row.amount ?? row.netAmount ?? 0)}

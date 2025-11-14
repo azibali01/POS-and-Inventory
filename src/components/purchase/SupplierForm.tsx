@@ -144,6 +144,7 @@ export default function SupplierForm({
                   openingBalance: openingType === "Debit" ? -val : val,
                 });
               }}
+              hideControls
             />
             <Select
               label="Type"

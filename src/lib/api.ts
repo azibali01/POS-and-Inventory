@@ -1,11 +1,13 @@
 import axios from "axios";
 
+// API URLs
+const API_URL_LOCAL = "http://localhost:3000";
+const API_URL_PRODUCTION = "https://aluminium-backend.onrender.com/";
 
-// Base axios instance - configure via Vite env VITE_API_BASE_URL or default to /api
+const isDevelopment = import.meta.env.DEV;
+
 export const api = axios.create({
-  baseURL: "https://aluminium-backend.onrender.com/",
-  // baseURL: "http://localhost:3000",
-
+  baseURL: isDevelopment ? API_URL_LOCAL : API_URL_PRODUCTION,
 });
 
 
@@ -483,8 +485,10 @@ export interface CustomerPayload {
 }
 
 export interface ColorPayload {
-  id?: string | number;
+  _id?: string;
+  id?: string;
   name: string;
+  description?: string;
   hex?: string;
   metadata?: Record<string, unknown>;
 }
@@ -548,7 +552,26 @@ export async function getCustomers() {
   return data;
 }
 
-// colors endpoint removed - colors are provided statically in the client
+// Colors endpoints
+export async function getColors() {
+  const { data } = await api.get<ColorPayload[]>("/colors");
+  return data;
+}
+
+export async function createColor(payload: ColorPayload) {
+  const { data } = await api.post<ColorPayload>("/colors", payload);
+  return data;
+}
+
+export async function updateColor(id: string | number, payload: Partial<ColorPayload>) {
+  const { data } = await api.put<ColorPayload>(`/colors/${id}`, payload);
+  return data;
+}
+
+export async function deleteColor(id: string | number) {
+  const { data } = await api.delete(`/colors/${id}`);
+  return data;
+}
 
 export async function getCategories() {
   const { data } = await api.get<CategoryPayload[]>("/categories");

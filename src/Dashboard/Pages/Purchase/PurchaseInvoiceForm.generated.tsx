@@ -549,6 +549,7 @@ export function PurchaseInvoiceForm({
                               )
                             }
                             min={1}
+                            hideControls
                           />
                         </Table.Td>
                         <Table.Td style={{ padding: 8 }}>
@@ -567,6 +568,7 @@ export function PurchaseInvoiceForm({
                               )
                             }
                             min={0}
+                            hideControls
                           />
                         </Table.Td>
                         <Table.Td style={{ padding: 8, textAlign: "right" }}>

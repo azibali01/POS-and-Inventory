@@ -167,6 +167,7 @@ export function ReceiptForm({
           label="Amount"
           value={amount}
           onChange={(v) => setAmount(typeof v === "number" ? v : undefined)}
+          hideControls
         />
         <Select
           label="Payment Mode"

@@ -18,7 +18,8 @@ import {
   IconDotsVertical,
   IconPrinter,
   IconTrash,
-  IconFile,
+
+  IconEdit,
 } from "@tabler/icons-react";
 
 // openPrintWindow already imported above
@@ -57,8 +58,9 @@ export type LineItem = {
   totalNetAmount: number;
 };
 import openPrintWindow, {
-  downloadInvoicePdf,
+ 
 } from "../../../components/print/printWindow";
+import { generateGatePassHTML } from "../../../components/print/printTemplate";
 
 function Quotation() {
   const {
@@ -236,6 +238,17 @@ function Quotation() {
   };
 
   function buildInvoiceDataFromQuotation(q: QuotationLike): InvoiceData {
+    const customerData = Array.isArray(q.customer) && q.customer[0] ? q.customer[0] : null;
+    const customerName =
+      // Use customerName if present (for legacy/compatibility), otherwise extract from customer array or string
+      ("customerName" in q
+        ? (q as { customerName: string }).customerName
+        : customerData?.name
+        ? customerData.name
+        : typeof q.customer === "string"
+        ? q.customer
+        : "") as string;
+    
     return {
       title: "Quotation",
       companyName: "Seven Star Traders",
@@ -243,57 +256,83 @@ function Quotation() {
       // support legacy docNo/docDate while preferring new fields
       invoiceNo: String(q.docNo ?? q.id ?? q.quotationNumber),
       date: (q.docDate ?? q.quotationDate) as string,
-      customer:
-        // Use customerName if present (for legacy/compatibility), otherwise extract from customer array or string
-        ("customerName" in q
-          ? (q as { customerName: string }).customerName
-          : Array.isArray(q.customer) && q.customer[0] && q.customer[0].name
-          ? q.customer[0].name
-          : typeof q.customer === "string"
-          ? q.customer
-          : "") as string,
+      ms: customerName,
+      customer: customerName,
+      customerPhone: customerData?.phone,
+      customerAddress: customerData?.address,
+      customerCity: customerData?.city,
       items: ((q.items ?? q.products) || []).map(
         (it: InventoryItemPayload, idx: number) => {
+          const quantity = (it as InventoryItemPayload & { quantity?: number }).quantity || 0;
+          const length = Number((it as InventoryItemPayload & { length?: number }).length) || 0;
+          const rateValue = Number(
+            (
+              it as InventoryItemPayload & {
+                price?: number;
+                rate?: number;
+                unitPrice?: number;
+                salesRate?: number;
+              }
+            ).price ??
+              (it as InventoryItemPayload & { rate?: number }).rate ??
+              (it as InventoryItemPayload & { salesRate?: number }).salesRate ??
+              (it as InventoryItemPayload & { unitPrice?: number })
+                .unitPrice ??
+              0
+          );
+          
+          const gross = length * quantity * rateValue;
+          const discountPercent = (it as InventoryItemPayload & { discount?: number }).discount || 0;
+          const discountAmount = (it as InventoryItemPayload & { discountAmount?: number }).discountAmount || ((gross * discountPercent) / 100);
+          const net = gross - discountAmount;
+          
           return {
             sr: idx + 1,
+            itemName: String(it.itemName || ""),
             section:
               (it.metadata && String(it.metadata.sku)) ||
               String(it.itemName) ||
               "",
-            rate: Number(
-              (
-                it as InventoryItemPayload & {
-                  price?: number;
-                  rate?: number;
-                  unitPrice?: number;
-                }
-              ).price ??
-                (it as InventoryItemPayload & { rate?: number }).rate ??
-                (it as InventoryItemPayload & { unitPrice?: number })
-                  .unitPrice ??
-                0
-            ),
-            amount: Math.floor(
-              ((it as InventoryItemPayload & { quantity?: number }).quantity ||
-                0) *
-                Number(
-                  (
-                    it as InventoryItemPayload & {
-                      price?: number;
-                      rate?: number;
-                      unitPrice?: number;
-                    }
-                  ).price ??
-                    (it as InventoryItemPayload & { rate?: number }).rate ??
-                    (it as InventoryItemPayload & { unitPrice?: number })
-                      .unitPrice ??
-                    0
-                )
-            ),
+            color: it.color || "",
+            thickness: it.thickness || "",
+            length: length,
+            sizeFt: length,
+            quantity: quantity,
+            qty: quantity,
+            lengths: quantity,
+            totalFeet: quantity * length,
+            rate: rateValue,
+            gross: gross,
+            discountPercent: discountPercent,
+            discount: discountAmount,
+            net: net,
+            amount: net,
           };
         }
       ),
-      totals: { total: Math.floor(Number(q.total ?? 0)) },
+      totals: (() => {
+        const grossAmount = ((q.items ?? q.products) || []).reduce((sum, it) => {
+          const qty = (it as InventoryItemPayload & { quantity?: number }).quantity || 0;
+          const len = Number((it as any).length || 0);
+          const rate = Number((it as any).price ?? (it as any).rate ?? (it as any).salesRate ?? (it as any).unitPrice ?? 0);
+          return sum + (len * qty * rate);
+        }, 0);
+        
+        const totalDiscountAmt = ((q.items ?? q.products) || []).reduce((sum, it) => {
+          const discountAmount = Number((it as any).discountAmount || 0);
+          return sum + discountAmount;
+        }, 0);
+        
+        const netAmount = grossAmount - totalDiscountAmt;
+        
+        return {
+          subtotal: grossAmount,
+          totalGrossAmount: grossAmount,
+          totalDiscount: totalDiscountAmt,
+          totalNetAmount: netAmount,
+          total: netAmount,
+        };
+      })(),
     };
   }
 
@@ -683,7 +722,7 @@ function Quotation() {
                           }}
                         >
                           {/* Action menu: Print (design), Edit, Delete */}
-                          <Menu>
+                          <Menu width={200}>
                             <Menu.Target>
                               <ActionIcon variant="subtle">
                                 <IconDotsVertical />
@@ -702,32 +741,25 @@ function Quotation() {
                                 />
                                 Print
                               </Menu.Item>
+                              
                               <Menu.Item
-                                onClick={async () => {
+                                onClick={() => {
                                   const d = buildInvoiceDataFromQuotation(q);
-                                  // trigger client-side PDF generation and download
-                                  try {
-                                    await downloadInvoicePdf(
-                                      d,
-                                      `${String(
-                                        displayNumber ?? "quotation"
-                                      )}.pdf`
-                                    );
-                                  } catch {
-                                    // fallback to opening print window if PDF generation fails
-                                    const w = openPrintWindow(d) as
-                                      | Window
-                                      | undefined;
-                                    setTimeout(() => w?.print?.(), 600);
+                                  const gatePassHTML = generateGatePassHTML(d);
+                                  const printWindow = window.open("", "_blank");
+                                  if (printWindow) {
+                                    printWindow.document.write(gatePassHTML);
+                                    printWindow.document.close();
                                   }
                                 }}
                               >
-                                <IconFile
+                                <IconPrinter
                                   size={14}
                                   style={{ marginRight: 8 }}
                                 />
-                                Download PDF
+                                Print as Gate Pass
                               </Menu.Item>
+                            
                               <Menu.Item
                                 onClick={() => {
                                   // edit
@@ -895,6 +927,7 @@ function Quotation() {
                                   setEditingId(existingNumber ?? "");
                                   setOpen(true);
                                 }}
+                                leftSection={<IconEdit size={14} />}
                               >
                                 Edit
                               </Menu.Item>

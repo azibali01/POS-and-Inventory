@@ -173,6 +173,7 @@ export function LineItemsTable({
                       amount: length * quantity * rate,
                     });
                   }}
+                  hideControls
                 />
               </Table.Td>
 
@@ -188,6 +189,7 @@ export function LineItemsTable({
                       amount: length * quantity * rate,
                     });
                   }}
+                  hideControls
                 />
               </Table.Td>
 
@@ -204,6 +206,7 @@ export function LineItemsTable({
                       discountAmount,
                     });
                   }}
+                  hideControls
                 />
               </Table.Td>
 
@@ -219,6 +222,7 @@ export function LineItemsTable({
                       discount: pct,
                     });
                   }}
+                  hideControls
                 />
               </Table.Td>
 

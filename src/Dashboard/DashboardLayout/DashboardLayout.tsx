@@ -1,6 +1,6 @@
 import { type ReactNode, useState, useMemo } from "react";
-import { AppShell, Stack, NavLink, TextInput } from "@mantine/core";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { AppShell, Stack, NavLink, TextInput, Group, Text, Button } from "@mantine/core";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Package,
@@ -9,7 +9,10 @@ import {
   Receipt,
   Wallet,
   FileBarChart,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "../../Auth/Context/AuthContext";
+import { notifications } from "@mantine/notifications";
 
 type MenuItem = {
   label: string;
@@ -38,6 +41,11 @@ const navigation: MenuItem[] = [
         label: "Categories",
         icon: <Package size={14} />,
         path: "/products/categories",
+      },
+      {
+        label: "Colors",
+        icon: <Package size={14} />,
+        path: "/products/colors",
       },
       {
         label: "Stock Report",
@@ -156,7 +164,18 @@ const navigation: MenuItem[] = [
 
 export default function DashboardLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [search, setSearch] = useState("");
+
+  const handleLogout = () => {
+    logout();
+    notifications.show({
+      message: "Logged out successfully",
+      color: "blue",
+    });
+    navigate("/auth");
+  };
 
   // Helper to flatten all menu items for search
 
@@ -197,7 +216,7 @@ export default function DashboardLayout() {
 
   return (
     <AppShell
-      header={{ height: 40 }}
+      header={{ height: 60 }}
       navbar={{
         width: 240,
         breakpoint: "sm",
@@ -210,23 +229,66 @@ export default function DashboardLayout() {
     >
       {/* Header */}
       <AppShell.Header
-        style={{ background: "#F5F5F5", padding: "16px", height: "40px" }}
+        style={{ 
+          background: "#ffffff", 
+          padding: "0 24px", 
+          height: "60px",
+          borderBottom: "1px solid #e5e7eb",
+          display: "flex",
+          alignItems: "center",
+        }}
       >
-        {/* You can add header content here if needed */}
+        <Group justify="space-between" style={{ width: "100%", height: "100%" }}>
+          <Text size="lg" fw={700} c="#1e3a8a">
+            7 Star Traders
+          </Text>
+          <Group gap="md">
+            {user && (
+              <Text size="sm" c="#6b7280">
+                Welcome, <strong>{user.name}</strong>
+              </Text>
+            )}
+            <Button
+              leftSection={<LogOut size={16} />}
+              variant="light"
+              color="red"
+              size="sm"
+              onClick={handleLogout}
+            >
+              Logout
+            </Button>
+          </Group>
+        </Group>
       </AppShell.Header>
       {/* Sidebar */}
       {!isPrintMode && (
-        <AppShell.Navbar p="md" bg="#F5F5F5">
-          <Stack gap="xs">
-            <TextInput
-              placeholder="Search pages..."
-              value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
-              mb={8}
-              size="sm"
-              styles={{ input: { borderRadius: 8 } }}
-            />
-            {filteredNavigation.map((item: MenuItem) => {
+        <AppShell.Navbar 
+          p="md" 
+          bg="#F5F5F5"
+          style={{
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <TextInput
+            placeholder="Search pages..."
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+            mb="md"
+            size="sm"
+            styles={{ input: { borderRadius: 8 } }}
+          />
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              overflowX: "hidden",
+              paddingRight: "4px",
+            }}
+          >
+            <Stack gap="xs">
+              {filteredNavigation.map((item: MenuItem) => {
               // If item has children render a parent NavLink containing child NavLinks
               if (item.children && item.children.length > 0) {
                 return (
@@ -297,7 +359,8 @@ export default function DashboardLayout() {
                 />
               );
             })}
-          </Stack>
+            </Stack>
+          </div>
         </AppShell.Navbar>
       )}
 

@@ -152,6 +152,7 @@ export function CustomerForm({
                 : Number(String(value).replace(/[^0-9.]/g, ""));
             setOpeningAmount(Number.isFinite(num) ? num : 0);
           }}
+          hideControls
         />
         <Select
           label="Type"
@@ -171,6 +172,7 @@ export function CustomerForm({
           onChange={(value: number | string) =>
             setForm({ ...form, creditLimit: Number(value) || 0 })
           }
+          hideControls
         />
       </Group>
 

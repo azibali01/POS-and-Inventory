@@ -7,32 +7,61 @@ import {
   Stack,
   Text,
   PasswordInput,
+  LoadingOverlay,
+  Box,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useDisclosure } from "@mantine/hooks";
 import { useState } from "react";
 import { useAuth } from "../Context/AuthContext";
 import { useNavigate } from "react-router";
-import axios from "axios";
+import { api } from "../../lib/api";
 
 const Login = () => {
   const { login } = useAuth();
   const [visible, { toggle }] = useDisclosure(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      notifications.show({ 
+        message: "Please enter email and password", 
+        color: "red" 
+      });
+      return;
+    }
+
+    setLoading(true);
     try {
-      const res = await axios.post("/api/login", { email, password });
-      if (res.status === 200) {
-        login({ id: "1", email, name: "User" });
+      const res = await api.post("/user/login", { email, password });
+      
+      if (res.data.success && res.data.user) {
+        login({ 
+          id: res.data.user._id, 
+          email: res.data.user.email, 
+          name: res.data.user.name 
+        });
+        notifications.show({ 
+          message: `Welcome back, ${res.data.user.name}!`, 
+          color: "green" 
+        });
         navigate("/dashboard");
       } else {
-        notifications.show({ message: "Login failed", color: "red" });
+        notifications.show({ 
+          message: res.data.message || "Login failed", 
+          color: "red" 
+        });
       }
-    } catch {
-      notifications.show({ message: "Login failed", color: "red" });
+    } catch (error: any) {
+      notifications.show({ 
+        message: error.response?.data?.message || "Login failed. Please try again.", 
+        color: "red" 
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,21 +84,24 @@ const Login = () => {
 
   return (
     <Stack>
-      <Card
-        withBorder
-        shadow="md"
-        w={420}
-        p="lg"
-        style={{
-          backgroundColor: "#1f232c",
-          borderColor: "#83746e",
-        }}
-      >
-        <Stack align="center" justify="center" gap="md">
-          <Title order={3} c="#dfd6d1">
-            Point of Sale
-          </Title>
-          <Text c="#a9a9a9">Sign in to your account</Text>
+      <Box pos="relative">
+        <LoadingOverlay visible={loading} overlayProps={{ blur: 2 }} />
+        <Card
+          withBorder
+          shadow="xl"
+          w={450}
+          p="xl"
+          style={{
+            backgroundColor: "#ffffff",
+            borderColor: "#e5e7eb",
+            borderWidth: "1px",
+          }}
+        >
+          <Stack align="center" justify="center" gap="lg">
+            <Title order={2} c="#1e3a8a" fw={700}>
+              7 Star Traders
+            </Title>
+            <Text c="#6b7280" size="sm">Sign in to your account</Text>
 
           <form
             onSubmit={form.onSubmit(() => handleLogin(), handleError)}
@@ -79,17 +111,23 @@ const Login = () => {
               <TextInput
                 value={email}
                 onChange={(event) => setEmail(event.currentTarget.value)}
-                label="Email"
-                placeholder="Enter your email"
+                label="Email Address"
+                placeholder="your.email@example.com"
+                size="md"
+                disabled={loading}
                 styles={{
-                  label: { color: "#dfd6d1", fontWeight: 600 },
+                  label: { color: "#374151", fontWeight: 500, marginBottom: "8px" },
                   input: {
-                    backgroundColor: "#2a2f38",
-                    color: "#ffffff",
-                    borderColor: "#83746e",
+                    backgroundColor: "#ffffff",
+                    color: "#111827",
+                    borderColor: "#d1d5db",
                     "&:focus": {
-                      borderColor: "#dfd6d1",
-                      boxShadow: "0 0 4px #83746e",
+                      borderColor: "#1e3a8a",
+                      boxShadow: "0 0 0 3px rgba(30, 58, 138, 0.1)",
+                    },
+                    "&:disabled": {
+                      backgroundColor: "#f9fafb",
+                      opacity: 0.6,
                     },
                   },
                 }}
@@ -100,17 +138,23 @@ const Login = () => {
                 onChange={(event) => setPassword(event.currentTarget.value)}
                 label="Password"
                 placeholder="Enter your password"
+                size="md"
                 visible={visible}
                 onVisibilityChange={toggle}
+                disabled={loading}
                 styles={{
-                  label: { color: "#dfd6d1", fontWeight: 600 },
+                  label: { color: "#374151", fontWeight: 500, marginBottom: "8px" },
                   input: {
-                    backgroundColor: "#2a2f38",
-                    color: "#ffffff",
-                    borderColor: "#83746e",
+                    backgroundColor: "#ffffff",
+                    color: "#111827",
+                    borderColor: "#d1d5db",
                     "&:focus": {
-                      borderColor: "#dfd6d1",
-                      boxShadow: "0 0 4px #83746e",
+                      borderColor: "#1e3a8a",
+                      boxShadow: "0 0 0 3px rgba(30, 58, 138, 0.1)",
+                    },
+                    "&:disabled": {
+                      backgroundColor: "#f9fafb",
+                      opacity: 0.6,
                     },
                   },
                 }}
@@ -118,23 +162,33 @@ const Login = () => {
 
               <Button
                 fullWidth
-                mt="sm"
-                color="#83746e"
+                mt="md"
+                size="md"
+                disabled={loading}
+                loading={loading}
                 styles={{
                   root: {
+                    backgroundColor: "#1e3a8a",
                     color: "#ffffff",
                     fontWeight: 600,
-                    "&:hover": { backgroundColor: "#dfd6d1", color: "#1f232c" },
+                    "&:hover": { 
+                      backgroundColor: "#1e40af",
+                    },
+                    "&:disabled": {
+                      backgroundColor: "#9ca3af",
+                      opacity: 0.6,
+                    },
                   },
                 }}
                 onClick={handleLogin}
               >
-                Login
+                Sign In
               </Button>
             </Stack>
           </form>
         </Stack>
       </Card>
+      </Box>
     </Stack>
   );
 };

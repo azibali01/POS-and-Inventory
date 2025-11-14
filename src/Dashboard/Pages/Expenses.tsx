@@ -371,6 +371,7 @@ function AddExpenseDialogMantine({
               : Number(v)
           )
         }
+        hideControls
       />
       {errors.amount && <div style={{ color: "#e03131" }}>{errors.amount}</div>}
 
@@ -481,6 +482,7 @@ function EditExpenseDialogMantine({
         onChange={(v) =>
           setPayload((p: Partial<ExpenseType>) => ({ ...p, amount: Number(v) }))
         }
+        hideControls
       />
       <Select
         label="Payment Method"

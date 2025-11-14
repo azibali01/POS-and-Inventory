@@ -239,6 +239,7 @@ export function LineItemsTableUniversal({
                       })
                     }
                     min={allowNegativeQty ? undefined : 0}
+                    hideControls
                   />
                 </Table.Td>
                 <Table.Td style={{ padding: 8 }}>
