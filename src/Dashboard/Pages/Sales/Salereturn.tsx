@@ -2,7 +2,6 @@ import {
   Title,
   Button,
   Modal,
-  ScrollArea,
   Table,
   Box,
   Text,
@@ -76,13 +75,18 @@ export default function SaleReturnPage() {
     setSubmitting(true);
     const invoiceNumber = makeReturnNumber();
     const invoiceDate = payload.docDate || new Date().toISOString();
-    const selectedCustomer = customers.find(
-      (c) => String(c._id) === String(payload.docNo)
-    );
+    // Resolve customer from payload.customer (supports object with id or raw value)
+    const customerRef = (payload as any).customer;
+    let selectedCustomer = null;
+    if (customerRef && typeof customerRef === 'object' && (customerRef.id || customerRef._id)) {
+      selectedCustomer = customers.find((c) => String(c._id) === String(customerRef.id ?? customerRef._id));
+    } else if (typeof customerRef === 'string' && customerRef) {
+      selectedCustomer = customers.find((c) => String(c._id) === String(customerRef) || String(c.name).toLowerCase() === String(customerRef).toLowerCase());
+    }
     const customerObject = selectedCustomer
       ? { _id: selectedCustomer._id, name: selectedCustomer.name }
-      : payload.docNo
-      ? { name: String(payload.docNo) }
+      : (customerRef && typeof customerRef === 'object' && customerRef.name)
+      ? { name: String(customerRef.name) }
       : null;
     const products =
       payload.items?.map((it) => {
@@ -238,7 +242,7 @@ export default function SaleReturnPage() {
           title="Create Sale Return"
           size="100%"
         >
-          <ScrollArea style={{ height: "80vh", width: "100%" }}>
+          <div style={{ width: "100%" }}>
             <SalesDocShell
               mode="Invoice"
               customers={customers}
@@ -277,7 +281,7 @@ export default function SaleReturnPage() {
                 remarks: "",
               }}
             />
-          </ScrollArea>
+          </div>
         </Modal>
         {loading ? (
           <div style={{ padding: 24, textAlign: "center" }}>Loading...</div>
@@ -310,104 +314,158 @@ export default function SaleReturnPage() {
                       String(ret.customer[1].name).toLowerCase().includes(term))
                   );
                 })
-                .map((ret, idx) => (
-                  <Table.Tr key={ret.invoiceNumber ?? idx}>
-                    <Table.Td>{ret.invoiceNumber}</Table.Td>
-                    <Table.Td>
-                      {ret.invoiceDate
-                        ? new Date(ret.invoiceDate).toLocaleDateString()
-                        : ""}
-                    </Table.Td>
-                    <Table.Td>
-                      {Array.isArray(ret.customer) && ret.customer[1]?.name
-                        ? ret.customer[1].name
-                        : ""}
-                    </Table.Td>
-                    <Table.Td>
-                      {formatCurrency(ret.totalNetAmount ?? ret.subTotal ?? 0)}
-                    </Table.Td>
-                    <Table.Td>
-                      <Menu withinPortal shadow="md">
-                        <Menu.Target>
-                          <ActionIcon variant="subtle">
-                            <IconDotsVertical />
-                          </ActionIcon>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                          <Menu.Item
-                            leftSection={<IconEdit size={16} />}
-                            onClick={() => {
-                              // Prefill all fields for edit modal
-                              const retCustomer =
-                                Array.isArray(ret.customer) && ret.customer[1]
-                                  ? ret.customer[1]
-                                  : "";
-                              setEditPayload({
-                                docNo: ret.invoiceNumber || "",
-                                docDate: ret.invoiceDate || "",
-                                mode: "Invoice",
-                                items: (ret.products || []).map((item) => ({
-                                  _id: item._id ?? "",
-                                  itemName: item.itemName ?? "",
-                                  description: item.description ?? "",
-                                  category: item.category ?? "",
-                                  unit:
-                                    typeof item.unit === "string"
-                                      ? item.unit
-                                      : typeof item.unit === "number"
-                                      ? String(item.unit)
-                                      : "",
-                                  quantity: item.quantity ?? 0,
-                                  salesRate: item.salesRate ?? 0,
-                                  amount: 0, // fallback, since not present on InventoryItemPayload
-                                  totalGrossAmount: 0, // fallback
-                                  totalNetAmount: 0, // fallback
-                                  discount: 0, // fallback
-                                  discountAmount: 0, // fallback
-                                  metadata: item.metadata ?? {},
-                                })),
-                                totals: {
-                                  subTotal: ret.subTotal ?? 0,
-                                  total: ret.subTotal ?? 0,
-                                  amount: ret.subTotal ?? 0,
-                                  totalGrossAmount: ret.totalGrossAmount ?? 0,
-                                  totalDiscountAmount: ret.totalDiscount ?? 0,
-                                  totalNetAmount: ret.totalNetAmount ?? 0,
-                                },
-                                terms: "",
-                                remarks: ret.remarks ?? "",
-                                customer: retCustomer
-                                  ? { name: retCustomer.name }
-                                  : undefined,
-                              });
-                              setEditingId(ret.invoiceNumber || "");
-                              setEditOpen(true);
-                            }}
-                          >
-                            Edit
-                          </Menu.Item>
-                          <Menu.Item
-                            leftSection={<IconPrinter size={16} />}
-                            onClick={() => {
-                              // Print logic if needed
-                            }}
-                          >
-                            Print
-                          </Menu.Item>
-                          <Menu.Item
-                            color="red"
-                            onClick={() => {
-                              setDeleteTarget(ret.invoiceNumber ?? "");
-                              setDeleteModalOpen(true);
-                            }}
-                          >
-                            Delete
-                          </Menu.Item>
-                        </Menu.Dropdown>
-                      </Menu>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
+                .map((ret, idx) => {
+                  const displayCustomerName = (() => {
+                    const resolveFromRef = (ref: any): string => {
+                      if (!ref) return "";
+                      if (Array.isArray(ref)) {
+                        for (const x of ref) {
+                          if (!x) continue;
+                          if (typeof x === "string") {
+                            const found = customers.find(
+                              (c) => String(c._id) === String(x) || String(c.name).toLowerCase() === String(x).toLowerCase()
+                            );
+                            if (found) return found.name;
+                            return x;
+                          }
+                          if (typeof x === "object") {
+                            if (x.name) return x.name;
+                            if (x._id || x.id) {
+                              const found = customers.find((c) => String(c._id) === String(x._id ?? x.id));
+                              if (found) return found.name;
+                              return String(x._id ?? x.id);
+                            }
+                          }
+                        }
+                        return "";
+                      }
+                      if (typeof ref === "object") {
+                        if (ref.name) return String(ref.name);
+                        if (ref._id || ref.id) {
+                          const found = customers.find((c) => String(c._id) === String(ref._id ?? ref.id));
+                          return found ? found.name : String(ref._id ?? ref.id);
+                        }
+                        return "";
+                      }
+                      if (typeof ref === "string") {
+                        const found = customers.find(
+                          (c) => String(c._id) === String(ref) || String(c.name).toLowerCase() === String(ref).toLowerCase()
+                        );
+                        return found ? found.name : ref;
+                      }
+                      return "";
+                    };
+                    return resolveFromRef(ret.customer);
+                  })();
+
+                  const openForEdit = (sourceRet: any) => {
+                    console.log("[SaleReturn] Opening for edit:", sourceRet);
+                    let retCustomer: any = null;
+                    const custRef = sourceRet.customer;
+                    console.log("[SaleReturn] Customer ref:", custRef);
+                    if (Array.isArray(custRef)) {
+                      const found = custRef.find((c: any) => c && (c.name || c._id || typeof c === 'string'));
+                      if (found) {
+                        if (typeof found === 'string') {
+                          const byId = customers.find((c) => String(c._id) === String(found));
+                          retCustomer = byId ? { id: byId._id, name: byId.name } : { id: found, name: found };
+                        } else {
+                          retCustomer = { id: found._id ?? found.id, name: found.name };
+                        }
+                      }
+                    } else if (custRef && typeof custRef === 'object') {
+                      retCustomer = { id: custRef._id ?? custRef.id, name: custRef.name };
+                    } else if (typeof custRef === 'string') {
+                      const byId = customers.find((c) => String(c._id) === String(custRef) || String(c.name).toLowerCase() === String(custRef).toLowerCase());
+                      retCustomer = byId ? { id: byId._id, name: byId.name } : { id: custRef, name: custRef };
+                    }
+                    console.log("[SaleReturn] Resolved customer:", retCustomer);
+                    console.log("[SaleReturn] Source products:", sourceRet.products);
+                    console.log("[SaleReturn] Available inventory:", inventory);
+                    setEditPayload({
+                      docNo: sourceRet.invoiceNumber || "",
+                      docDate: sourceRet.invoiceDate || "",
+                      mode: "Invoice",
+                      items: (sourceRet.products || []).map((item: any) => {
+                        // Try to find the product in inventory by itemName or _id
+                        const inventoryProduct = inventory.find(
+                          (p) =>
+                            String(p._id) === String(item._id) ||
+                            String(p.itemName).toLowerCase().trim() === String(item.itemName ?? "").toLowerCase().trim()
+                        );
+                        console.log("[SaleReturn] Mapping item:", {
+                          itemId: item._id,
+                          itemName: item.itemName,
+                          foundInInventory: inventoryProduct?.itemName,
+                          inventoryId: inventoryProduct?._id,
+                        });
+                        return {
+                          _id: inventoryProduct?._id ?? item._id ?? item.id ?? item.productId ?? "",
+                          itemName: item.itemName ?? item.productName ?? "",
+                          description: item.description ?? "",
+                          category: item.category ?? "",
+                          unit: typeof item.unit === "string" ? item.unit : typeof item.unit === "number" ? String(item.unit) : "",
+                          quantity: item.quantity ?? 0,
+                          salesRate: item.salesRate ?? item.rate ?? 0,
+                          amount: item.amount ?? 0,
+                          totalGrossAmount: item.totalGrossAmount ?? 0,
+                          totalNetAmount: item.totalNetAmount ?? 0,
+                          discount: item.discount ?? 0,
+                          discountAmount: item.discountAmount ?? 0,
+                          color: item.color ?? "",
+                          thickness: item.thickness ?? 0,
+                          length: item.length ?? 0,
+                          metadata: item.metadata ?? {},
+                        };
+                      }),
+                      totals: {
+                        subTotal: sourceRet.subTotal ?? 0,
+                        total: sourceRet.subTotal ?? 0,
+                        amount: sourceRet.subTotal ?? 0,
+                        totalGrossAmount: sourceRet.totalGrossAmount ?? 0,
+                        totalDiscountAmount: sourceRet.totalDiscount ?? 0,
+                        totalNetAmount: sourceRet.totalNetAmount ?? 0,
+                      },
+                      terms: "",
+                      remarks: sourceRet.remarks ?? "",
+                      customer: retCustomer
+                        ? {
+                            id: retCustomer.id ?? retCustomer._id ?? undefined,
+                            name: retCustomer.name ??
+                              (customers.find((c) => String(c._id) === String(retCustomer.id ?? retCustomer._id))?.name ?? undefined),
+                          }
+                        : undefined,
+                    });
+                    console.log("[SaleReturn] Final edit payload:", {
+                      docNo: sourceRet.invoiceNumber,
+                      customer: retCustomer,
+                      itemsCount: sourceRet.products?.length,
+                    });
+                    setEditingId(sourceRet.invoiceNumber || "");
+                    setEditOpen(true);
+                  };
+
+                  return (
+                    <Table.Tr key={ret.invoiceNumber ?? idx} onDoubleClick={() => openForEdit(ret)} style={{ cursor: 'pointer' }}>
+                      <Table.Td>{ret.invoiceNumber}</Table.Td>
+                      <Table.Td>{ret.invoiceDate ? new Date(ret.invoiceDate).toLocaleDateString() : ""}</Table.Td>
+                      <Table.Td>{displayCustomerName}</Table.Td>
+                      <Table.Td>{formatCurrency(ret.totalNetAmount ?? ret.subTotal ?? 0)}</Table.Td>
+                      <Table.Td>
+                        <Menu withinPortal shadow="md">
+                          <Menu.Target>
+                            <ActionIcon variant="subtle"><IconDotsVertical /></ActionIcon>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => openForEdit(ret)}>Edit</Menu.Item>
+                            <Menu.Item leftSection={<IconPrinter size={16} />} onClick={() => { /* Print if needed */ }}>Print</Menu.Item>
+                            <Menu.Item color="red" onClick={() => { setDeleteTarget(ret.invoiceNumber ?? ""); setDeleteModalOpen(true); }}>Delete</Menu.Item>
+                          </Menu.Dropdown>
+                        </Menu>
+                      </Table.Td>
+                    </Table.Tr>
+                  );
+                })}
             </Table.Tbody>
           </Table>
         ) : (
@@ -465,7 +523,7 @@ export default function SaleReturnPage() {
         title={`Edit Sale Return: ${editPayload?.docNo || editingId}`}
         size="100%"
       >
-        <ScrollArea style={{ height: "80vh", width: "100%" }}>
+        <div style={{ width: "100%" }}>
           {editPayload && (
             <SalesDocShell
               mode="Invoice"
@@ -479,7 +537,7 @@ export default function SaleReturnPage() {
               }}
             />
           )}
-        </ScrollArea>
+        </div>
       </Modal>
     </>
   );

@@ -27,6 +27,29 @@
   font-family: monospace;
 }
 
+/* Keep the table header visible while the table scrolls vertically */
+.app-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--mantine-white, #fff);
+  z-index: 4;
+}
+
+/* Optionally keep the first column visible during horizontal scrolling */
+.app-table th:first-child,
+.app-table td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--mantine-white, #fff);
+  z-index: 3;
+}
+
+/* Helper wrapper for tables placed inside modals/scroll areas */
+.app-table-wrapper {
+  /* keeps header sticky inside this container */
+  position: relative;
+}
+
 /* Optional helpers */
 .app-table.with-column-borders th,
 .app-table.with-column-borders td {

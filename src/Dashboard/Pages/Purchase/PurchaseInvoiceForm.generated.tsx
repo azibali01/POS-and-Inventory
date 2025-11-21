@@ -385,7 +385,7 @@ export function PurchaseInvoiceForm({
                 + Add Row
               </Button>
             </Group>
-            <div style={{ overflowX: "auto" }}>
+            <div className="app-table-wrapper" style={{ maxHeight: '50vh', overflow: 'auto' }}>
               <Table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <Table.Thead>
                   <Table.Tr>

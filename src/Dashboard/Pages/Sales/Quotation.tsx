@@ -4,10 +4,10 @@ import {
   Button,
   Card,
   Group,
-  ScrollArea,
+
   Text,
   Title,
-  // Badge, // removed unused import
+
   Modal,
   Menu,
   ActionIcon,
@@ -29,6 +29,7 @@ import { useDataContext } from "../../Context/DataContext";
 import SalesDocShell, {
   type SalesPayload,
 } from "../../../components/sales/SalesDocShell";
+import SavedDraftsPanel from "../../../components/sales/SavedDraftsPanel";
 // import ProductMaster from "../Products/ProductMaster";
 import { showNotification } from "@mantine/notifications";
 import {
@@ -120,6 +121,7 @@ function Quotation() {
   const [deleteTargetDisplay, setDeleteTargetDisplay] = useState<string | null>(
     null
   );
+  const [draftsOpen, setDraftsOpen] = useState(false);
 
   async function confirmDelete() {
     const id = deleteTarget;
@@ -130,22 +132,19 @@ function Quotation() {
     try {
       // Find the correct unique identifier for deletion (prefer _id, then quotationNumber)
       let qNum = String(id);
-      const toDelete = (quotations || []).find(
-        (q) =>
-          String(q.quotationNumber) === qNum ||
-          String((q as { _id?: string })._id) === qNum ||
-          String(
-            (q as Partial<QuotationRecordPayload> & { id?: string }).id
-          ) === qNum ||
-          String(
-            (q as Partial<QuotationRecordPayload> & { docNo?: string }).docNo
-          ) === qNum
+      const toDelete = (quotations || []).find((q) =>
+        String(q.quotationNumber) === qNum ||
+        String((q as { _id?: string })._id) === qNum ||
+        String((q as Partial<QuotationRecordPayload> & { id?: string }).id) === qNum ||
+        String((q as Partial<QuotationRecordPayload> & { docNo?: string }).docNo) === qNum
       );
+
       if (toDelete && (toDelete as QuotationRecordPayload).quotationNumber) {
         qNum = String((toDelete as QuotationRecordPayload).quotationNumber);
-      } else if (toDelete && toDelete.quotationNumber) {
-        qNum = String(toDelete.quotationNumber);
+      } else if (toDelete && (toDelete as any).quotationNumber) {
+        qNum = String((toDelete as any).quotationNumber);
       }
+
       await deleteQuotationByNumber(qNum);
       // Immediately update UI for instant feedback
       if (typeof setQuotations === "function") {
@@ -574,6 +573,79 @@ function Quotation() {
     }
   }
 
+  // Open a quotation in the full SalesDocShell editor (used by Edit menu and row double-click)
+  function openQuotationInEditor(q: QuotationLike) {
+    // Determine existingNumber and resolved customer similar to inline edit handler
+    const existingNumber =
+      q.quotationNumber ?? (q as QuotationRecordPayload & { docNo?: string }).docNo ?? q.quotationNumber;
+
+    // Resolve customer id or name robustly
+    let resolvedCustomerId: string | number | undefined = undefined;
+    if (q && q.customer) {
+      if (Array.isArray(q.customer) && q.customer[0]) {
+        resolvedCustomerId = (q.customer[0] as CustomerPayload).id ?? (q.customer[0] as any).customerId ?? (q.customer[0] as any).name ?? undefined;
+      } else if (typeof q.customer === "string") {
+        resolvedCustomerId = q.customer;
+      }
+    }
+    if (!resolvedCustomerId && (q as { customerName?: string }).customerName) {
+      const byName = (customers || []).find((c: CustomerPayload) => String(c.name).trim() === String((q as { customerName?: string }).customerName).trim());
+      if (byName) resolvedCustomerId = byName._id;
+      else resolvedCustomerId = (q as { customerName?: string }).customerName;
+    }
+
+    setInitialPayload({
+      docNo: existingNumber,
+      docDate: (q.quotationDate ?? "") as string,
+      customer:
+        Array.isArray(q.customer) && q.customer.length > 0
+          ? { name: q.customer[0]?.name ?? String(q.customer[0]) }
+          : typeof q.customer === "string" || typeof q.customer === "number"
+          ? { name: String(q.customer) }
+          : typeof resolvedCustomerId === "string" || typeof resolvedCustomerId === "number"
+          ? { name: String(resolvedCustomerId) }
+          : { name: "" },
+      remarks: q.remarks ?? "",
+      totals: {
+        subTotal: q.subTotal ?? q.totalGrossAmount ?? 0,
+        total: q.totalGrossAmount ?? q.subTotal ?? 0,
+        amount: q.subTotal ?? q.totalGrossAmount ?? 0,
+        totalGrossAmount: q.totalGrossAmount ?? 0,
+        totalDiscountAmount: q.totalDiscount ?? 0,
+        totalNetAmount: q.totalNetAmount ?? 0,
+      },
+      items: (q.products ?? []).map((item: InventoryItemPayload): LineItem => {
+        let unitVal = item.unit as any;
+        if (typeof unitVal === "number") unitVal = String(unitVal);
+        if (typeof unitVal !== "string") unitVal = "";
+        const quantity = Number(item.quantity ?? 0);
+        const salesRate = Number(item.salesRate ?? 0);
+        const discount = typeof (item as any).discount === "number" ? Number((item as any).discount) : 0;
+        const discountAmount = typeof (item as any).discountAmount === "number" ? Number((item as any).discountAmount) : 0;
+        const length = typeof (item as any).length === "number" ? Number((item as any).length) : 0;
+        const gross = quantity * salesRate;
+        return {
+          _id: String(item._id ?? ""),
+          itemName: item.itemName ?? "",
+          unit: unitVal,
+          discount,
+          discountAmount,
+          salesRate,
+          color: item.color ?? "",
+          openingStock: Number(item.openingStock ?? 0),
+          quantity,
+          thickness: Number(item.thickness ?? 0),
+          amount: gross,
+          length,
+          totalGrossAmount: gross,
+          totalNetAmount: gross - discountAmount,
+        };
+      }),
+    });
+    setEditingId(existingNumber ?? "");
+    setOpen(true);
+  }
+
   return (
     <>
       <Box mb="md">
@@ -614,6 +686,9 @@ function Quotation() {
             >
               New Quotation
             </Button>
+            <Button variant="outline" size="sm" ml={8} onClick={() => setDraftsOpen(true)}>
+              Saved Drafts
+            </Button>
           </div>
         </Group>
       </Box>
@@ -626,9 +701,9 @@ function Quotation() {
           </Box>
         </Card.Section>
         <Card.Section>
-          <ScrollArea>
-            <Table verticalSpacing="sm">
-              <Table.Thead>
+          <div className="app-table-wrapper" style={{ maxHeight: '60vh', overflow: 'auto' }}>
+            <Table withColumnBorders withRowBorders withTableBorder >
+              <Table.Thead style={{ backgroundColor: "#F1F3F5" }}>
                 <Table.Tr>
                   <Table.Th>Number</Table.Th>
                   <Table.Th>Date</Table.Th>
@@ -639,7 +714,7 @@ function Quotation() {
               </Table.Thead>
               <Table.Tbody>
                 {quotes.map((q: QuotationRecordPayload, idx: number) => {
-                  // ...existing code...
+                
                   const idVal =
                     q &&
                     (q.quotationNumber ??
@@ -703,7 +778,7 @@ function Quotation() {
                     `quotation-${idx}`;
                   const rowKey = idVal ?? `quotation-${idx}`;
                   return (
-                    <Table.Tr key={rowKey}>
+                    <Table.Tr key={rowKey} onDoubleClick={() => openQuotationInEditor(q)} style={{ cursor: 'pointer' }}>
                       <Table.Td>{String(displayNumber ?? "-")}</Table.Td>
                       <Table.Td>
                         {dateVal ? new Date(dateVal).toLocaleDateString() : ""}
@@ -760,177 +835,7 @@ function Quotation() {
                                 Print as Gate Pass
                               </Menu.Item>
                             
-                              <Menu.Item
-                                onClick={() => {
-                                  // edit
-                                  const existingNumber =
-                                    q.quotationNumber ??
-                                    (
-                                      q as QuotationRecordPayload & {
-                                        docNo?: string;
-                                      }
-                                    ).docNo ??
-                                    q.quotationNumber ??
-                                    (q as QuotationRecordPayload)
-                                      .quotationNumber;
-
-                                  // Resolve customerId robustly so SalesDocShell can preselect the customer
-                                  let resolvedCustomerId:
-                                    | string
-                                    | number
-                                    | undefined = undefined;
-                                  if (q && q.customer) {
-                                    if (
-                                      Array.isArray(q.customer) &&
-                                      q.customer[0]
-                                    ) {
-                                      resolvedCustomerId =
-                                        (q.customer[0] as CustomerPayload).id ??
-                                        (
-                                          q.customer[0] as CustomerPayload & {
-                                            customerId?: string;
-                                          }
-                                        ).customerId ??
-                                        (q.customer[0] as CustomerPayload)
-                                          .name ??
-                                        undefined;
-                                    } else if (typeof q.customer === "string") {
-                                      resolvedCustomerId = q.customer;
-                                    }
-                                  }
-                                  // If we only have a customerName, try to map it to an id from loaded customers
-                                  if (
-                                    !resolvedCustomerId &&
-                                    (q as { customerName?: string })
-                                      .customerName
-                                  ) {
-                                    const byName = (customers || []).find(
-                                      (c: CustomerPayload) =>
-                                        String(c.name).trim() ===
-                                        String(
-                                          (q as { customerName?: string })
-                                            .customerName
-                                        ).trim()
-                                    );
-                                    if (byName) resolvedCustomerId = byName._id;
-                                    else
-                                      resolvedCustomerId = (
-                                        q as { customerName?: string }
-                                      ).customerName;
-                                  }
-                                  if (!resolvedCustomerId)
-                                    resolvedCustomerId =
-                                      q.quotationNumber ?? "";
-
-                                  // Prefill all fields for edit modal
-                                  setInitialPayload({
-                                    docNo: existingNumber,
-                                    docDate: (q.quotationDate ?? "") as string,
-                                    customer:
-                                      Array.isArray(q.customer) &&
-                                      q.customer.length > 0
-                                        ? {
-                                            name:
-                                              q.customer[0]?.name ??
-                                              String(q.customer[0]),
-                                          }
-                                        : typeof q.customer === "string" ||
-                                          typeof q.customer === "number"
-                                        ? { name: String(q.customer) }
-                                        : typeof resolvedCustomerId ===
-                                            "string" ||
-                                          typeof resolvedCustomerId === "number"
-                                        ? { name: String(resolvedCustomerId) }
-                                        : { name: "" },
-                                    remarks: q.remarks ?? "",
-                                    totals: {
-                                      subTotal:
-                                        q.subTotal ?? q.totalGrossAmount ?? 0,
-                                      total:
-                                        q.totalGrossAmount ?? q.subTotal ?? 0,
-                                      amount:
-                                        q.subTotal ?? q.totalGrossAmount ?? 0,
-                                      totalGrossAmount: q.totalGrossAmount ?? 0,
-                                      totalDiscountAmount: q.totalDiscount ?? 0,
-                                      totalNetAmount: q.totalNetAmount ?? 0,
-                                    },
-                                    // Always provide 'items' for SalesDocShell prefill, mapped from q.products
-                                    items: (q.products ?? []).map(
-                                      (
-                                        item: InventoryItemPayload
-                                      ): LineItem => {
-                                        let unitVal = item.unit;
-                                        if (typeof unitVal === "number")
-                                          unitVal = String(unitVal);
-                                        if (typeof unitVal !== "string")
-                                          unitVal = "";
-                                        const quantity = Number(
-                                          item.quantity ?? 0
-                                        );
-                                        const salesRate = Number(
-                                          item.salesRate ?? 0
-                                        );
-                                        const discount =
-                                          typeof (
-                                            item as { discount?: unknown }
-                                          ).discount === "number"
-                                            ? Number(
-                                                (item as { discount?: number })
-                                                  .discount
-                                              )
-                                            : 0;
-                                        const discountAmount =
-                                          typeof (
-                                            item as { discountAmount?: unknown }
-                                          ).discountAmount === "number"
-                                            ? Number(
-                                                (
-                                                  item as {
-                                                    discountAmount?: number;
-                                                  }
-                                                ).discountAmount
-                                              )
-                                            : 0;
-                                        const length =
-                                          typeof (item as { length?: unknown })
-                                            .length === "number"
-                                            ? Number(
-                                                (item as { length?: number })
-                                                  .length
-                                              )
-                                            : 0;
-                                        const gross = quantity * salesRate;
-                                        return {
-                                          _id: String(item._id ?? ""),
-                                          itemName: item.itemName ?? "",
-                                          unit: unitVal,
-                                          discount,
-                                          discountAmount,
-                                          salesRate,
-                                          color: item.color ?? "",
-                                          openingStock: Number(
-                                            item.openingStock ?? 0
-                                          ),
-                                          quantity,
-                                          thickness: Number(
-                                            item.thickness ?? 0
-                                          ),
-                                          amount: gross,
-                                          length,
-                                          totalGrossAmount: gross,
-                                          totalNetAmount:
-                                            gross - discountAmount,
-                                        };
-                                      }
-                                    ),
-                                  });
-                                  setEditingId(existingNumber ?? "");
-                                  setOpen(true);
-                                }}
-                                leftSection={<IconEdit size={14} />}
-                              >
-                                Edit
-                              </Menu.Item>
+                              <Menu.Item onClick={() => openQuotationInEditor(q)} leftSection={<IconEdit size={14} />}>Edit</Menu.Item>
                               <Menu.Item
                                 color="red"
                                 onClick={() => {
@@ -973,7 +878,7 @@ function Quotation() {
                 })}
               </Table.Tbody>
             </Table>
-          </ScrollArea>
+          </div>
         </Card.Section>
       </Card>
 
@@ -1077,6 +982,16 @@ function Quotation() {
             </Button>
           </div>
         </Box>
+      </Modal>
+      <Modal opened={draftsOpen} onClose={() => setDraftsOpen(false)} title="Saved Drafts" size="lg">
+        <SavedDraftsPanel
+          mode="Quotation"
+          onRestore={(data) => {
+            setInitialPayload(data as SalesPayload);
+            setOpen(true);
+            setDraftsOpen(false);
+          }}
+        />
       </Modal>
     </>
   );

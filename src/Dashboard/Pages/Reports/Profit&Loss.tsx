@@ -5,7 +5,7 @@ import {
   Title,
   Text,
   Divider,
-  ScrollArea,
+
   Grid,
   Card,
   Group,
@@ -14,6 +14,9 @@ import {
 import { TextInput } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { useDataContext } from "../../Context/DataContext";
+import SalesDocShell, { type SalesPayload } from "../../../components/sales/SalesDocShell";
+import { Modal } from "@mantine/core";
+import { useNavigate } from "react-router-dom";
 import type {
   SaleRecord,
   PurchaseInvoiceRecord,
@@ -44,7 +47,14 @@ export default function ProfitLoss() {
     loadSales,
     loadPurchaseInvoices,
     loadExpenses,
+    customers = [],
+    inventory = [],
   } = useDataContext();
+
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerKind, setViewerKind] = useState<"sale" | "purchase" | "expense" | null>(null);
+  const [viewerData, setViewerData] = useState<any>(null);
+  const navigate = useNavigate();
 
   // Filtered data by date range
   const filtered = useMemo(() => {
@@ -53,13 +63,14 @@ export default function ProfitLoss() {
     const inRange = (d: Date | string | undefined) => {
       if (!d) return false;
       const dt = d instanceof Date ? d : new Date(d);
+      if (isNaN(dt.getTime())) return false;
       if (start && dt < start) return false;
       if (end && dt > end) return false;
       return true;
     };
     return {
       sales:
-        start || end ? sales.filter((s: SaleRecord) => inRange(s.date)) : sales,
+        start || end ? sales.filter((s: SaleRecord) => inRange(s.invoiceDate || s.date || s.quotationDate)) : sales,
       purchaseInvoices:
         start || end
           ? purchaseInvoices.filter((p: PurchaseInvoiceRecord) =>
@@ -138,7 +149,10 @@ export default function ProfitLoss() {
       map.set(key, cur);
     };
     filtered.sales.forEach((s: SaleRecord) => {
-      const d = new Date(s.date);
+      const dateVal = s.invoiceDate || s.date || s.quotationDate;
+      if (!dateVal) return;
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
         2,
         "0"
@@ -148,7 +162,9 @@ export default function ProfitLoss() {
       add(key, "sales", saleTotal);
     });
     filtered.purchaseInvoices.forEach((p: PurchaseInvoiceRecord) => {
+      if (!p.invoiceDate) return;
       const d = new Date(p.invoiceDate as string);
+      if (isNaN(d.getTime())) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
         2,
         "0"
@@ -342,7 +358,7 @@ export default function ProfitLoss() {
 
       <div style={{ marginTop: 12 }}>
         <Text style={{ fontWeight: 600, marginBottom: 8 }}>Sales (latest)</Text>
-        <ScrollArea style={{ maxHeight: 240 }}>
+        <div className="app-table-wrapper" style={{ maxHeight: 240, overflow: 'auto' }}>
           <Table
             withRowBorders
             withColumnBorders
@@ -359,9 +375,16 @@ export default function ProfitLoss() {
             </Table.Thead>
             <Table.Tbody>
               {filtered.sales.map((s: SaleRecord) => (
-                <Table.Tr key={s.id}>
+                <Table.Tr
+                  key={s.id}
+                  onDoubleClick={() => {
+                    setViewerKind("sale");
+                    setViewerData(s);
+                    setViewerOpen(true);
+                  }}
+                >
                   <Table.Td>{s.id}</Table.Td>
-                  <Table.Td>{formatDate(s.date)}</Table.Td>
+                  <Table.Td>{formatDate(s.invoiceDate || s.date || s.quotationDate)}</Table.Td>
                   <Table.Td>
                     {typeof s.customer === "string"
                       ? s.customer
@@ -381,8 +404,49 @@ export default function ProfitLoss() {
               ))}
             </Table.Tbody>
           </Table>
-        </ScrollArea>
+        </div>
       </div>
+
+      <Modal opened={viewerOpen} onClose={() => setViewerOpen(false)} size="90%">
+        {viewerKind === "sale" && viewerData ? (
+          <div style={{ height: '80vh' }}>
+            <SalesDocShell
+              mode={"Invoice"}
+              initial={{
+                docNo: viewerData.invoiceNumber ?? viewerData.id ?? String(viewerData._id ?? ""),
+                docDate: viewerData.invoiceDate ?? viewerData.date ?? new Date().toISOString().slice(0,10),
+                items: (viewerData.items ?? viewerData.products) || [],
+                customer: viewerData.customer ?? viewerData.customerName ?? viewerData.customerId,
+                totals: {
+                  total: viewerData.total ?? viewerData.totalNetAmount ?? 0,
+                  amount: viewerData.total ?? viewerData.totalNetAmount ?? 0,
+                  totalGrossAmount: viewerData.totalGrossAmount ?? 0,
+                  totalDiscountAmount: viewerData.totalDiscountAmount ?? 0,
+                  totalNetAmount: viewerData.totalNetAmount ?? viewerData.total ?? 0,
+                  subTotal: viewerData.subTotal ?? 0,
+                },
+                remarks: viewerData.remarks ?? viewerData.note ?? "",
+                terms: viewerData.terms ?? "",
+              } as Partial<SalesPayload>}
+              customers={customers}
+              products={inventory || []}
+              submitting={false}
+              setSubmitting={() => {}}
+              saveDisabled={true}
+            />
+          </div>
+        ) : (
+          <div>
+            <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(viewerData, null, 2)}</pre>
+            {viewerKind === 'purchase' && (
+              <Button onClick={() => { setViewerOpen(false); navigate('/purchase/invoices'); }} style={{ marginTop: 8 }}>Open Purchase Invoices</Button>
+            )}
+            {viewerKind === 'expense' && (
+              <Button onClick={() => { setViewerOpen(false); navigate('/expenses'); }} style={{ marginTop: 8 }}>Open Expenses</Button>
+            )}
+          </div>
+        )}
+      </Modal>
 
       <Divider my="sm" />
 
@@ -390,7 +454,7 @@ export default function ProfitLoss() {
         <Text style={{ fontWeight: 600, marginBottom: 8 }}>
           Purchase Invoices (latest)
         </Text>
-        <ScrollArea style={{ maxHeight: 240 }}>
+        <div className="app-table-wrapper" style={{ maxHeight: 240, overflow: 'auto' }}>
           <Table
             withRowBorders
             withColumnBorders
@@ -407,7 +471,14 @@ export default function ProfitLoss() {
             </Table.Thead>
             <Table.Tbody>
               {filtered.purchaseInvoices.map((p: PurchaseInvoiceRecord) => (
-                <Table.Tr key={p.id}>
+                <Table.Tr
+                  key={p.id}
+                  onDoubleClick={() => {
+                    setViewerKind("purchase");
+                    setViewerData(p);
+                    setViewerOpen(true);
+                  }}
+                >
                   <Table.Td>{p.purchaseInvoiceNumber || p.id || "-"}</Table.Td>
                   <Table.Td>{formatDate(p.invoiceDate as string)}</Table.Td>
                   <Table.Td>
@@ -449,7 +520,7 @@ export default function ProfitLoss() {
               ))}
             </Table.Tbody>
           </Table>
-        </ScrollArea>
+        </div>
       </div>
 
       <Divider my="sm" />
@@ -458,7 +529,7 @@ export default function ProfitLoss() {
         <Text style={{ fontWeight: 600, marginBottom: 8 }}>
           Expenses (latest)
         </Text>
-        <ScrollArea style={{ maxHeight: 240 }}>
+        <div className="app-table-wrapper" style={{ maxHeight: 240, overflow: 'auto' }}>
           <Table
             highlightOnHover
             withRowBorders
@@ -475,7 +546,14 @@ export default function ProfitLoss() {
             </Table.Thead>
             <Table.Tbody>
               {filtered.expenses.map((ex: Expense) => (
-                <Table.Tr key={ex.id}>
+                <Table.Tr
+                  key={ex.id}
+                  onDoubleClick={() => {
+                    setViewerKind("expense");
+                    setViewerData(ex);
+                    setViewerOpen(true);
+                  }}
+                >
                   <Table.Td>{ex.expenseNumber || ex.id}</Table.Td>
                   <Table.Td>{formatDate(ex.date as string)}</Table.Td>
                   <Table.Td>{ex.categoryType || "Other"}</Table.Td>
@@ -486,7 +564,7 @@ export default function ProfitLoss() {
               ))}
             </Table.Tbody>
           </Table>
-        </ScrollArea>
+        </div>
       </div>
     </div>
   );

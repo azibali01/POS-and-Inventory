@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   Card,
   TextInput,
@@ -20,6 +20,7 @@ import openPrintWindow from "../print/printWindow";
 import { generateGatePassHTML } from "../print/printTemplate";
 import type { InvoiceData } from "../print/printTemplate";
 import type { CustomerPayload } from "../../lib/api";
+import { getDraftByKey, createDraft, updateDraft, deleteDraft } from "../../lib/api";
 
 function generateId() {
   try {
@@ -113,6 +114,15 @@ export default function SalesDocShell({
     },
   ]);
 
+  // Autosave / draft support
+  const DRAFT_NAMESPACE = "sales-draft";
+  const draftKey = `${DRAFT_NAMESPACE}:${mode}`;
+  const [serverDraftId, setServerDraftId] = useState<string | null>(null);
+  const saveTimer = useRef<number | null>(null);
+  const lastSavedRef = useRef<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+
+
   // Reset customer and items when modal opens (when initial changes)
   useEffect(() => {
     // Helper to get supplier name for selected product
@@ -150,8 +160,8 @@ export default function SalesDocShell({
       setItems(
         (initial.items as LineItem[]).map((it) => ({
           _id:
-            it._id ??
-            products.find((p) => p.itemName === it.itemName)?._id ??
+            (it as any)._id ?? (it as any).id ?? (it as any).productId ??
+            products.find((p) => p.itemName === it.itemName || String(p._id) === String((it as any)._id) || p.itemName === it.itemName)?._id ??
             "",
           itemName: it.itemName ?? "",
           invoiceNumber: it._id ?? generateId(),
@@ -180,8 +190,8 @@ export default function SalesDocShell({
       setItems(
         (initial.products as LineItem[]).map((it) => ({
           _id:
-            it._id ??
-            products.find((p) => p.itemName === it.itemName)?._id ??
+            (it as any)._id ?? (it as any).id ?? (it as any).productId ??
+            products.find((p) => p.itemName === it.itemName || String(p._id) === String((it as any)._id) || p.itemName === it.itemName)?._id ??
             "",
           itemName: it.itemName ?? "",
           invoiceNumber: it._id ?? generateId(),
@@ -223,6 +233,171 @@ export default function SalesDocShell({
       ]);
     }
   }, [initial, products]);
+
+  // On mount, attempt to load a saved draft for this mode
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (raw) {
+        const d = JSON.parse(raw);
+        // If there is a provided `initial` payload and it's non-empty, ask user before restoring.
+        const initialEmpty = !initial || Object.keys(initial).length === 0;
+        const shouldRestore = initialEmpty
+          ? true
+          : window.confirm("A saved draft was found for this form. Restore it?");
+        if (shouldRestore && d) {
+          setDocNo(d.docNo ?? (initial?.docNo ?? docNo));
+          setDocDate(d.docDate ?? (initial?.docDate ?? docDate));
+          setCustomerId(d.customerId ?? "");
+          if (Array.isArray(d.items) && d.items.length > 0) setItems(d.items);
+          setRemarks(d.remarks ?? (initial?.remarks ?? ""));
+          setTerms(d.terms ?? (initial?.terms ?? terms));
+        }
+      }
+    } catch (err) {
+      // ignore parse errors
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Also try to fetch server-side draft for this key and offer restore
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const sd = await getDraftByKey(draftKey);
+        if (!mounted || !sd) return;
+        // If we already restored from localStorage above, prefer local unless user wants server
+        const rawLocal = (() => {
+          try {
+            return localStorage.getItem(draftKey);
+          } catch {
+            return null;
+          }
+        })();
+        const initialEmpty = !initial || Object.keys(initial).length === 0;
+        let shouldRestore = false;
+        if (rawLocal) {
+          // Ask user which to restore
+          const useServer = window.confirm(
+            "A saved server draft was found. Replace local draft with server draft?"
+          );
+          shouldRestore = useServer;
+        } else {
+          shouldRestore = initialEmpty
+            ? true
+            : window.confirm("A saved server draft was found for this form. Restore it?");
+        }
+        if (shouldRestore && sd?.data) {
+          const d = sd.data as any;
+          setDocNo(d.docNo ?? (initial?.docNo ?? docNo));
+          setDocDate(d.docDate ?? (initial?.docDate ?? docDate));
+          setCustomerId(d.customerId ?? "");
+          if (Array.isArray(d.items) && d.items.length > 0) setItems(d.items);
+          setRemarks(d.remarks ?? (initial?.remarks ?? ""));
+          setTerms(d.terms ?? (initial?.terms ?? terms));
+          setServerDraftId(sd._id ?? null);
+        } else if (sd && sd._id) {
+          // keep id so future updates use PUT
+          setServerDraftId(sd._id);
+        }
+      } catch (err) {
+        // ignore network errors — user will still have local drafts
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounced save of draft on key state changes
+  useEffect(() => {
+    // Build a lightweight snapshot for persistence
+    const snapshot = {
+      docNo,
+      docDate,
+      customerId,
+      items,
+      remarks,
+      terms,
+      savedAt: Date.now(),
+    };
+    let serialized: string;
+    try {
+      serialized = JSON.stringify(snapshot);
+    } catch (err) {
+      return;
+    }
+    // If identical to last saved, skip
+    if (lastSavedRef.current === serialized) return;
+    setIsDirty(true);
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      try {
+        localStorage.setItem(draftKey, serialized);
+        lastSavedRef.current = serialized;
+        setIsDirty(false);
+        // also attempt to save to server (best-effort). Don't block UI.
+        (async () => {
+          try {
+            const payload = { key: draftKey, data: JSON.parse(serialized) };
+            if (serverDraftId) {
+              await updateDraft(serverDraftId, { data: payload.data });
+            } else {
+              const created = await createDraft(payload);
+              if (created && created._id) setServerDraftId(created._id as string);
+            }
+          } catch (err) {
+            // network/save failed — ignore, local draft still exists
+          }
+        })();
+      } catch (err) {
+        // ignore storage errors
+      }
+    }, 1000) as unknown as number;
+
+    return () => {
+      if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    };
+  }, [docNo, docDate, customerId, items, remarks, terms, draftKey]);
+
+  // Warn user when closing the tab/window with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    if (isDirty) {
+      window.addEventListener("beforeunload", handleBeforeUnload);
+    }
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isDirty]);
+
+  function clearDraft() {
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      /* ignore */
+    }
+    lastSavedRef.current = null;
+    setIsDirty(false);
+    // remove server draft if present
+    if (serverDraftId) {
+      (async () => {
+        try {
+          await deleteDraft(serverDraftId);
+        } catch {
+          // ignore
+        }
+        setServerDraftId(null);
+      })();
+    }
+  }
 
   const status = mode === "Quotation" ? "Draft" : "Confirmed";
 
@@ -274,6 +449,9 @@ export default function SalesDocShell({
   // sync the relevant fields into local state so the form is pre-filled.
   useEffect(() => {
     if (!initial) return;
+    console.log("[SalesDocShell] Syncing initial payload:", initial);
+    console.log("[SalesDocShell] Available customers:", customers);
+    console.log("[SalesDocShell] Available products:", products);
     // Only update all local state when initial changes
     setDocNo(initial.docNo ?? "");
     setDocDate(
@@ -282,13 +460,19 @@ export default function SalesDocShell({
         : new Date().toISOString().slice(0, 10)
     );
 
-    setCustomerId(
-      initial.customer?.id !== undefined && initial.customer?.id !== null
-        ? String(initial.customer.id)
-        : customers.length > 0
-        ? String(customers[0]._id)
-        : ""
-    );
+    // Resolve customer ID from initial.customer (handles {id}, {_id}, or missing)
+    const resolvedCustomerId = (() => {
+      if (!initial.customer) return "";
+      const custId = (initial.customer as any).id ?? (initial.customer as any)._id;
+      if (custId !== undefined && custId !== null) {
+        const found = customers.find((c) => String(c._id) === String(custId));
+        console.log("[SalesDocShell] Resolved customer:", found);
+        return found ? String(found._id) : "";
+      }
+      return "";
+    })();
+    setCustomerId(resolvedCustomerId);
+    console.log("[SalesDocShell] Set customerId to:", resolvedCustomerId);
     setRemarks(typeof initial.remarks === "string" ? initial.remarks : "");
     setTerms(
       typeof initial.terms === "string"
@@ -296,21 +480,32 @@ export default function SalesDocShell({
         : "Prices valid for 15 days.\nPayment terms: Due on receipt."
     );
     if (initial.items && Array.isArray(initial.items)) {
-      setItems(
-        (initial.items as LineItem[]).map((it) => ({
-          _id:
-            it._id ??
-            products.find((p) => p.itemName === it.itemName)?._id ??
-            "",
-          itemName: it.itemName ?? "",
-          invoiceNumber: it._id ?? generateId(),
+      console.log("[SalesDocShell] Mapping initial.items:", initial.items);
+      const mappedItems = (initial.items as LineItem[]).map((it) => {
+        const itemId = (it as any)._id ?? (it as any).id ?? (it as any).productId ?? "";
+        const itemNameValue = it.itemName ?? (it as any).productName ?? "";
+        // Find matching product by id or name
+        const matchedProduct = products.find(
+          (p) =>
+            String(p._id) === String(itemId) ||
+            (itemNameValue && String(p.itemName).toLowerCase() === String(itemNameValue).toLowerCase())
+        );
+        const resolvedId = matchedProduct?._id ?? itemId;
+        console.log("[SalesDocShell] Item mapping:", {
+          itemId,
+          itemNameValue,
+          matchedProduct: matchedProduct?.itemName,
+          resolvedId,
+        });
+        return {
+          _id: resolvedId ? String(resolvedId) : "",
+          itemName: itemNameValue,
+          invoiceNumber: itemId || generateId(),
           unit: it.unit ?? "",
           quantity: Number(it.quantity ?? 0),
-          salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
+          salesRate: Number(it.salesRate ?? (it as any).rate ?? 0),
           discount: it.discount ?? 0,
-          amount:
-            Number(it.quantity ?? 0) *
-            Number(it.salesRate ?? it.salesRate ?? 0),
+          amount: Number(it.quantity ?? 0) * Number(it.salesRate ?? (it as any).rate ?? 0),
           price: it.salesRate ?? 0,
           color: it.color ?? "",
           openingStock: it.openingStock ?? 0,
@@ -319,24 +514,36 @@ export default function SalesDocShell({
           totalGrossAmount: it.totalGrossAmount ?? 0,
           totalNetAmount: it.totalNetAmount ?? 0,
           discountAmount: it.discountAmount ?? 0,
-        }))
-      );
+        };
+      });
+      console.log("[SalesDocShell] Final mapped items:", mappedItems);
+      setItems(mappedItems);
     } else if (initial.products && Array.isArray(initial.products)) {
-      setItems(
-        (initial.products as LineItem[]).map((it) => ({
-          _id:
-            it._id ??
-            products.find((p) => p.itemName === it.itemName)?._id ??
-            "",
-          itemName: it.itemName ?? "",
-          invoiceNumber: it._id ?? generateId(),
+      console.log("[SalesDocShell] Mapping initial.products:", initial.products);
+      const mappedItems = (initial.products as LineItem[]).map((it) => {
+        const itemId = (it as any)._id ?? (it as any).id ?? (it as any).productId ?? "";
+        const itemNameValue = it.itemName ?? (it as any).productName ?? "";
+        const matchedProduct = products.find(
+          (p) =>
+            String(p._id) === String(itemId) ||
+            (itemNameValue && String(p.itemName).toLowerCase() === String(itemNameValue).toLowerCase())
+        );
+        const resolvedId = matchedProduct?._id ?? itemId;
+        console.log("[SalesDocShell] Product mapping:", {
+          itemId,
+          itemNameValue,
+          matchedProduct: matchedProduct?.itemName,
+          resolvedId,
+        });
+        return {
+          _id: resolvedId ? String(resolvedId) : "",
+          itemName: itemNameValue,
+          invoiceNumber: itemId || generateId(),
           unit: it.unit ?? "",
           quantity: Number(it.quantity ?? 0),
-          salesRate: Number(it.salesRate ?? it.salesRate ?? 0),
+          salesRate: Number(it.salesRate ?? (it as any).rate ?? 0),
           discount: it.discount ?? 0,
-          amount:
-            Number(it.quantity ?? 0) *
-            Number(it.salesRate ?? it.salesRate ?? 0),
+          amount: Number(it.quantity ?? 0) * Number(it.salesRate ?? (it as any).rate ?? 0),
           price: it.salesRate ?? 0,
           color: it.color ?? "",
           openingStock: it.openingStock ?? 0,
@@ -345,8 +552,10 @@ export default function SalesDocShell({
           totalGrossAmount: it.totalGrossAmount ?? 0,
           totalNetAmount: it.totalNetAmount ?? 0,
           discountAmount: it.discountAmount ?? 0,
-        }))
-      );
+        };
+      });
+      console.log("[SalesDocShell] Final mapped products:", mappedItems);
+      setItems(mappedItems);
     } else {
       setItems([
         {
@@ -421,10 +630,22 @@ export default function SalesDocShell({
     console.log("[SalesDocShell] payload:", payload);
     console.log("[SalesDocShell] Calling onSubmit with payload");
     const maybePromise = onSubmit?.(payload);
-    Promise.resolve(maybePromise).finally(() => {
+    // If onSubmit returns a promise, clear draft only on success. Always reset submitting state.
+    if (maybePromise && typeof (maybePromise as Promise<unknown>).then === "function") {
+      (maybePromise as Promise<unknown>)
+        .then(() => {
+          clearDraft();
+        })
+        .finally(() => {
+          setSubmitting(false);
+          setSubmitLocked(false);
+        });
+    } else {
+      // Synchronous handler — assume success
+      clearDraft();
       setSubmitting(false);
       setSubmitLocked(false);
-    });
+    }
   }
 
   return (
@@ -651,11 +872,13 @@ export default function SalesDocShell({
                 Add item
               </Button>
             </div>
-            <LineItemsTable
-              items={items}
-              onChange={setItems}
-              products={products}
-            />
+            <div className="app-table-wrapper" style={{ maxHeight: '40vh', overflow: 'auto' }}>
+              <LineItemsTable
+                items={items}
+                onChange={setItems}
+                products={products}
+              />
+            </div>
           </div>
 
           <div

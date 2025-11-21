@@ -19,7 +19,8 @@ export default function Dashboard() {
   const {
     inventory = [],
     sales,
-    purchases = [],
+   
+    purchaseInvoices = [],
     customers = [],
     categories = [],
     expenses = [],
@@ -32,29 +33,111 @@ export default function Dashboard() {
     return [];
   }, [sales]);
 
-  const totalSales = useMemo(
-    () => salesArray.reduce((s, it) => s + (it.total || 0), 0),
-    [salesArray]
-  );
+  const salesInvoices = useMemo(() => {
+    // Debug: log all sales to see their structure
+    if (salesArray.length > 0 && import.meta.env.DEV) {
+      console.log("All sales data:", salesArray);
+      console.log("First sale:", salesArray[0]);
+    }
+    
+    // Keep it simple: just count all sales that are not explicitly quotations
+    const invoices = salesArray.filter((s) => {
+      // Exclude only if explicitly marked as quotation without invoice number
+      return !(s.status === "Quotation" && !s.invoiceNumber);
+    });
+    
+    if (import.meta.env.DEV) {
+      console.log("Filtered invoices:", invoices.length, invoices);
+    }
+    
+    return invoices;
+  }, [salesArray]);
+
+  const totalSales = useMemo(() => {
+    const total = salesInvoices.reduce((sum, it) => {
+      // Try all possible amount fields
+      const amount = it.total || it.totalNetAmount || it.totalGrossAmount || it.amount || it.subTotal || 0;
+      
+      if (import.meta.env.DEV && amount > 0) {
+        console.log("Sale amount:", {
+          id: it.id,
+          invoiceNumber: it.invoiceNumber,
+          total: it.total,
+          totalNetAmount: it.totalNetAmount,
+          totalGrossAmount: it.totalGrossAmount,
+          amount: it.amount,
+          subTotal: it.subTotal,
+          calculated: amount
+        });
+      }
+      
+      return sum + amount;
+    }, 0);
+    
+    if (import.meta.env.DEV) {
+      console.log("Total sales amount:", total);
+    }
+    
+    return total;
+  }, [salesInvoices]);
+
   const inventoryCount = inventory.length;
 
   const todayRevenue = useMemo(() => {
+    const today = dayjs();
     return salesArray
-      .filter((s) => dayjs(s.date).isSame(dayjs(), "day"))
-      .reduce((sum, s) => sum + (s.total || 0), 0);
+      .filter((s) => {
+        // Skip quotations
+        if (s.status === "Quotation" && !s.invoiceNumber) return false;
+        
+        const dateVal = s.invoiceDate || s.date || s.quotationDate;
+        if (!dateVal) return false;
+        
+        try {
+          const saleDate = dayjs(dateVal);
+          if (!saleDate.isValid()) return false;
+          
+          return saleDate.isSame(today, "day");
+        } catch {
+          return false;
+        }
+      })
+      .reduce((sum, s) => {
+        const amount = s.total || s.totalNetAmount || s.totalGrossAmount || s.amount || s.subTotal || 0;
+        return sum + amount;
+      }, 0);
   }, [salesArray]);
 
   const monthlyRevenue = useMemo(() => {
     const byMonth: Record<string, number> = {};
+    
     salesArray.forEach((s) => {
-      const m = dayjs(s.date).format("MMM YYYY");
-      byMonth[m] = (byMonth[m] || 0) + (s.total || 0);
+      // Skip quotations and drafts
+      if (s.status === "Quotation" || s.status === "Draft") {
+        if (!s.invoiceNumber) return;
+      }
+      
+      const dateVal = s.invoiceDate || s.date || s.quotationDate;
+      if (!dateVal) return;
+      
+      try {
+        const saleDate = dayjs(dateVal);
+        if (!saleDate.isValid()) return;
+        
+        const monthKey = saleDate.format("MMM YYYY");
+        const amount = s.total || s.totalNetAmount || s.totalGrossAmount || s.amount || s.subTotal || 0;
+        byMonth[monthKey] = (byMonth[monthKey] || 0) + amount;
+      } catch {
+        // Skip invalid dates
+      }
     });
+    
     const months = Array.from({ length: 7 }).map((_, i) =>
       dayjs()
         .subtract(6 - i, "month")
         .format("MMM YYYY")
     );
+    
     return months.map((m) => ({
       month: m,
       amount: Math.round(byMonth[m] || 0),
@@ -65,10 +148,13 @@ export default function Dashboard() {
 
   // ...existing code...
 
-  const purchasesTotal = useMemo(
-    () => purchases.reduce((s, p) => s + (p.total || 0), 0),
-    [purchases]
-  );
+  const purchaseInvoicesTotal = useMemo(() => {
+    return purchaseInvoices.reduce((sum, p) => {
+      const amount = p.total || p.subTotal || 0;
+      return sum + amount;
+    }, 0);
+  }, [purchaseInvoices]);
+
   const customersCount = customers.length;
   const categoriesCount = categories.length;
   const expensesTotal = expenses.reduce((s, e) => s + (e.amount || 0), 0);
@@ -152,14 +238,14 @@ export default function Dashboard() {
       label: "Sales Invoices",
       path: "/sales/invoices",
       icon: <IconFileInvoice size={18} />,
-      meta: `${salesArray.length} · ${formatCurrency(totalSales)}`,
+      meta: `${salesInvoices.length} · ${formatCurrency(totalSales)}`,
     },
 
     {
       label: "Purchase Invoices",
       path: "/purchase/invoices",
       icon: <IconFileInvoice size={18} />,
-      meta: `${purchases.length} · ${formatCurrency(purchasesTotal)}`,
+      meta: `${purchaseInvoices.length} · ${formatCurrency(purchaseInvoicesTotal)}`,
     },
     {
       label: "Expenses",

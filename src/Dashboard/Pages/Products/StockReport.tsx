@@ -7,7 +7,7 @@ import {
   Box,
   Grid,
   Tabs,
-  ScrollArea,
+
   Pagination,
   Select,
 } from "@mantine/core";
@@ -193,7 +193,7 @@ export default function StockReportPage() {
               </Box>
             </Card.Section>
             <Card.Section>
-              <ScrollArea>
+              <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
                 <Table verticalSpacing="sm">
                   <Table.Thead>
                     <Table.Tr>
@@ -241,7 +241,7 @@ export default function StockReportPage() {
                     ))}
                   </Table.Tbody>
                 </Table>
-              </ScrollArea>
+              </div>
             </Card.Section>
             {allTotalPages > 1 && (
               <Group justify="center" mt="md" pb="md">
@@ -285,7 +285,7 @@ export default function StockReportPage() {
               </Box>
             </Card.Section>
             <Card.Section>
-              <ScrollArea>
+              <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
                 <Table verticalSpacing="sm">
                   <Table.Thead>
                     <Table.Tr>
@@ -341,7 +341,7 @@ export default function StockReportPage() {
                     ))}
                   </Table.Tbody>
                 </Table>
-              </ScrollArea>
+              </div>
             </Card.Section>
             {lowTotalPages > 1 && (
               <Group justify="center" mt="md" pb="md">
@@ -385,7 +385,7 @@ export default function StockReportPage() {
               </Box>
             </Card.Section>
             <Card.Section>
-              <ScrollArea>
+              <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
                 <Table verticalSpacing="sm">
                   <Table.Thead>
                     <Table.Tr>
@@ -426,7 +426,7 @@ export default function StockReportPage() {
                     ))}
                   </Table.Tbody>
                 </Table>
-              </ScrollArea>
+              </div>
             </Card.Section>
             {negTotalPages > 1 && (
               <Group justify="center" mt="md" pb="md">

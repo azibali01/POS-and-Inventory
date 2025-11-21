@@ -8,7 +8,6 @@ import {
   Card,
   Text,
   Group,
-  ScrollArea,
   TextInput,
   Button,
   Title,
@@ -175,7 +174,7 @@ export default function ReceiptsPage() {
 
       <Card>
         <Card.Section>
-          <ScrollArea>
+          <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
             <Table
               highlightOnHover
               withRowBorders
@@ -197,7 +196,7 @@ export default function ReceiptsPage() {
               </Table.Thead>
               <tbody>
                 {paginatedEntries.map((v) => (
-                  <tr key={v.id}>
+                  <tr key={v.id} onDoubleClick={() => setEditVoucher(v)} style={{ cursor: 'pointer' }}>
                     <td style={{ fontFamily: "monospace", fontSize: 12 }}>
                       {v.voucherNumber}
                     </td>
@@ -272,7 +271,7 @@ export default function ReceiptsPage() {
                 ))}
               </tbody>
             </Table>
-          </ScrollArea>
+          </div>
         </Card.Section>
         {totalPages > 1 && (
           <Group justify="center" mt="md" pb="md">

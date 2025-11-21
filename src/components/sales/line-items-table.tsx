@@ -78,9 +78,9 @@ export function LineItemsTable({
                     value={String(it._id || "")}
                     data={products.map((p) => ({
                       value: String(p._id),
-                      label: `${p.itemName} (Thickness: ${
+                      label: `${p.itemName} ( ${
                         p.thickness ?? "-"
-                      }, Color: ${p.color ?? "-"})`,
+                      }, ${p.color ?? "-"})`,
                     }))}
                     onChange={(val: string | null) => {
                       const prod = products.find(

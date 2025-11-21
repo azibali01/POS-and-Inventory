@@ -400,6 +400,51 @@ export interface QuotationRecordPayload {
   length?: number;
   metadata?: Record<string, unknown>;
 }
+
+// --- Drafts (server-side autosave) ---
+export interface DraftRecord {
+  _id?: string;
+  key: string;
+  data: any;
+  userId?: string;
+  title?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export async function getDraftByKey(key: string, userId?: string) {
+  try {
+    const opts = userId ? { headers: { "x-user-id": userId } } : undefined;
+    const { data } = await api.get<DraftRecord>(`/drafts/key/${encodeURIComponent(key)}`, opts);
+    return data;
+  } catch (err: unknown) {
+    const error = err as { response?: { status?: number } };
+    const status = error.response?.status;
+    if (status && status === 404) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export async function createDraft(payload: { key: string; data: any; userId?: string; title?: string }) {
+  const opts = payload.userId ? { headers: { "x-user-id": payload.userId } } : undefined;
+  const { data } = await api.post<DraftRecord>(`/drafts`, payload, opts);
+  return data;
+}
+
+export async function updateDraft(id: string, patch: { data?: any; title?: string }, userId?: string) {
+  const opts = userId ? { headers: { "x-user-id": userId } } : undefined;
+  const { data } = await api.put<DraftRecord>(`/drafts/${id}`, patch, opts);
+  return data;
+}
+
+export async function deleteDraft(id: string, userId?: string) {
+  const opts = userId ? { headers: { "x-user-id": userId } } : undefined;
+  const { data } = await api.delete(`/drafts/${id}`, opts);
+  return data;
+}
+
 export type PurchaseLineItem = {
   id: string;
   productName: string;

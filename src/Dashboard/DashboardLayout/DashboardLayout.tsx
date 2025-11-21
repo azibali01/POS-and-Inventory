@@ -57,6 +57,11 @@ const navigation: MenuItem[] = [
         icon: <FileBarChart size={14} />,
         path: "/products/stock-summary",
       },
+      {
+        label: "Stock Ledger",
+        icon: <FileBarChart size={14} />,
+        path: "/products/stock-ledger",
+      },
     ],
   },
   {

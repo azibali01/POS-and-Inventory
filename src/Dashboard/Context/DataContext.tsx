@@ -574,6 +574,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     loadSuppliers();
   }, []);
+
+  // Auto-load inventory on mount
+  useEffect(() => {
+    loadInventory();
+  }, []);
+
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
@@ -693,6 +699,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       return categoryNames;
     }) as Promise<string[]>;
   }, [runLoader, categories]);
+
+  // Auto-load categories on mount
+  useEffect(() => {
+    loadCategories();
+  }, []);
 
   // ===== COLORS LOADER =====
   const loadColors = useCallback(async () => {
@@ -2036,6 +2047,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     }) as Promise<PurchaseRecord[]>;
   };
 
+  // Auto-load purchases on mount
+  useEffect(() => {
+    loadPurchases();
+  }, []);
+
   const loadPurchaseInvoices = async () => {
     if (loaderLoadedRef.current["purchaseInvoices"]) {
       return purchaseInvoices;
@@ -2060,6 +2076,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       return normalized;
     }) as Promise<PurchaseInvoiceRecord[]>;
   };
+
+  // Auto-load purchase invoices on mount
+  useEffect(() => {
+    loadPurchaseInvoices();
+  }, []);
 
   const loadGrns = async () => {
     if (loaderLoadedRef.current["grns"]) {
@@ -2093,6 +2114,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     }) as Promise<Expense[]>;
   };
 
+  // Auto-load expenses on mount
+  useEffect(() => {
+    loadExpenses();
+  }, []);
+
   const loadReceiptVouchers = async (): Promise<ReceiptVoucher[]> => {
     if (loaderLoadedRef.current["receiptVouchers"]) {
       return receiptVouchers;
@@ -2113,6 +2139,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     }) as Promise<ReceiptVoucher[]>;
   };
 
+  // Auto-load receipt vouchers on mount
+  useEffect(() => {
+    loadReceiptVouchers();
+  }, []);
+
   const loadPaymentVouchers = async (): Promise<PaymentVoucher[]> => {
     if (loaderLoadedRef.current["paymentVouchers"]) {
       return paymentVouchers;
@@ -2132,6 +2163,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       return normalized;
     }) as Promise<PaymentVoucher[]>;
   };
+
+  // Auto-load payment vouchers on mount
+  useEffect(() => {
+    loadPaymentVouchers();
+  }, []);
 
   // Only one loadQuotations function, returns correct type and is in correct order
   const loadQuotations = useCallback(async (): Promise<
@@ -2222,6 +2258,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       return mapped;
     }) as Promise<api.QuotationRecordPayload[]>;
   }, [runLoader, quotations]);
+
+  // Auto-load quotations on mount
+  useEffect(() => {
+    loadQuotations();
+  }, []);
+
   // Stubs for required purchase return functions
   function applyPurchaseReturnToInventory(ret: PurchaseReturnRecord) {
     // Placeholder: implement inventory update logic as needed

@@ -20,7 +20,7 @@ import {
   useDataContext,
   type PurchaseReturnRecord,
   type PurchaseRecord,
-  type Customer,
+
 } from "../../Context/DataContext";
 import { LineItemsTableUniversal } from "./LineItemsTableUniversal";
 import type { PurchaseLineItem } from "./types";
@@ -73,7 +73,11 @@ export default function PurchaseReturnPage() {
                 returnDate: r.returnDate ?? (r as any).date ?? "",
                 subtotal: r.subtotal ?? r.total ?? 0,
                 total: r.total ?? r.subtotal ?? 0,
-                supplier: r.supplier ?? "",
+                // Normalize supplier: if backend sent an object, store the name string as well
+                supplier:
+                  r && typeof r.supplier === "object" && r.supplier
+                    ? r.supplier.name || ""
+                    : r.supplier ?? "",
                 supplierId: r.supplierId ?? "",
                 items: Array.isArray(r.items) ? r.items : [],
                 reason: r.reason ?? "",
@@ -97,39 +101,63 @@ export default function PurchaseReturnPage() {
   }, []);
   const {
     purchases = [],
-    customers = [],
+    suppliers = [],
     purchaseReturns = [],
     processPurchaseReturn,
     inventory,
     loadInventory,
+    loadSuppliers,
   } = useDataContext();
 
-  // Ensure products (inventory) are loaded on mount
+  // Ensure products (inventory) and suppliers are loaded on mount
   useEffect(() => {
     if (!inventory || inventory.length === 0) {
       loadInventory();
     }
   }, [inventory, loadInventory]);
+
+  useEffect(() => {
+    if (!suppliers || suppliers.length === 0) {
+      loadSuppliers();
+    }
+  }, [suppliers, loadSuppliers]);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
 
   // Use fetchedReturns if available, otherwise context
   const data = useMemo(
     () =>
-      (fetchedReturns ?? purchaseReturns ?? []).map((r) => ({
-        id: r.id,
-        returnNumber: r.returnNumber,
-        date: r.returnDate,
-        supplier:
-          customers.find((s) => String(s._id) === String(r.supplierId))?.name ||
-          r.supplier ||
-          r.supplierId ||
-          "",
-        total: r.total ?? r.subtotal ?? r.total ?? 0,
-        reason: r.reason,
-        items: r.items,
-      })),
-    [fetchedReturns, purchaseReturns, customers]
+      (fetchedReturns ?? purchaseReturns ?? []).map((r) => {
+        // Resolve supplier name from suppliers list
+        let supplierName = "";
+        if (r.supplierId) {
+          const found = suppliers.find((s) => String(s._id) === String(r.supplierId));
+          supplierName = found?.name || "";
+        }
+        // If supplier was provided as an object (from backend/context), use its name
+        if (!supplierName && r && typeof r.supplier === "object" && (r.supplier as any)?.name) {
+          supplierName = String((r.supplier as any)?.name || "");
+        }
+        // Fallback to r.supplier if it's already a string
+        if (!supplierName && typeof r.supplier === "string") {
+          supplierName = r.supplier;
+        }
+        // Fallback to supplierId if nothing else
+        if (!supplierName) {
+          supplierName = r.supplierId || "";
+        }
+        
+        return {
+          id: r.id,
+          returnNumber: r.returnNumber,
+          date: r.returnDate,
+          supplier: supplierName,
+          total: r.total ?? r.subtotal ?? 0,
+          reason: r.reason,
+          items: r.items,
+        };
+      }),
+    [fetchedReturns, purchaseReturns, suppliers]
   );
 
   const filtered = useMemo(() => {
@@ -230,7 +258,7 @@ export default function PurchaseReturnPage() {
               {error}
             </Text>
           )}
-          <div style={{ marginTop: 12, overflowX: "auto" }}>
+          <div className="app-table-wrapper" style={{ marginTop: 12, maxHeight: '55vh', overflow: 'auto' }}>
             <Table
               withColumnBorders
               withRowBorders
@@ -267,6 +295,11 @@ export default function PurchaseReturnPage() {
                     key={r.id}
                     tabIndex={0}
                     aria-label={`Return ${r.returnNumber} for ${r.supplier}`}
+                    onDoubleClick={() => {
+                      const full = (fetchedReturns ?? purchaseReturns ?? []).find((x) => x.id === r.id) as PurchaseReturnRecord | undefined;
+                      if (full) setEditReturn(full);
+                    }}
+                    style={{ cursor: 'pointer' }}
                   >
                     <td style={{ fontFamily: "monospace" }}>
                       {r.returnNumber}
@@ -443,10 +476,11 @@ export default function PurchaseReturnPage() {
       <Modal opened={open} onClose={() => setOpen(false)} size="80%">
         <ReturnForm
           purchases={purchases}
-          suppliers={customers}
+          suppliers={suppliers}
           onClose={() => setOpen(false)}
           onSave={handleReturnSave}
           setOpen={setOpen}
+          existingReturns={fetchedReturns ?? purchaseReturns}
         />
       </Modal>
       {/* Edit Modal */}
@@ -458,10 +492,11 @@ export default function PurchaseReturnPage() {
         {editReturn && (
           <ReturnForm
             purchases={purchases}
-            suppliers={customers}
+            suppliers={suppliers}
             onClose={() => setEditReturn(null)}
             onSave={handleEditSave}
             initialValues={editReturn}
+            existingReturns={fetchedReturns ?? purchaseReturns}
           />
         )}
       </Modal>
@@ -472,10 +507,17 @@ export default function PurchaseReturnPage() {
 // (Old function signature removed; now using interface and new function signature below)
 interface ReturnFormProps {
   purchases: PurchaseRecord[];
-  suppliers: Customer[];
+  suppliers: Array<{
+    _id: string;
+    name: string;
+    city?: string;
+    address?: string;
+    paymentType?: string;
+  }>;
   onClose: () => void;
   onSave: (r: PurchaseReturnRecord) => void;
   initialValues?: Partial<PurchaseReturnRecord>;
+  existingReturns?: PurchaseReturnRecord[];
 }
 
 function ReturnForm({
@@ -485,6 +527,7 @@ function ReturnForm({
   onSave,
   initialValues,
   setOpen,
+  existingReturns,
 }: ReturnFormProps & { setOpen?: (open: boolean) => void }) {
   const {
     inventory = [],
@@ -497,12 +540,13 @@ function ReturnForm({
 
   // Helper to get next return number in PRET-0001, PRET-0002... format
   function getNextReturnNumber(): string {
-    // Gather all return numbers from context and fetchedReturns
-    const allReturns: Array<{ returnNumber?: string }> = [
+    // Combine existing returns passed from parent (fetched) with context returns
+    const combined: Array<{ returnNumber?: string }> = [
+      ...(existingReturns || []),
       ...(purchaseReturns || []),
     ];
     // Extract numbers in PRET-XXXX format
-    const nums = allReturns
+    const nums = combined
       .map((r) => {
         const match = String(r.returnNumber || "").match(/PRET-(\d{4})/i);
         return match ? parseInt(match[1], 10) : null;
@@ -513,9 +557,29 @@ function ReturnForm({
     return `PRET-${next.toString().padStart(4, "0")}`;
   }
 
+  // Always use the next available return number for new returns
   const [returnNumber, setReturnNumber] = useState(
     initialValues?.returnNumber || getNextReturnNumber()
   );
+
+  // Recalculate the next return number when existing returns or context returns change
+  useEffect(() => {
+    if (initialValues) return;
+    (async () => {
+      try {
+        const apiModule = await import("../../../lib/api");
+        const resp = await apiModule.api.get("/purchase-returns/next-number");
+        if (resp && resp.data) {
+          setReturnNumber(String(resp.data));
+          return;
+        }
+      } catch (err) {
+        // ignore and fallback to local computation
+      }
+      setReturnNumber(getNextReturnNumber());
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(existingReturns || []), JSON.stringify(purchaseReturns || [])]);
   const [returnDate, setReturnDate] = useState<string>(
     initialValues?.returnDate || new Date().toISOString().slice(0, 10)
   );
@@ -573,7 +637,7 @@ function ReturnForm({
     initialValues?.linkedPoId ? String(initialValues.linkedPoId) : ""
   );
   const [supplierId, setSupplierId] = useState<string>(
-    initialValues?.supplierId ? String(initialValues.supplierId) : ""
+    initialValues?.supplierId ? String(initialValues.supplierId) : (supplierOptions[0]?.value || "")
   );
 
   // Keep Select value in sync with available options
@@ -595,7 +659,12 @@ function ReturnForm({
     } else if (supplierId !== "") {
       setSupplierId("");
     }
-  }, [supplierOptions, supplierId]);
+    // If editing, ensure supplierId is set from initialValues
+    if (initialValues?.supplierId && supplierOptions.some(opt => opt.value === String(initialValues.supplierId))) {
+      setSupplierId(String(initialValues.supplierId));
+    }
+    // eslint-disable-next-line
+  }, [supplierOptions]);
   const [reason, setReason] = useState<string>(initialValues?.reason || "");
   const [items, setItems] = useState<PurchaseLineItem[]>(() => {
     if (initialValues?.items && initialValues.items.length > 0) {
@@ -707,23 +776,23 @@ function ReturnForm({
   }, [items]);
 
   function handleSave() {
-    // For edit, keep the same id/returnNumber; for new, generate
+    // For edit, keep the same id/returnNumber; for new, use the state value (PRET-0001 format)
     const isEdit = !!initialValues?.id;
-    const stringReturnNumber = isEdit
+    const finalReturnNumber = isEdit
       ? initialValues.returnNumber
-      : `pret-${Date.now()}`;
+      : returnNumber;
     const record: PurchaseReturnRecord = {
       id: isEdit
         ? String(
             initialValues.id !== undefined && initialValues.id !== null
               ? initialValues.id
-              : stringReturnNumber
-          ) || stringReturnNumber
+              : finalReturnNumber
+          ) || finalReturnNumber
         : (typeof crypto !== "undefined" &&
           typeof crypto.randomUUID === "function"
             ? crypto.randomUUID()
-            : stringReturnNumber) || stringReturnNumber,
-      returnNumber: stringReturnNumber!,
+            : finalReturnNumber) || finalReturnNumber,
+      returnNumber: finalReturnNumber!,
       returnDate,
       supplier:
         (suppliers || []).find((s) => String(s._id) === String(supplierId))
@@ -830,7 +899,7 @@ function ReturnForm({
           <TextInput
             id="returnNumber"
             value={returnNumber}
-            onChange={(e) => setReturnNumber(e.currentTarget.value)}
+            readOnly
             aria-label="Return Number"
           />
         </div>

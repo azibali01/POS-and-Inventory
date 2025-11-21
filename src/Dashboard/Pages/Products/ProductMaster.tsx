@@ -12,7 +12,6 @@ import {
   TextInput,
   Select,
   Modal,
-  ScrollArea,
   Checkbox,
   NumberInput,
   Pagination,
@@ -241,7 +240,7 @@ export default function ProductMaster() {
           </div>
         </Group>
 
-        <ScrollArea>
+        <div className="app-table-wrapper" style={{ maxHeight: '70vh', overflow: 'auto' }}>
           <Table
             withColumnBorders
             withRowBorders
@@ -341,7 +340,7 @@ export default function ProductMaster() {
               ))}
             </Table.Tbody>
           </Table>
-        </ScrollArea>
+        </div>
         {totalPages > 1 && (
           <Group justify="center" mt="md" pb="md">
             <Pagination

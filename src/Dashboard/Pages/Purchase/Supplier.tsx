@@ -6,7 +6,6 @@ import {
   Group,
   Input,
   Modal,
-  ScrollArea,
   Text,
   Title,
 } from "@mantine/core";
@@ -191,7 +190,7 @@ export default function SuppliersPage() {
         </Card.Section>
 
         <Card.Section>
-          <ScrollArea>
+          <div className="app-table-wrapper" style={{ maxHeight: '60vh', overflow: 'auto' }}>
             <Table verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>
@@ -208,6 +207,11 @@ export default function SuppliersPage() {
                     key={s._id || `supplier-fallback-${index}`}
                     tabIndex={0}
                     aria-label={`Supplier ${s.name} in ${s.city}`}
+                    onDoubleClick={() => {
+                      setSelected(s);
+                      setOpenView(true);
+                    }}
+                    style={{ cursor: 'pointer' }}
                   >
                     <Table.Td style={{ fontWeight: 600 }}>{s.name}</Table.Td>
                     <Table.Td style={{ color: "#222" }}>{s.city}</Table.Td>
@@ -272,7 +276,7 @@ export default function SuppliersPage() {
                 ))}
               </Table.Tbody>
             </Table>
-          </ScrollArea>
+          </div>
         </Card.Section>
       </Card>
 

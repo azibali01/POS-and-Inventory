@@ -6,7 +6,7 @@ import {
   Group,
   Input,
   Modal,
-  ScrollArea,
+
   Text,
   Title,
 } from "@mantine/core";
@@ -141,9 +141,9 @@ export default function CustomersPage() {
         </Card.Section>
 
         <Card.Section>
-          <ScrollArea>
-            <Table verticalSpacing="sm">
-              <Table.Thead>
+          <div className="app-table-wrapper" style={{ maxHeight: '60vh', overflow: 'auto' }}>
+            <Table withColumnBorders withRowBorders withTableBorder >
+              <Table.Thead style={{backgroundColor: "#F1F3F5"}}>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
                   <Table.Th>City</Table.Th>
@@ -154,7 +154,7 @@ export default function CustomersPage() {
               </Table.Thead>
               <Table.Tbody>
                 {filtered.map((c: Customer, index) => (
-                  <Table.Tr key={c._id || `customer-fallback-${index}`}>
+                  <Table.Tr key={c._id || `customer-fallback-${index}`} onDoubleClick={() => { setSelected(c); setOpenView(true); }} style={{ cursor: 'pointer' }}>
                     <Table.Td style={{ fontWeight: 600 }}>{c.name}</Table.Td>
                     <Table.Td style={{ color: "#666" }}>{c.city}</Table.Td>
                     <Table.Td>{c.phone}</Table.Td>
@@ -207,7 +207,7 @@ export default function CustomersPage() {
                 ))}
               </Table.Tbody>
             </Table>
-          </ScrollArea>
+          </div>
         </Card.Section>
       </Card>
 

@@ -585,7 +585,7 @@ export default function PurchaseInvoicesPage() {
           <div style={{ padding: 12 }}>
             <Title order={4}>Recent Purchase Invoices</Title>
             <Text color="dimmed">Last {data.length} purchase invoices</Text>
-            <div style={{ marginTop: 12, overflowX: "auto" }}>
+            <div className="app-table-wrapper" style={{ marginTop: 12, maxHeight: '60vh', overflow: 'auto' }}>
               <Table
                 withRowBorders
                 withColumnBorders
@@ -628,7 +628,16 @@ export default function PurchaseInvoicesPage() {
                       );
                     })
                     .map((inv) => (
-                      <Table.Tr key={inv.id} tabIndex={0} aria-label={`Invoice ${inv.purchaseInvoiceNumber} for ${inv.supplier?.name || ''}`}> 
+                      <Table.Tr
+                        key={inv.id}
+                        tabIndex={0}
+                        aria-label={`Invoice ${inv.purchaseInvoiceNumber} for ${inv.supplier?.name || ''}`}
+                        onDoubleClick={() => {
+                          setEditInvoice(inv);
+                          setOpen(true);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      > 
                         <Table.Td style={{ fontFamily: "monospace" }}>
                           {inv.purchaseInvoiceNumber}
                         </Table.Td>

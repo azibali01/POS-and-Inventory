@@ -105,8 +105,10 @@ export function PurchaseLineItemsTable({
   return (
     <div>
       <div
+        className="app-table-wrapper"
         style={{
-          overflowX: "auto",
+          maxHeight: '45vh',
+          overflow: 'auto',
           border: "1px solid #1976d2",
           borderRadius: 6,
         }}

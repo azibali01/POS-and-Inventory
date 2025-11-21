@@ -57,15 +57,18 @@ export function PurchaseOrderForm({
             .slice(0, 10)
       : new Date().toISOString().slice(0, 10)
   );
-  const [expectedDelivery, setExpectedDelivery] = useState<string>(
-    initialValues?.expectedDelivery
-      ? typeof initialValues.expectedDelivery === "string"
-        ? (initialValues.expectedDelivery as string).slice(0, 10)
-        : new Date(initialValues.expectedDelivery as string | Date)
-            .toISOString()
-            .slice(0, 10)
-      : ""
-  );
+  const [expectedDelivery, setExpectedDelivery] = useState<string>(() => {
+    if (!initialValues?.expectedDelivery) return "";
+    const ed = initialValues.expectedDelivery as unknown;
+    if (typeof ed === "string") {
+      return (ed as string).slice(0, 10);
+    }
+    if (ed instanceof Date) {
+      return ed.toISOString().slice(0, 10);
+    }
+    // fallback for other representations
+    return String(ed).slice(0, 10);
+  });
   const { inventory = [], colors = [], suppliers = [] } = useDataContext();
   // Support both supplierId and supplier object for edit modal prefill
   function isSupplierObject(obj: unknown): obj is { _id: string } {
@@ -86,9 +89,9 @@ export function PurchaseOrderForm({
     }
     return "";
   }
-  const [supplierId, setSupplierId] = useState<string>(
-    getSupplierIdFromInitialValues(initialValues)
-  );
+  const [supplierId, setSupplierId] = useState<string>(() => {
+    return getSupplierIdFromInitialValues(initialValues) || "";
+  });
   const [remarks, setRemarks] = useState(
     initialValues?.remarks ?? "Monthly stock replenishment"
   );
@@ -252,8 +255,8 @@ export function PurchaseOrderForm({
                   value: String(s._id),
                   label: `${s.name} — ${s.city}`,
                 }))}
-                value={supplierId}
-                onChange={(v) => setSupplierId(v ?? "")}
+                value={supplierId || ""}
+                onChange={(v) => setSupplierId(v || "")}
                 placeholder={
                   suppliers.length === 0
                     ? "No suppliers found"
@@ -388,7 +391,7 @@ export function PurchaseOrderForm({
                 + Add Row
               </Button>
             </Group>
-            <div style={{ overflowX: "auto" }}>
+            <div className="app-table-wrapper" style={{ maxHeight: '50vh', overflow: 'auto' }}>
               <Table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <Table.Thead>
                   <Table.Tr>
@@ -458,9 +461,9 @@ export function PurchaseOrderForm({
                               inventory.some(
                                 (p) => p.itemName === it.productName
                               )
-                                ? inventory.find(
+                                ? String(inventory.find(
                                     (p) => p.itemName === it.productName
-                                  )?._id
+                                  )?._id || "")
                                 : ""
                             }
                             onChange={(val) => {
@@ -475,10 +478,10 @@ export function PurchaseOrderForm({
                                         ...row,
                                         productName: prod.itemName || "",
                                         rate: prod.salesRate || 0,
-                                        color: prod.color || undefined,
+                                        color: prod.color || "",
                                         thickness: prod.thickness
                                           ? String(prod.thickness)
-                                          : undefined,
+                                          : "",
                                       }
                                     : row
                                 )
@@ -494,12 +497,12 @@ export function PurchaseOrderForm({
                               value: c.name,
                               label: c.name,
                             }))}
-                            value={it.color}
+                            value={it.color || ""}
                             onChange={(v) =>
                               setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
-                                    ? { ...row, color: v ?? undefined }
+                                    ? { ...row, color: v || "" }
                                     : row
                                 )
                               )
@@ -508,12 +511,12 @@ export function PurchaseOrderForm({
                         </Table.Td>
                         <Table.Td style={{ padding: 8 }}>
                           <TextInput
-                            value={it.thickness ?? ""}
+                            value={it.thickness || ""}
                             onChange={(e) =>
                               setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
-                                    ? { ...row, thickness: e.target.value }
+                                    ? { ...row, thickness: e.target.value || "" }
                                     : row
                                 )
                               )
@@ -523,12 +526,12 @@ export function PurchaseOrderForm({
                         </Table.Td>
                         <Table.Td style={{ padding: 8 }}>
                           <TextInput
-                            value={String(it.length ?? "")}
+                            value={String(it.length || "")}
                             onChange={(e) =>
                               setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
-                                    ? { ...row, length: e.target.value }
+                                    ? { ...row, length: e.target.value || "" }
                                     : row
                                 )
                               )

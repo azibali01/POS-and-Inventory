@@ -25,6 +25,7 @@ import ColorPage from "../Pages/Products/ColorPage";
 
 import PaymentVouchersPage from "../Pages/Accounts/PaymentVoucher";
 import ReceiptsPage from "../Pages/Accounts/ReceiptVoucher";
+import StockLedger from "../Pages/Reports/StockLedger";
 import Stocksummary from "../Pages/Reports/Stocksummary";
 import ProtectedRoute from "../../components/ProtectedRoute";
 
@@ -61,6 +62,10 @@ const routes: RouteObject[] = [
       {
         path: "products/stock-summary",
         element: <Stocksummary />,
+      },
+      {
+        path: "products/stock-ledger",
+        element: <StockLedger />,
       },
       //-------------------Sales-----------------//
       {

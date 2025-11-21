@@ -40,18 +40,25 @@ export default function PurchaseOrdersPage() {
   const {
     purchases,
     suppliers,
-
+    loadSuppliers,
     loadPurchases,
     inventory,
     loadInventory,
   } = useDataContext();
 
-  // Ensure products (inventory) are loaded on mount
+  // Ensure products (inventory) and suppliers are loaded on mount
   useEffect(() => {
     if (!inventory || inventory.length === 0) {
       loadInventory();
     }
   }, [inventory, loadInventory]);
+
+  useEffect(() => {
+    if (!suppliers || suppliers.length === 0) {
+      loadSuppliers();
+    }
+  }, [suppliers, loadSuppliers]);
+
   const [data, setData] = useState<PO[]>([]);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -72,6 +79,8 @@ export default function PurchaseOrdersPage() {
   }
   // Update data from purchases and suppliers
   useEffect(() => {
+    console.log("[PO] Processing purchases:", purchases);
+    console.log("[PO] Available suppliers:", suppliers);
     setData(
       (purchases || []).map((p) => {
         let expectedDeliveryDate: Date | undefined = undefined;
@@ -85,18 +94,24 @@ export default function PurchaseOrdersPage() {
         }
         // Robust supplier resolution: try _id, then supplierId (if present), fallback to supplier object
         let supplier = undefined;
+        
+        // Try to resolve from supplier object with _id
         if (
           p.supplier &&
           typeof p.supplier === "object" &&
           "_id" in p.supplier &&
           typeof (p.supplier as { _id?: unknown })._id === "string"
         ) {
-          supplier = suppliers?.find(
-            (s) => s._id === (p.supplier as { _id: string })._id
-          );
+          const supplierId = (p.supplier as { _id: string })._id;
+          supplier = suppliers?.find((s) => String(s._id) === String(supplierId));
+          if (!supplier && "name" in p.supplier) {
+            // If not found in list, use the embedded supplier object
+            supplier = p.supplier as any;
+          }
         } else if (hasSupplierId(p)) {
-          supplier = suppliers?.find((s) => s._id === p.supplierId);
+          supplier = suppliers?.find((s) => String(s._id) === String(p.supplierId));
         }
+        
         function hasSupplierId(obj: unknown): obj is { supplierId: string } {
           return (
             typeof obj === "object" &&
@@ -105,14 +120,18 @@ export default function PurchaseOrdersPage() {
             typeof (obj as { supplierId?: unknown }).supplierId === "string"
           );
         }
+        
+        // Final fallback: if supplier is object with name, use it directly
         if (
           !supplier &&
           p.supplier &&
           typeof p.supplier === "object" &&
           "name" in p.supplier
         ) {
-          supplier = p.supplier;
+          supplier = p.supplier as any;
         }
+        
+        console.log("[PO] Resolved supplier for", p.poNumber, ":", supplier);
         let total = typeof p.total === "number" ? p.total : 0;
         if (!total && Array.isArray(p.products)) {
           total = p.products.reduce(
@@ -164,9 +183,148 @@ export default function PurchaseOrdersPage() {
     }
   }, [purchases, loadPurchases]);
 
-  async function handleCreate() {
-    // const products = (payload.products || []) as PurchaseLineItem[]; // removed unused variable
-    // You may want to call createPurchase({ ...payload, total: payload.total ?? (payload.subTotal ?? products.reduce((s, it) => s + (it.quantity || 0) * (it.rate || 0), 0)) }) here, if needed.
+  async function handleCreate(payload: {
+    poNumber: string;
+    poDate: Date;
+    expectedDelivery?: Date;
+    supplierId?: string;
+    products: PurchaseLineItem[];
+    remarks?: string;
+    subTotal?: number;
+    total?: number;
+  }) {
+    try {
+      // Resolve supplier from supplierId
+      const supplier = suppliers?.find((s) => String(s._id) === String(payload.supplierId));
+      console.log("[PO] Saving with supplier:", supplier);
+      console.log("[PO] Payload:", payload);
+      
+      const purchasePayload = {
+        poNumber: payload.poNumber,
+        poDate: payload.poDate,
+        expectedDelivery: payload.expectedDelivery,
+        supplier: supplier,
+        products: payload.products,
+        remarks: payload.remarks,
+        subTotal: payload.subTotal,
+        total: payload.total ?? payload.subTotal ?? 0,
+      };
+      
+      if (editPO) {
+        // Update existing PO
+        const updatedPO = await import("../../../lib/api").then((api) =>
+          api.updatePurchaseByNumber(editPO.poNumber, purchasePayload)
+        );
+        
+        console.log("[PO] Update response:", updatedPO);
+        
+        // Update local state immediately
+        setData((prev) =>
+          prev.map((po) => {
+            // Match by poNumber or id
+            const isMatch = po.poNumber === editPO.poNumber || 
+                           po.id === editPO.id || 
+                           String(po.poNumber) === String(payload.poNumber);
+            
+            if (isMatch) {
+              return {
+                ...po,
+                poNumber: payload.poNumber,
+                poDate: payload.poDate,
+                supplier: supplier,
+                products: payload.products.map((item) => ({
+                  id: item.id || crypto.randomUUID(),
+                  productId: "",
+                  productName: item.productName || "",
+                  code: "",
+                  unit: "pcs",
+                  percent: 0,
+                  quantity: item.quantity || 0,
+                  rate: item.rate || 0,
+                  color: item.color || "",
+                  grossAmount: 0,
+                  discountAmount: 0,
+                  netAmount: 0,
+                  thickness: item.thickness || "",
+                  length: item.length || "",
+                  amount: item.amount || 0,
+                })),
+                subTotal: payload.subTotal ?? 0,
+                total: payload.total ?? payload.subTotal ?? 0,
+                expectedDeliveryDate: payload.expectedDelivery,
+                remarks: payload.remarks,
+              };
+            }
+            return po;
+          })
+        );
+        
+        showNotification({
+          title: "Updated",
+          message: `Purchase Order ${payload.poNumber} updated successfully`,
+          color: "green",
+        });
+      } else {
+        // Create new PO
+        await import("../../../lib/api").then((api) =>
+          api.createPurchase(purchasePayload)
+        );
+        
+        // Add to local state immediately
+        const newPO: PO = {
+          id: payload.poNumber,
+          poNumber: payload.poNumber,
+          poDate: payload.poDate,
+          supplier: supplier,
+          products: payload.products.map((item) => ({
+            id: item.id || crypto.randomUUID(),
+            productId: "",
+            productName: item.productName || "",
+            code: "",
+            unit: "pcs",
+            percent: 0,
+            quantity: item.quantity || 0,
+            rate: item.rate || 0,
+            color: item.color || "",
+            grossAmount: 0,
+            discountAmount: 0,
+            netAmount: 0,
+            thickness: item.thickness || "",
+            length: item.length || "",
+            amount: item.amount || 0,
+          })),
+          subTotal: payload.subTotal ?? 0,
+          total: payload.total ?? payload.subTotal ?? 0,
+          status: "Draft",
+          expectedDeliveryDate: payload.expectedDelivery,
+          remarks: payload.remarks,
+          createdAt: new Date(),
+        };
+        setData((prev) => [...prev, newPO]);
+        
+        showNotification({
+          title: "Created",
+          message: `Purchase Order ${payload.poNumber} created successfully`,
+          color: "green",
+        });
+      }
+      
+      setOpen(false);
+      setEditPO(null);
+      // Reload in background to sync with server
+      if (loadPurchases) {
+        loadPurchases().catch((err) => {
+          console.error("[PO] Failed to reload purchases:", err);
+        });
+      }
+    } catch (err) {
+      console.error("[PO] Save error:", err);
+      showNotification({
+        title: "Error",
+        message: err instanceof Error ? err.message : "Failed to save purchase order",
+        color: "red",
+      });
+    }
   }
 
   // (Removed duplicate JSX block before return statement)
@@ -244,7 +402,16 @@ export default function PurchaseOrdersPage() {
               );
             })
             .map((o) => (
-              <Table.Tr key={o.id} tabIndex={0} aria-label={`PO ${o.poNumber} for ${o.supplier?.name || ''}`}> 
+              <Table.Tr
+                key={o.id}
+                tabIndex={0}
+                aria-label={`PO ${o.poNumber} for ${o.supplier?.name || ''}`}
+                onDoubleClick={() => {
+                  setEditPO(o);
+                  setOpen(true);
+                }}
+                style={{ cursor: 'pointer' }}
+              > 
                 <Table.Td style={{ fontFamily: "monospace" }}>
                   {o.poNumber}
                 </Table.Td>
@@ -336,18 +503,34 @@ export default function PurchaseOrdersPage() {
             onClick={async () => {
               if (!deletePO) return;
               setDeleteLoading(true);
+              console.log("[PO] Deleting:", deletePO.poNumber);
               try {
-                await deletePurchaseByNumber(deletePO.poNumber);
+                const result = await deletePurchaseByNumber(deletePO.poNumber);
+                console.log("[PO] Delete response:", result);
+                
+                // Remove from local state
                 setData((prev) =>
-                  prev.filter((po) => po.poNumber !== deletePO.poNumber)
+                  prev.filter((po) => 
+                    po.poNumber !== deletePO.poNumber && 
+                    po.id !== deletePO.id
+                  )
                 );
+                
                 showNotification({
                   title: "Deleted",
-                  message: `Purchase Order ${deletePO.poNumber} deleted`,
-                  color: "red",
+                  message: `Purchase Order ${deletePO.poNumber} deleted successfully`,
+                  color: "green",
                 });
                 setDeletePO(null);
+                
+                // Reload in background
+                if (loadPurchases) {
+                  loadPurchases().catch((err) => {
+                    console.error("[PO] Failed to reload after delete:", err);
+                  });
+                }
               } catch (err) {
+                console.error("[PO] Delete error:", err);
                 let msg = "Failed to delete purchase order.";
                 if (
                   err &&

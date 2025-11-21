@@ -3,7 +3,6 @@ import {
   Card,
   Text,
   Group,
-  ScrollArea,
   TextInput,
   Title,
   NumberInput,
@@ -349,7 +348,7 @@ export default function CashBookPage() {
       </Group>
       <Card>
         <Card.Section>
-          <ScrollArea>
+          <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
             <Table
               highlightOnHover
               withRowBorders
@@ -382,7 +381,7 @@ export default function CashBookPage() {
                   <tr
                     key={idx}
                     style={{ cursor: "pointer" }}
-                    onClick={() => {
+                    onDoubleClick={() => {
                       setSelectedTxn(v);
                       setModalOpen(true);
                     }}
@@ -478,7 +477,7 @@ export default function CashBookPage() {
                 </tr>
               </tbody>
             </Table>
-          </ScrollArea>
+          </div>
         </Card.Section>
         {totalPages > 1 && (
           <Group justify="center" mt="md" pb="md">

@@ -4,7 +4,8 @@ import {
   Text,
   Card,
   Group,
-  ScrollArea,
+  Modal,
+
   Select,
   TextInput,
   Button,
@@ -14,10 +15,29 @@ import {
   Pagination,
   MultiSelect,
 } from "@mantine/core";
+import { IconPrinter } from "@tabler/icons-react";
 import Table from "../../../lib/AppTable";
 import { useDataContext } from "../../Context/DataContext";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
 import { Search, RefreshCw } from "lucide-react";
+import { generateJournalLedgerHTML } from "../../../components/print/journalLedgerTemplate";
+import SalesDocShell, { type SalesPayload } from "../../../components/sales/SalesDocShell";
+import { useNavigate } from "react-router-dom";
+
+// Add this type augmentation for PurchaseInvoiceRecord
+type PurchaseInvoiceRecord = {
+  _id?: string;
+  id?: string;
+  purchaseInvoiceNumber?: string;
+  invoiceDate?: string | Date;
+  supplier?: { _id?: string; id?: string; name?: string };
+  supplierName?: string;
+  total?: number;
+  totalNetAmount?: number;
+  subTotal?: number;
+  products?: Array<{ quantity?: number; rate?: number; amount?: number }>;
+  // ...add other fields as needed
+};
 
 type LedgerEntry = {
   id: string;
@@ -35,17 +55,20 @@ type LedgerEntry = {
 export default function JournalLedger() {
   const {
     sales = [],
-    purchases = [],
+  
+    purchaseInvoices = [],
     customers = [],
     suppliers = [],
     receiptVouchers = [],
     paymentVouchers = [],
     loadSales,
     loadPurchases,
+    loadPurchaseInvoices,
     loadCustomers,
     loadSuppliers,
     loadReceiptVouchers,
     loadPaymentVouchers,
+    inventory = [],
   } = useDataContext();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -56,11 +79,16 @@ export default function JournalLedger() {
   const [toDate, setToDate] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<string>("25");
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerKind, setViewerKind] = useState<"sale" | "purchase" | "receipt" | "payment" | null>(null);
+  const [viewerData, setViewerData] = useState<any>(null);
+  const navigate = useNavigate();
 
   // Load data on mount
   useEffect(() => {
     if (typeof loadSales === "function") loadSales().catch(() => {});
     if (typeof loadPurchases === "function") loadPurchases().catch(() => {});
+    if (typeof loadPurchaseInvoices === "function") loadPurchaseInvoices().catch(() => {});
     if (typeof loadCustomers === "function") loadCustomers().catch(() => {});
     if (typeof loadSuppliers === "function") loadSuppliers().catch(() => {});
     if (typeof loadReceiptVouchers === "function")
@@ -104,36 +132,39 @@ export default function JournalLedger() {
     });
 
     // Add purchase invoices (Credit for suppliers)
-    purchases.forEach((purchase) => {
-      const uniqueId = `purchase-${purchase.id}`;
-      // Skip if we've already processed this purchase
+    purchaseInvoices.forEach((purchase: PurchaseInvoiceRecord) => {
+      // Prefer backend PurchaseInvoice fields: purchaseInvoiceNumber, invoiceDate, supplier, totalNetAmount, subTotal, total
+      const idVal = purchase._id ?? purchase.id ?? "";
+      const uniqueId = `purchase-invoice-${idVal}`;
+      // Skip if we've already processed this purchase invoice
       if (seenIds.has(uniqueId)) return;
       seenIds.add(uniqueId);
 
       const supplier = purchase.supplier;
-      const supplierId = supplier?._id || "";
-      const supplierName = supplier?.name || "Unknown Supplier";
+      const supplierId = (supplier && (supplier._id ?? supplier.id)) || "";
+      const supplierName = (supplier && supplier.name) || purchase.supplierName || "Unknown Supplier";
 
-      // Calculate total from purchase.total, subTotal, or sum of products
-      let purchaseTotal = purchase.total || purchase.subTotal || 0;
+      // Calculate total: prefer `total`, then `totalNetAmount`, then `subTotal`
+      let purchaseTotal = purchase.total ?? purchase.totalNetAmount ?? purchase.subTotal ?? 0;
 
-      // If still 0, try to calculate from products
+      // If still 0, try to calculate from products array
       if (
         purchaseTotal === 0 &&
         purchase.products &&
         Array.isArray(purchase.products)
       ) {
         purchaseTotal = purchase.products.reduce((sum, product) => {
-          const amount = product.amount || product.quantity * product.rate || 0;
-          return sum + amount;
+          const calc = product.quantity && product.rate ? product.quantity * product.rate : 0;
+          const amount = product.amount != null ? product.amount : calc;
+          return sum + (amount || 0);
         }, 0);
       }
 
       entries.push({
         id: uniqueId,
-        date: purchase.poDate || new Date(),
+        date: purchase.invoiceDate ?? new Date(),
         documentType: "Purchase Invoice",
-        documentNumber: purchase.poNumber || String(purchase.id),
+        documentNumber: purchase.purchaseInvoiceNumber ?? String(idVal),
         particulars: `Purchase from ${supplierName}`,
         debit: 0,
         credit: purchaseTotal,
@@ -159,7 +190,8 @@ export default function JournalLedger() {
         credit: receipt.amount || 0,
         balance: 0, // Will be calculated later
         customerOrSupplier: receipt.receivedFrom,
-        customerOrSupplierId: "",
+        // prefer explicit relation id if present, else fall back to voucher id
+        customerOrSupplierId: String(receipt.id ?? receipt.voucherNumber ?? ""),
       });
     });
 
@@ -179,19 +211,24 @@ export default function JournalLedger() {
         credit: 0,
         balance: 0, // Will be calculated later
         customerOrSupplier: payment.paidTo,
-        customerOrSupplierId: "",
+        // PaymentVoucher may not include a paidToId field; prefer voucher id or voucherNumber for lookups
+        customerOrSupplierId: String(payment.id ?? payment.voucherNumber ?? ""),
       });
     });
 
-    // Sort by date
+    // Stable sort: by date, then by documentType, then by id
     entries.sort((a, b) => {
       const dateA = new Date(a.date).getTime();
       const dateB = new Date(b.date).getTime();
-      return dateA - dateB;
+      const dateDiff = dateA - dateB;
+      if (dateDiff !== 0) return dateDiff;
+      if (a.documentType !== b.documentType)
+        return a.documentType.localeCompare(b.documentType);
+      return String(a.id).localeCompare(String(b.id));
     });
 
     return entries;
-  }, [sales, purchases, receiptVouchers, paymentVouchers]);
+  }, [sales, purchaseInvoices, receiptVouchers, paymentVouchers]);
 
   // Filter entries based on search and selected entity
   const filteredEntries = useMemo(() => {
@@ -229,9 +266,15 @@ export default function JournalLedger() {
         entityName = supplier?.name || "";
       }
 
-      filtered = filtered.filter(
-        (entry) => entry.customerOrSupplier === entityName
-      );
+      filtered = filtered.filter((entry) => {
+        // match by explicit id when possible, otherwise compare normalized names
+        const byId =
+          entry.customerOrSupplierId && String(entry.customerOrSupplierId) === entityId;
+        const entryName = (entry.customerOrSupplier || "").toString().trim().toLowerCase();
+        const targetName = (entityName || "").toString().trim().toLowerCase();
+        const byName = entryName && entryName === targetName;
+        return byId || byName;
+      });
     }
 
     // Filter by document types
@@ -406,6 +449,49 @@ export default function JournalLedger() {
     }
   }, [selectedEntity, customers, suppliers]);
 
+  const handlePrint = () => {
+    if (!selectedEntity || entriesWithBalance.length === 0) return;
+
+    // Get entity name
+    const entityType = selectedEntity.startsWith("customer-") ? "Customer" : "Supplier";
+    const entityId = selectedEntity.replace(/^(customer-|supplier-)/, "");
+    
+    let entityName = "Unknown";
+    if (entityType === "Customer") {
+      const customer = customers.find((c) => c._id === entityId);
+      entityName = customer?.name || "Unknown Customer";
+    } else {
+      const supplier = suppliers.find((s) => s._id === entityId);
+      entityName = supplier?.name || "Unknown Supplier";
+    }
+
+    const html = generateJournalLedgerHTML({
+      entityName,
+      entityType,
+      fromDate,
+      toDate,
+      openingBalance,
+      closingBalance: totals.closingBalance,
+      totalDebit: totals.totalDebit,
+      totalCredit: totals.totalCredit,
+      entries: entriesWithBalance.map((entry) => ({
+        date: entry.date,
+        documentType: entry.documentType,
+        documentNumber: entry.documentNumber,
+        particulars: entry.particulars,
+        debit: entry.debit,
+        credit: entry.credit,
+        balance: entry.balance,
+      })),
+    });
+
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+    }
+  };
+
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Group justify="space-between" align="center">
@@ -415,18 +501,34 @@ export default function JournalLedger() {
             View all transactions with customers and suppliers
           </Text>
         </div>
-        <Button
-          leftSection={<RefreshCw size={16} />}
-          variant="outline"
-          onClick={() => {
-            if (typeof loadSales === "function") loadSales();
-            if (typeof loadPurchases === "function") loadPurchases();
-            if (typeof loadCustomers === "function") loadCustomers();
-            if (typeof loadSuppliers === "function") loadSuppliers();
-          }}
-        >
-          Refresh
-        </Button>
+        <Group>
+          <Button
+            leftSection={<IconPrinter size={16} />}
+            onClick={handlePrint}
+            disabled={!selectedEntity || entriesWithBalance.length === 0}
+            title={
+              !selectedEntity
+                ? "Please select a customer or supplier to print"
+                : entriesWithBalance.length === 0
+                ? "No entries to print"
+                : "Print Journal Ledger"
+            }
+          >
+            Print
+          </Button>
+          <Button
+            leftSection={<RefreshCw size={16} />}
+            variant="outline"
+            onClick={() => {
+              if (typeof loadSales === "function") loadSales();
+              if (typeof loadPurchases === "function") loadPurchases();
+              if (typeof loadCustomers === "function") loadCustomers();
+              if (typeof loadSuppliers === "function") loadSuppliers();
+            }}
+          >
+            Refresh
+          </Button>
+        </Group>
       </Group>
 
       <Card withBorder shadow="sm" p="md">
@@ -595,7 +697,7 @@ export default function JournalLedger() {
       </Card>
 
       <Card>
-        <ScrollArea>
+        <div className="app-table-wrapper" style={{ maxHeight: '60vh', overflow: 'auto' }}>
           <Table
             highlightOnHover
             withRowBorders
@@ -622,22 +724,75 @@ export default function JournalLedger() {
                   <Table.Td colSpan={5}>
                     <Text fw={600}>Opening Balance</Text>
                   </Table.Td>
-                  <Table.Td style={{ textAlign: "right" }}>
-                    {openingBalance < 0
-                      ? formatCurrency(Math.abs(openingBalance))
-                      : "-"}
-                  </Table.Td>
-                  <Table.Td style={{ textAlign: "right" }}>
-                    {openingBalance >= 0 ? formatCurrency(openingBalance) : "-"}
-                  </Table.Td>
-                  <Table.Td style={{ textAlign: "right", fontWeight: 600 }}>
-                    {formatCurrency(Math.abs(openingBalance))}{" "}
-                    {openingBalance >= 0 ? "CR" : "DR"}
-                  </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
+                      {openingBalance > 0
+                        ? formatCurrency(openingBalance)
+                        : "-"}
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
+                      {openingBalance < 0 ? formatCurrency(Math.abs(openingBalance)) : "-"}
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right", fontWeight: 600 }}>
+                      {formatCurrency(Math.abs(openingBalance))} {" "}
+                      {openingBalance >= 0 ? "DR" : "CR"}
+                    </Table.Td>
                 </Table.Tr>
               )}
               {paginatedEntries.map((entry) => (
-                <Table.Tr key={entry.id}>
+                <Table.Tr
+                  key={entry.id}
+                  onDoubleClick={() => {
+                    // Open a lightweight viewer/editor depending on document type
+                    if (entry.documentType === "Sale Invoice") {
+                      const saleId = String(entry.id).replace(/^sale-/, "");
+                      const sale = sales.find((s: any) => String(s.id || s._id) === saleId || String(s.invoiceNumber) === entry.documentNumber);
+                      if (sale) {
+                        setViewerKind("sale");
+                        setViewerData(sale);
+                        setViewerOpen(true);
+                        return;
+                      }
+                    }
+                    if (entry.documentType === "Purchase Invoice") {
+                      const purchaseId = String(entry.id).replace(/^purchase-invoice-/, "");
+                      const purchase = purchaseInvoices.find((p: any) => {
+                        const pid = String(p._id ?? p.id ?? "");
+                        const docNo = String(p.purchaseInvoiceNumber ?? "");
+                        return pid === purchaseId || docNo === entry.documentNumber;
+                      });
+                      if (purchase) {
+                        setViewerKind("purchase");
+                        setViewerData(purchase);
+                        setViewerOpen(true);
+                        return;
+                      }
+                    }
+                    // receipts / payments: show details
+                    if (entry.documentType === "Receipt") {
+                      const rid = String(entry.id).replace(/^receipt-/, "");
+                      const r = receiptVouchers.find((x: any) => String(x.id || x._id) === rid || String(x.voucherNumber) === entry.documentNumber);
+                      if (r) {
+                        setViewerKind("receipt");
+                        setViewerData(r);
+                        setViewerOpen(true);
+                        return;
+                      }
+                    }
+                    if (entry.documentType === "Payment") {
+                      const pid = String(entry.id).replace(/^payment-/, "");
+                      const p = paymentVouchers.find((x: any) => String(x.id ?? "") === pid || String(x.voucherNumber) === entry.documentNumber);
+                      if (p) {
+                        setViewerKind("payment");
+                        setViewerData(p);
+                        setViewerOpen(true);
+                        return;
+                      }
+                    }
+                    // fallback: navigate to a list view where user can find the record
+                    if (entry.documentType.includes("Sale")) navigate("/sales/invoices");
+                    if (entry.documentType.includes("Purchase")) navigate("/purchase/invoices");
+                  }}
+                >
                   <Table.Td>{formatDate(entry.date)}</Table.Td>
                   <Table.Td>
                     <Badge
@@ -674,7 +829,7 @@ export default function JournalLedger() {
                     }}
                   >
                     {formatCurrency(Math.abs(entry.balance))}{" "}
-                    {entry.balance >= 0 ? "CR" : "DR"}
+                    {entry.balance >= 0 ? "DR" : "CR"}
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -716,13 +871,54 @@ export default function JournalLedger() {
                     }}
                   >
                     {formatCurrency(Math.abs(totals.closingBalance))}{" "}
-                    {totals.closingBalance >= 0 ? "CR" : "DR"}
+                    {totals.closingBalance >= 0 ? "DR" : "CR"}
                   </Table.Td>
                 </Table.Tr>
               )}
             </Table.Tbody>
           </Table>
-        </ScrollArea>
+        </div>
+          <Modal opened={viewerOpen} onClose={() => setViewerOpen(false)} size="90%">
+            {viewerKind === "sale" && viewerData ? (
+              <div style={{ height: '80vh' }}>
+                <SalesDocShell
+                  mode={"Invoice"}
+                  initial={{
+                    docNo: viewerData.invoiceNumber ?? viewerData.id ?? String(viewerData._id ?? ""),
+                    docDate: viewerData.invoiceDate ?? viewerData.date ?? new Date().toISOString().slice(0,10),
+                    items: (viewerData.items ?? viewerData.products) || [],
+                    customer: viewerData.customer ?? viewerData.customerName ?? viewerData.customerId,
+                    totals: {
+                      total: viewerData.total ?? viewerData.totalNetAmount ?? 0,
+                      amount: viewerData.total ?? viewerData.totalNetAmount ?? 0,
+                      totalGrossAmount: viewerData.totalGrossAmount ?? 0,
+                      totalDiscountAmount: viewerData.totalDiscountAmount ?? 0,
+                      totalNetAmount: viewerData.totalNetAmount ?? viewerData.total ?? 0,
+                      subTotal: viewerData.subTotal ?? 0,
+                    },
+                    remarks: viewerData.remarks ?? viewerData.note ?? "",
+                    terms: viewerData.terms ?? "",
+                  } as Partial<SalesPayload>}
+                  customers={customers}
+                  products={inventory || []}
+                  submitting={false}
+                  setSubmitting={() => {}}
+                  saveDisabled={true}
+                />
+              </div>
+            ) : (
+              <div>
+                <Stack gap="xs">
+                  <div>
+                    <Text fw={700}>Type: {viewerKind}</Text>
+                  </div>
+                  <div>
+                    <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(viewerData, null, 2)}</pre>
+                  </div>
+                </Stack>
+              </div>
+            )}
+          </Modal>
 
         {totalPages > 1 && (
           <Group justify="center" mt="md">

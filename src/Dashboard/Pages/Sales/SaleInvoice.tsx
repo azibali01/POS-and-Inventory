@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import {
   Modal,
-  ScrollArea,
+
   Button,
   Box,
   Text,
@@ -23,6 +23,7 @@ import { generateGatePassHTML } from "../../../components/print/printTemplate";
 import SalesDocShell, {
   type SalesPayload,
 } from "../../../components/sales/SalesDocShell";
+import SavedDraftsPanel from "../../../components/sales/SavedDraftsPanel";
 import { useDataContext } from "../../Context/DataContext";
 import { formatCurrency } from "../../../lib/format-utils";
 import { showNotification } from "@mantine/notifications";
@@ -89,6 +90,7 @@ export default function SaleInvoice() {
     null
   );
   const [open, setOpen] = useState(false);
+  const [draftsOpen, setDraftsOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   // const [deleteTargetDisplay, setDeleteTargetDisplay] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -395,17 +397,22 @@ export default function SaleInvoice() {
           }}
         >
           <Title>Sales Invoices</Title>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Button
-              onClick={() => setImportOpen(true)}
-              variant="filled"
-              size="sm"
-            >
-              Import from Quotation
-            </Button>
-            <Button onClick={() => setOpen(true)} variant="filled" size="sm">
-              + Add Sale Invoice
-            </Button>
+          <div style={{ display: "flex", gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button
+                onClick={() => setImportOpen(true)}
+                variant="filled"
+                size="sm"
+              >
+                Import from Quotation
+              </Button>
+              <Button onClick={() => setOpen(true)} variant="filled" size="sm">
+                + Add Sale Invoice
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setDraftsOpen(true)}>
+                Saved Drafts
+              </Button>
+            </div>
           </div>
         </div>
         {/* Unified Add/Edit/Import Sale Invoice Modal */}
@@ -422,7 +429,7 @@ export default function SaleInvoice() {
           }
           size="100%"
         >
-          <ScrollArea style={{ height: "70vh", width: "100%" }}>
+          <div style={{ width: "100%" }}>
             <SalesDocShell
               mode="Invoice"
               customers={customers}
@@ -485,11 +492,22 @@ export default function SaleInvoice() {
                 }
               }
             />
-          </ScrollArea>
+          </div>
+        </Modal>
+
+        <Modal opened={draftsOpen} onClose={() => setDraftsOpen(false)} title="Saved Drafts" size="lg">
+          <SavedDraftsPanel
+            mode="Invoice"
+            onRestore={(data) => {
+              setInitialPayload(data as SalesPayload);
+              setOpen(true);
+              setDraftsOpen(false);
+            }}
+          />
         </Modal>
         {sales && sales.length > 0 ? (
-          <Table withRowBorders withColumnBorders highlightOnHover>
-            <Table.Thead>
+          <Table withRowBorders withColumnBorders highlightOnHover withTableBorder>
+            <Table.Thead bg={"gray.1"}> 
               <Table.Tr>
                 <Table.Th>Invoice #</Table.Th>
                 <Table.Th>Date</Table.Th>
@@ -500,14 +518,53 @@ export default function SaleInvoice() {
             </Table.Thead>
             <Table.Tbody>
               {sales.map((inv, idx) => (
-                <Table.Tr key={inv.invoiceNumber ?? inv.id ?? idx}>
+                <Table.Tr
+                  key={inv.invoiceNumber ?? inv.id ?? idx}
+                  onDoubleClick={() => {
+                    // open editor same as Edit menu
+                    const invWithItems = inv as SaleRecordWithItems;
+                    const { products, ...rest } = invWithItems;
+                    setEditPayload({
+                      ...rest,
+                      mode: "Invoice",
+                      docNo: String(invWithItems.invoiceNumber ?? invWithItems.id ?? ""),
+                      docDate: typeof invWithItems.invoiceDate === "string" ? invWithItems.invoiceDate : invWithItems.invoiceDate ? String(invWithItems.invoiceDate) : typeof invWithItems.date === "string" ? invWithItems.date : "",
+                      customer: Array.isArray(invWithItems.customer) && invWithItems.customer[0]?.name ? { name: invWithItems.customer[0].name } : undefined,
+                      items: ((invWithItems.items && invWithItems.items.length > 0 ? invWithItems.items : invWithItems.products) ?? []).map((it: any) => ({
+                        ...it,
+                        unit: typeof it.unit === "string" ? it.unit : it.unit !== undefined ? String(it.unit) : "",
+                        amount: (it.quantity ?? 0) * (it.salesRate ?? 0),
+                        totalGrossAmount: (it.quantity ?? 0) * (it.salesRate ?? 0),
+                        totalNetAmount: (it.quantity ?? 0) * (it.salesRate ?? 0),
+                      })),
+                      totals: {
+                        subTotal: inv.subTotal ?? 0,
+                        total: inv.totalNetAmount ?? 0,
+                        amount: inv.amount ?? 0,
+                        totalGrossAmount: inv.totalGrossAmount ?? 0,
+                        totalDiscountAmount: inv.totalDiscount ?? 0,
+                        totalNetAmount: inv.totalNetAmount ?? 0,
+                      },
+                      remarks: inv.remarks ?? "",
+                      terms: "",
+                    });
+                    setEditOpen(true);
+                    setEditingId(inv.invoiceNumber ?? inv.id ?? "");
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
                   <Table.Td>{inv.invoiceNumber ?? inv.id}</Table.Td>
                   <Table.Td>
-                    {inv.invoiceDate
-                      ? new Date(inv.invoiceDate).toLocaleDateString()
-                      : inv.date
-                      ? new Date(inv.date).toLocaleDateString()
-                      : ""}
+                    {(() => {
+                      const dateVal = inv.invoiceDate || inv.date || inv.quotationDate;
+                      if (!dateVal) return "";
+                      try {
+                        const dateObj = new Date(dateVal);
+                        return isNaN(dateObj.getTime()) ? "" : dateObj.toLocaleDateString();
+                      } catch {
+                        return "";
+                      }
+                    })()}
                   </Table.Td>
                   <Table.Td>
                     {
@@ -797,7 +854,7 @@ export default function SaleInvoice() {
         title={`Edit Invoice: ${editPayload?.docNo || editingId}`}
         size="100%"
       >
-        <ScrollArea>
+        <div style={{ width: "100%" }}>
           {editPayload && (
             <SalesDocShell
               mode="Invoice"
@@ -809,7 +866,7 @@ export default function SaleInvoice() {
               onSubmit={handleCreateInvoiceSubmit}
             />
           )}
-        </ScrollArea>
+        </div>
       </Modal>
 
       {/* Import Quotation Modal */}
@@ -819,200 +876,148 @@ export default function SaleInvoice() {
         title="Import from Quotation"
         size="100%"
       >
-        <ScrollArea>
-          <div style={{ padding: 12 }}>
-            <h3>Quotations</h3>
-            <div style={{ marginBottom: 12 }}>
-              <input
-                type="text"
-                placeholder="Search by Quotation Number..."
-                value={importQuotationSearch || ""}
-                onChange={(e) => setImportQuotationSearch(e.target.value)}
+        <div style={{ padding: 12, maxHeight: "70vh", overflow: "auto" }}>
+          <h3>Quotations</h3>
+          <div style={{ marginBottom: 12 }}>
+            <input
+              type="text"
+              placeholder="Search by Quotation Number..."
+              value={importQuotationSearch || ""}
+              onChange={(e) => setImportQuotationSearch(e.target.value)}
+              style={{
+                padding: 6,
+                width: 260,
+                border: "1px solid #ccc",
+                borderRadius: 4,
+              }}
+            />
+          </div>
+          {filteredQuotations.length === 0 && <div>No quotations found</div>}
+          <div style={{ display: "grid", gap: 8 }}>
+            {filteredQuotations.map((q, idx) => (
+              <div
+                key={q.quotationNumber ?? `quotation-${idx}`}
                 style={{
-                  padding: 6,
-                  width: 260,
-                  border: "1px solid #ccc",
-                  borderRadius: 4,
+                  padding: 12,
+                  border: "1px solid #f0f0f0",
+                  borderRadius: 6,
+                  background: "#fff",
                 }}
-              />
-            </div>
-            {filteredQuotations.length === 0 && <div>No quotations found</div>}
-            <div style={{ display: "grid", gap: 8 }}>
-              {filteredQuotations.map((q, idx) => (
-                <div
-                  key={q.quotationNumber ?? `quotation-${idx}`}
-                  style={{
-                    padding: 12,
-                    border: "1px solid #f0f0f0",
-                    borderRadius: 6,
-                    background: "#fff",
-                  }}
-                >
-                  <div
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 700 }}>
-                        {q.quotationNumber ?? `Quotation ${idx + 1}`}
-                      </div>
-                      <div style={{ color: "#666" }}>
-                        Date:{" "}
-                        {q.quotationDate
-                          ? new Date(
-                              q.quotationDate as string
-                            ).toLocaleDateString()
-                          : "-"}
-                        {"validUntil" in q && q.validUntil
-                          ? typeof q.validUntil === "string" ||
-                            typeof q.validUntil === "number" ||
-                            q.validUntil instanceof Date
-                            ? ` • Valid until ${new Date(
-                                q.validUntil
-                              ).toLocaleDateString()}`
-                            : ""
-                          : ""}
-                      </div>
+              >
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>
+                      {q.quotationNumber ?? `Quotation ${idx + 1}`}
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 12, color: "#888" }}>
-                        {q.products?.length ?? 0} items
-                      </div>
-                      <div style={{ fontWeight: 700 }}>
-                        {formatCurrency(q.subTotal ?? 0)}
-                      </div>
+                    <div style={{ color: "#666" }}>
+                      Date: {" "}
+                      {q.quotationDate
+                        ? new Date(q.quotationDate as string).toLocaleDateString()
+                        : "-"}
+                      {"validUntil" in q && q.validUntil
+                        ? typeof q.validUntil === "string" ||
+                          typeof q.validUntil === "number" ||
+                          q.validUntil instanceof Date
+                          ? ` • Valid until ${new Date(q.validUntil).toLocaleDateString()}`
+                          : ""
+                        : ""}
                     </div>
                   </div>
-                  {/* ...items table, remarks, and import button as in previous logic... */}
-                  <div
-                    style={{
-                      marginTop: 8,
-                      display: "flex",
-                      justifyContent: "flex-end",
-                    }}
-                  >
-                    <Button
-                      size="xs"
-                      onClick={() => {
-                        // Convert quotation to SalesPayload-compatible import form
-                        // Robustly find the full customer object, fallback to minimal if not found
-                        let cust = customers.find(
-                          (c) => String(c._id) === String(q.customer)
-                        );
-                        if (!cust && q.customer) {
-                          if (
-                            typeof q.customer === "object" &&
-                            q.customer !== null &&
-                            "name" in q.customer
-                          ) {
-                            const id =
-                              typeof (q.customer as { _id?: unknown })._id ===
-                              "string"
-                                ? (q.customer as { _id?: string })._id
-                                : String(
-                                    (q.customer as { name: unknown }).name
-                                  );
-                            cust = {
-                              _id: id ?? "",
-                              name: String(
-                                (q.customer as { name: unknown }).name
-                              ),
-                            };
-                          } else {
-                            cust = {
-                              _id: String(q.customer),
-                              name: String(q.customer),
-                            };
-                          }
-                        }
-                        const items = (q.products ?? []).map((it) => {
-                          function getProp<TResult = unknown>(
-                            obj: Record<string, unknown>,
-                            ...keys: string[]
-                          ): TResult | undefined {
-                            for (const key of keys) {
-                              if (
-                                obj &&
-                                typeof obj === "object" &&
-                                key in obj
-                              ) {
-                                return obj[key] as TResult;
-                              }
-                            }
-                            return undefined;
-                          }
-                          let lengthValue: number | undefined;
-                          const rawLength = getProp<
-                            string | number | undefined
-                          >(it as unknown as Record<string, unknown>, "length");
-                          if (typeof rawLength === "string") {
-                            const parsed = Number(rawLength);
-                            lengthValue = isNaN(parsed) ? undefined : parsed;
-                          } else if (typeof rawLength === "number") {
-                            lengthValue = rawLength;
-                          }
-                          const quantity = Number(it.quantity ?? 0);
-                          const salesRate = Number(it.salesRate ?? 0);
-                          return {
-                            // Map fields as needed, add any missing fields with sensible defaults
-                            ...it,
-                            id: it._id, // ensure id is present
-                            quantity,
-                            salesRate,
-                            discount: Number(it.discount ?? 0),
-                            discountAmount: Number(it.discountAmount ?? 0),
-                            length: lengthValue,
-                            totalGrossAmount: Number(it.totalGrossAmount ?? 0),
-                            totalNetAmount: Number(it.totalNetAmount ?? 0),
-                            amount: quantity * salesRate,
-                            unit:
-                              typeof it.unit === "string"
-                                ? it.unit
-                                : String(it.unit ?? ""),
-                            metadata: {
-                              // Ensure metadata is always an object
-                              ...(it.metadata ?? {}),
-                              // Add any additional metadata fields here
-                            },
-                          };
-                        });
-                        const apiPayload: SalesPayload = {
-                          docNo: q.quotationNumber ?? `Quotation ${idx + 1}`,
-                          docDate: q.quotationDate
-                            ? new Date(q.quotationDate as string)
-                                .toISOString()
-                                .slice(0, 10)
-                            : new Date().toISOString().slice(0, 10),
-                          mode: "Invoice",
-                          items,
-                          totals: {
-                            subTotal: q.subTotal ?? 0,
-                            total: q.totalNetAmount ?? 0,
-                            amount: q.amount ?? 0,
-                            totalGrossAmount: q.totalGrossAmount ?? 0,
-                            totalDiscountAmount: q.totalDiscount ?? 0,
-                            totalNetAmount: q.totalNetAmount ?? 0,
-                          },
-                          remarks: q.remarks ?? "",
-                          terms: "",
-                          customer: cust ?? undefined,
-                        };
-                        console.log(
-                          "Importing quotation as SalePayload:",
-                          apiPayload
-                        );
-                        setInitialPayload(apiPayload);
-                        setOpen(true);
-                        setImportOpen(false);
-                      }}
-                    >
-                      Import
-                    </Button>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 12, color: "#888" }}>
+                      {q.products?.length ?? 0} items
+                    </div>
+                    <div style={{ fontWeight: 700 }}>
+                      {formatCurrency(q.subTotal ?? 0)}
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+                {/* ...items table, remarks, and import button as in previous logic... */}
+                <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
+                  <Button
+                    size="xs"
+                    onClick={() => {
+                      // Convert quotation to SalesPayload-compatible import form
+                      // Robustly find the full customer object, fallback to minimal if not found
+                      let cust = customers.find((c) => String(c._id) === String(q.customer));
+                      if (!cust && q.customer) {
+                        if (typeof q.customer === "object" && q.customer !== null && "name" in q.customer) {
+                          const id = typeof (q.customer as { _id?: unknown })._id === "string"
+                            ? (q.customer as { _id?: string })._id
+                            : String((q.customer as { name: unknown }).name);
+                          cust = {
+                            _id: id ?? "",
+                            name: String((q.customer as { name: unknown }).name),
+                          };
+                        } else {
+                          cust = { _id: String(q.customer), name: String(q.customer) };
+                        }
+                      }
+                      const items = (q.products ?? []).map((it) => {
+                        function getProp<TResult = unknown>(obj: Record<string, unknown>, ...keys: string[]): TResult | undefined {
+                          for (const key of keys) {
+                            if (obj && typeof obj === "object" && key in obj) {
+                              return obj[key] as TResult;
+                            }
+                          }
+                          return undefined;
+                        }
+                        let lengthValue: number | undefined;
+                        const rawLength = getProp<string | number | undefined>(it as unknown as Record<string, unknown>, "length");
+                        if (typeof rawLength === "string") {
+                          const parsed = Number(rawLength);
+                          lengthValue = isNaN(parsed) ? undefined : parsed;
+                        } else if (typeof rawLength === "number") {
+                          lengthValue = rawLength;
+                        }
+                        const quantity = Number(it.quantity ?? 0);
+                        const salesRate = Number(it.salesRate ?? 0);
+                        return {
+                          // Map fields as needed, add any missing fields with sensible defaults
+                          ...it,
+                          id: it._id, // ensure id is present
+                          quantity,
+                          salesRate,
+                          discount: Number(it.discount ?? 0),
+                          discountAmount: Number(it.discountAmount ?? 0),
+                          length: lengthValue,
+                          totalGrossAmount: Number(it.totalGrossAmount ?? 0),
+                          totalNetAmount: Number(it.totalNetAmount ?? 0),
+                          amount: quantity * salesRate,
+                          unit: typeof it.unit === "string" ? it.unit : String(it.unit ?? ""),
+                          metadata: { ...(it.metadata ?? {}) },
+                        };
+                      });
+                      const apiPayload: SalesPayload = {
+                        docNo: q.quotationNumber ?? `Quotation ${idx + 1}`,
+                        docDate: q.quotationDate ? new Date(q.quotationDate as string).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+                        mode: "Invoice",
+                        items,
+                        totals: {
+                          subTotal: q.subTotal ?? 0,
+                          total: q.totalNetAmount ?? 0,
+                          amount: q.amount ?? 0,
+                          totalGrossAmount: q.totalGrossAmount ?? 0,
+                          totalDiscountAmount: q.totalDiscount ?? 0,
+                          totalNetAmount: q.totalNetAmount ?? 0,
+                        },
+                        remarks: q.remarks ?? "",
+                        terms: "",
+                        customer: cust ?? undefined,
+                      };
+                      console.log("Importing quotation as SalePayload:", apiPayload);
+                      setInitialPayload(apiPayload);
+                      setOpen(true);
+                      setImportOpen(false);
+                    }}
+                  >
+                    Import
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
-        </ScrollArea>
+        </div>
       </Modal>
 
       {/* Delete Confirmation Modal */}

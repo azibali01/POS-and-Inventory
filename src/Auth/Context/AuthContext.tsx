@@ -17,15 +17,36 @@ interface AuthContextType {
 const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = React.useState<User | null>(null);
+  const [user, setUser] = React.useState<User | null>(() => {
+    // Initialize from localStorage on mount
+    try {
+      const storedUser = localStorage.getItem("auth_user");
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const isAuthenticated = user !== null;
 
   const login = (user: User) => {
     setUser(user);
+    // Persist to localStorage
+    try {
+      localStorage.setItem("auth_user", JSON.stringify(user));
+    } catch (error) {
+      console.error("Failed to save user to localStorage:", error);
+    }
   };
 
   const logout = () => {
     setUser(null);
+    // Remove from localStorage
+    try {
+      localStorage.removeItem("auth_user");
+    } catch (error) {
+      console.error("Failed to remove user from localStorage:", error);
+    }
   };
 
   return (
