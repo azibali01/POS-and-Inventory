@@ -10,21 +10,21 @@ import {
   IconReportAnalytics,
 } from "@tabler/icons-react";
 import { Link } from "react-router-dom";
-import { useDataContext, type SaleRecord } from "../Context/DataContext";
+import { useInventory } from "../../contexts/InventoryContext/InventoryContext";
+import { useSales } from "../../contexts/SalesContext/SalesContext";
+import { usePurchase } from "../../contexts/PurchaseContext/PurchaseContext";
+import { useExpenses } from "../../contexts/ExpensesContext/ExpensesContext";
+import type { SaleRecord } from "../../contexts/SalesContext/types";
 import { formatCurrency } from "../../lib/format-utils";
 import dayjs from "dayjs";
 // ...existing code...
 
 export default function Dashboard() {
-  const {
-    inventory = [],
-    sales,
-   
-    purchaseInvoices = [],
-    customers = [],
-    categories = [],
-    expenses = [],
-  } = useDataContext();
+  // Use new domain-specific contexts
+  const { inventory, categories } = useInventory();
+  const { sales, customers } = useSales();
+  const { purchaseInvoices } = usePurchase();
+  const { expenses } = useExpenses();
 
   const salesArray: SaleRecord[] = useMemo(() => {
     if (Array.isArray(sales)) return sales as SaleRecord[];
@@ -39,25 +39,31 @@ export default function Dashboard() {
       console.log("All sales data:", salesArray);
       console.log("First sale:", salesArray[0]);
     }
-    
+
     // Keep it simple: just count all sales that are not explicitly quotations
     const invoices = salesArray.filter((s) => {
       // Exclude only if explicitly marked as quotation without invoice number
       return !(s.status === "Quotation" && !s.invoiceNumber);
     });
-    
+
     if (import.meta.env.DEV) {
       console.log("Filtered invoices:", invoices.length, invoices);
     }
-    
+
     return invoices;
   }, [salesArray]);
 
   const totalSales = useMemo(() => {
     const total = salesInvoices.reduce((sum, it) => {
       // Try all possible amount fields
-      const amount = it.total || it.totalNetAmount || it.totalGrossAmount || it.amount || it.subTotal || 0;
-      
+      const amount =
+        it.total ||
+        it.totalNetAmount ||
+        it.totalGrossAmount ||
+        it.amount ||
+        it.subTotal ||
+        0;
+
       if (import.meta.env.DEV && amount > 0) {
         console.log("Sale amount:", {
           id: it.id,
@@ -67,17 +73,17 @@ export default function Dashboard() {
           totalGrossAmount: it.totalGrossAmount,
           amount: it.amount,
           subTotal: it.subTotal,
-          calculated: amount
+          calculated: amount,
         });
       }
-      
+
       return sum + amount;
     }, 0);
-    
+
     if (import.meta.env.DEV) {
       console.log("Total sales amount:", total);
     }
-    
+
     return total;
   }, [salesInvoices]);
 
@@ -89,55 +95,67 @@ export default function Dashboard() {
       .filter((s) => {
         // Skip quotations
         if (s.status === "Quotation" && !s.invoiceNumber) return false;
-        
+
         const dateVal = s.invoiceDate || s.date || s.quotationDate;
         if (!dateVal) return false;
-        
+
         try {
           const saleDate = dayjs(dateVal);
           if (!saleDate.isValid()) return false;
-          
+
           return saleDate.isSame(today, "day");
         } catch {
           return false;
         }
       })
       .reduce((sum, s) => {
-        const amount = s.total || s.totalNetAmount || s.totalGrossAmount || s.amount || s.subTotal || 0;
+        const amount =
+          s.total ||
+          s.totalNetAmount ||
+          s.totalGrossAmount ||
+          s.amount ||
+          s.subTotal ||
+          0;
         return sum + amount;
       }, 0);
   }, [salesArray]);
 
   const monthlyRevenue = useMemo(() => {
     const byMonth: Record<string, number> = {};
-    
+
     salesArray.forEach((s) => {
       // Skip quotations and drafts
       if (s.status === "Quotation" || s.status === "Draft") {
         if (!s.invoiceNumber) return;
       }
-      
+
       const dateVal = s.invoiceDate || s.date || s.quotationDate;
       if (!dateVal) return;
-      
+
       try {
         const saleDate = dayjs(dateVal);
         if (!saleDate.isValid()) return;
-        
+
         const monthKey = saleDate.format("MMM YYYY");
-        const amount = s.total || s.totalNetAmount || s.totalGrossAmount || s.amount || s.subTotal || 0;
+        const amount =
+          s.total ||
+          s.totalNetAmount ||
+          s.totalGrossAmount ||
+          s.amount ||
+          s.subTotal ||
+          0;
         byMonth[monthKey] = (byMonth[monthKey] || 0) + amount;
       } catch {
         // Skip invalid dates
       }
     });
-    
+
     const months = Array.from({ length: 7 }).map((_, i) =>
       dayjs()
         .subtract(6 - i, "month")
         .format("MMM YYYY")
     );
-    
+
     return months.map((m) => ({
       month: m,
       amount: Math.round(byMonth[m] || 0),
@@ -245,7 +263,9 @@ export default function Dashboard() {
       label: "Purchase Invoices",
       path: "/purchase/invoices",
       icon: <IconFileInvoice size={18} />,
-      meta: `${purchaseInvoices.length} · ${formatCurrency(purchaseInvoicesTotal)}`,
+      meta: `${purchaseInvoices.length} · ${formatCurrency(
+        purchaseInvoicesTotal
+      )}`,
     },
     {
       label: "Expenses",
