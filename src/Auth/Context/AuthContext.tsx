@@ -1,4 +1,5 @@
 import React from "react";
+import { api } from "../../lib/api";
 
 interface User {
   id: string;
@@ -8,9 +9,9 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-
+  token: string | null;
   isAuthenticated: boolean;
-  login: (user: User) => void;
+  login: (user: User, token: string) => void;
   logout: () => void;
 }
 
@@ -18,7 +19,6 @@ const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = React.useState<User | null>(() => {
-    // Initialize from localStorage on mount
     try {
       const storedUser = localStorage.getItem("auth_user");
       return storedUser ? JSON.parse(storedUser) : null;
@@ -27,30 +27,47 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   });
 
-  const isAuthenticated = user !== null;
+  const [token, setToken] = React.useState<string | null>(() => {
+    return localStorage.getItem("auth_token");
+  });
 
-  const login = (user: User) => {
+  const isAuthenticated = !!token && !!user;
+
+  // Set initial token in api headers if it exists
+  React.useEffect(() => {
+    if (token) {
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    } else {
+      delete api.defaults.headers.common["Authorization"];
+    }
+  }, [token]);
+
+  const login = (user: User, accessToken: string) => {
     setUser(user);
-    // Persist to localStorage
+    setToken(accessToken);
     try {
       localStorage.setItem("auth_user", JSON.stringify(user));
+      localStorage.setItem("auth_token", accessToken);
     } catch (error) {
-      console.error("Failed to save user to localStorage:", error);
+      console.error("Failed to save auth data to localStorage:", error);
     }
   };
 
   const logout = () => {
     setUser(null);
-    // Remove from localStorage
+    setToken(null);
     try {
       localStorage.removeItem("auth_user");
+      localStorage.removeItem("auth_token");
     } catch (error) {
-      console.error("Failed to remove user from localStorage:", error);
+      console.error("Failed to remove auth data from localStorage:", error);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
+    <AuthContext.Provider
+      value={{ user, token, isAuthenticated, login, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

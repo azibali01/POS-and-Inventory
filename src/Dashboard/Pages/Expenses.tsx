@@ -136,12 +136,12 @@ export default function ExpensesPage() {
   return (
     <div>
       <Group justify="space-between" mb="md">
-          <TextInput
-            placeholder="Search expenses..."
-            value={q}
-            onChange={(e) => setQ(((e.target as HTMLInputElement)?.value) ?? "")}
-            style={{ flex: 1, maxWidth: 420 }}
-          />
+        <TextInput
+          placeholder="Search expenses..."
+          value={q}
+          onChange={(e) => setQ((e.target as HTMLInputElement)?.value ?? "")}
+          style={{ flex: 1, maxWidth: 420 }}
+        />
         <Button leftSection={<Plus />} onClick={() => setOpen(true)}>
           Add Expense
         </Button>
@@ -166,9 +166,9 @@ export default function ExpensesPage() {
           </tr>
         </thead>
         <tbody>
-          {filtered.map((e: ExpenseType) => (
+          {filtered.map((e: ExpenseType, idx: number) => (
             <tr
-              key={e.id}
+              key={e.id || e.expenseNumber || `exp-${idx}`}
               style={{ cursor: "pointer" }}
               onClick={(event) => {
                 // Prevent row click if delete icon is clicked
@@ -329,7 +329,9 @@ function AddExpenseDialogMantine({
       <TextInput
         label="Expense No"
         value={expenseNumber}
-        onChange={(e) => setExpenseNumber(((e.target as HTMLInputElement)?.value) ?? "")}
+        onChange={(e) =>
+          setExpenseNumber((e.target as HTMLInputElement)?.value ?? "")
+        }
         placeholder="EXP-2025-001"
       />
       {errors.expenseNumber && (
@@ -340,7 +342,9 @@ function AddExpenseDialogMantine({
         label="Date"
         type="date"
         value={expenseDate}
-        onChange={(e) => setExpenseDate(((e.target as HTMLInputElement)?.value) ?? "")}
+        onChange={(e) =>
+          setExpenseDate((e.target as HTMLInputElement)?.value ?? "")
+        }
       />
       {errors.expenseDate && (
         <div style={{ color: "#e03131" }}>{errors.expenseDate}</div>
@@ -356,7 +360,9 @@ function AddExpenseDialogMantine({
       <TextInput
         label="Description"
         value={description}
-        onChange={(e) => setDescription(((e.target as HTMLInputElement)?.value) ?? "")}
+        onChange={(e) =>
+          setDescription((e.target as HTMLInputElement)?.value ?? "")
+        }
       />
 
       <NumberInput
@@ -385,12 +391,16 @@ function AddExpenseDialogMantine({
       <TextInput
         label="Reference"
         value={reference}
-        onChange={(e) => setReference(((e.target as HTMLInputElement)?.value) ?? "")}
+        onChange={(e) =>
+          setReference((e.target as HTMLInputElement)?.value ?? "")
+        }
       />
       <TextInput
         label="Remarks"
         value={remarks}
-        onChange={(e) => setRemarks(((e.target as HTMLInputElement)?.value) ?? "")}
+        onChange={(e) =>
+          setRemarks((e.target as HTMLInputElement)?.value ?? "")
+        }
       />
 
       <Group justify="flex-end" mt="md">
@@ -440,7 +450,7 @@ function EditExpenseDialogMantine({
         onChange={(e) =>
           setPayload((p: Partial<ExpenseType>) => ({
             ...p,
-            expenseNumber: ((e.target as HTMLInputElement)?.value) ?? "",
+            expenseNumber: (e.target as HTMLInputElement)?.value ?? "",
           }))
         }
       />
@@ -451,7 +461,7 @@ function EditExpenseDialogMantine({
         onChange={(e) =>
           setPayload((p: Partial<ExpenseType>) => ({
             ...p,
-            date: ((e.target as HTMLInputElement)?.value) ?? "",
+            date: (e.target as HTMLInputElement)?.value ?? "",
           }))
         }
       />
@@ -469,7 +479,7 @@ function EditExpenseDialogMantine({
         onChange={(e) =>
           setPayload((p: Partial<ExpenseType>) => ({
             ...p,
-            description: ((e.target as HTMLInputElement)?.value) ?? "",
+            description: (e.target as HTMLInputElement)?.value ?? "",
           }))
         }
       />
@@ -498,7 +508,7 @@ function EditExpenseDialogMantine({
         onChange={(e) =>
           setPayload((p: Partial<ExpenseType>) => ({
             ...p,
-            reference: ((e.target as HTMLInputElement)?.value) ?? "",
+            reference: (e.target as HTMLInputElement)?.value ?? "",
           }))
         }
       />
@@ -508,7 +518,7 @@ function EditExpenseDialogMantine({
         onChange={(e) =>
           setPayload((p: Partial<ExpenseType>) => ({
             ...p,
-            remarks: ((e.target as HTMLInputElement)?.value) ?? "",
+            remarks: (e.target as HTMLInputElement)?.value ?? "",
           }))
         }
       />

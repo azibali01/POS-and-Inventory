@@ -1,5 +1,15 @@
 import { type ReactNode, useState, useMemo } from "react";
-import { AppShell, Stack, NavLink, TextInput, Group, Text, Button } from "@mantine/core";
+import {
+  AppShell,
+  Stack,
+  NavLink,
+  TextInput,
+  Group,
+  Text,
+  Button,
+  Burger,
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -168,6 +178,8 @@ const navigation: MenuItem[] = [
 ];
 
 export default function DashboardLayout() {
+  const [mobileOpened, { toggle: toggleMobile }] = useDisclosure();
+  const [desktopOpened, { toggle: toggleDesktop }] = useDisclosure(true);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -225,7 +237,7 @@ export default function DashboardLayout() {
       navbar={{
         width: 240,
         breakpoint: "sm",
-        collapsed: { mobile: true },
+        collapsed: { mobile: !mobileOpened, desktop: !desktopOpened },
       }}
       padding="md"
       styles={{
@@ -234,19 +246,36 @@ export default function DashboardLayout() {
     >
       {/* Header */}
       <AppShell.Header
-        style={{ 
-          background: "#ffffff", 
-          padding: "0 24px", 
+        style={{
+          background: "#ffffff",
+          padding: "0 24px",
           height: "60px",
           borderBottom: "1px solid #e5e7eb",
           display: "flex",
           alignItems: "center",
         }}
       >
-        <Group justify="space-between" style={{ width: "100%", height: "100%" }}>
-          <Text size="lg" fw={700} c="#1e3a8a">
-            7 Star Traders
-          </Text>
+        <Group
+          justify="space-between"
+          style={{ width: "100%", height: "100%" }}
+        >
+          <Group>
+            <Burger
+              opened={mobileOpened}
+              onClick={toggleMobile}
+              hiddenFrom="sm"
+              size="sm"
+            />
+            <Burger
+              opened={desktopOpened}
+              onClick={toggleDesktop}
+              visibleFrom="sm"
+              size="sm"
+            />
+            <Text size="lg" fw={700} c="#1e3a8a">
+              7 Star Traders
+            </Text>
+          </Group>
           <Group gap="md">
             {user && (
               <Text size="sm" c="#6b7280">
@@ -267,8 +296,8 @@ export default function DashboardLayout() {
       </AppShell.Header>
       {/* Sidebar */}
       {!isPrintMode && (
-        <AppShell.Navbar 
-          p="md" 
+        <AppShell.Navbar
+          p="md"
           bg="#F5F5F5"
           style={{
             overflow: "hidden",
@@ -294,76 +323,76 @@ export default function DashboardLayout() {
           >
             <Stack gap="xs">
               {filteredNavigation.map((item: MenuItem) => {
-              // If item has children render a parent NavLink containing child NavLinks
-              if (item.children && item.children.length > 0) {
+                // If item has children render a parent NavLink containing child NavLinks
+                if (item.children && item.children.length > 0) {
+                  return (
+                    <NavLink
+                      key={item.label}
+                      label={item.label}
+                      leftSection={item.icon}
+                      styles={{
+                        root: {
+                          color: "#000000ff",
+                          borderRadius: "8px",
+                          fontWeight: 600,
+                          fontSize: "14px",
+                          marginBottom: 2,
+                        },
+                        label: { fontSize: "14px", fontWeight: 600 },
+                      }}
+                    >
+                      {item.children.map((child: MenuItem) => {
+                        const isActive = location.pathname === child.path;
+                        return (
+                          <NavLink
+                            key={child.label}
+                            component={Link}
+                            to={child.path || "#"}
+                            label={child.label}
+                            leftSection={child.icon}
+                            active={isActive}
+                            styles={{
+                              root: {
+                                color: isActive ? "#fff" : "#000000ff",
+                                backgroundColor: isActive ? "#333" : undefined,
+                                borderRadius: "8px",
+                                marginLeft: 16,
+                                fontWeight: isActive ? 800 : 500,
+                                fontSize: "13px",
+                                "&:hover": { backgroundColor: "#333" },
+                              },
+                              label: { fontSize: "13px", fontWeight: 500 },
+                            }}
+                          />
+                        );
+                      })}
+                    </NavLink>
+                  );
+                }
+
+                // Default single-level nav item
+                const isActive = location.pathname === item.path;
                 return (
                   <NavLink
                     key={item.label}
+                    component={Link}
+                    to={item.path || "#"}
                     label={item.label}
                     leftSection={item.icon}
+                    active={isActive}
                     styles={{
                       root: {
-                        color: "#000000ff",
+                        color: isActive ? "#fff" : "#000000ff",
+                        backgroundColor: isActive ? "#333" : undefined,
                         borderRadius: "8px",
-                        fontWeight: 600,
-                        fontSize: "14px",
-                        marginBottom: 2,
+                        "&:hover": { backgroundColor: "#333" },
+                        fontWeight: isActive ? 800 : undefined,
                       },
                       label: { fontSize: "14px", fontWeight: 600 },
                     }}
-                  >
-                    {item.children.map((child: MenuItem) => {
-                      const isActive = location.pathname === child.path;
-                      return (
-                        <NavLink
-                          key={child.label}
-                          component={Link}
-                          to={child.path || "#"}
-                          label={child.label}
-                          leftSection={child.icon}
-                          active={isActive}
-                          styles={{
-                            root: {
-                              color: isActive ? "#fff" : "#000000ff",
-                              backgroundColor: isActive ? "#333" : undefined,
-                              borderRadius: "8px",
-                              marginLeft: 16,
-                              fontWeight: isActive ? 800 : 500,
-                              fontSize: "13px",
-                              "&:hover": { backgroundColor: "#333" },
-                            },
-                            label: { fontSize: "13px", fontWeight: 500 },
-                          }}
-                        />
-                      );
-                    })}
-                  </NavLink>
+                  />
                 );
-              }
-
-              // Default single-level nav item
-              const isActive = location.pathname === item.path;
-              return (
-                <NavLink
-                  key={item.label}
-                  component={Link}
-                  to={item.path || "#"}
-                  label={item.label}
-                  leftSection={item.icon}
-                  active={isActive}
-                  styles={{
-                    root: {
-                      color: isActive ? "#fff" : "#000000ff",
-                      backgroundColor: isActive ? "#333" : undefined,
-                      borderRadius: "8px",
-                      "&:hover": { backgroundColor: "#333" },
-                      fontWeight: isActive ? 800 : undefined,
-                    },
-                    label: { fontSize: "14px", fontWeight: 600 },
-                  }}
-                />
-              );
-            })}
+              })}
             </Stack>
           </div>
         </AppShell.Navbar>

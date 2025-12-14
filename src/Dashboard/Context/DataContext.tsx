@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { showNotification } from "@mantine/notifications";
 import * as api from "../../lib/api";
+import { useAuth } from "../../Auth/Context/AuthContext";
 import { validateArrayResponse } from "../../lib/validate-api";
 
 import type { InventoryItemPayload } from "../../lib/api";
@@ -434,6 +435,7 @@ const DataContext = React.createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { isAuthenticated } = useAuth();
   // ===== REFS =====
   const loaderPromisesRef = useRef<Record<string, Promise<unknown> | null>>({});
   const loaderLoadedRef = useRef<Record<string, boolean>>({});
@@ -533,13 +535,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   };
   // Auto-load customers on mount
   useEffect(() => {
-    loadCustomers();
-  }, []);
+    if (isAuthenticated) loadCustomers();
+  }, [isAuthenticated]);
 
   // Auto-load sales on mount
   useEffect(() => {
-    loadSales();
-  }, []);
+    if (isAuthenticated) loadSales();
+  }, [isAuthenticated]);
   // ===== SUPPLIERS STATE =====
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [suppliersLoading, setSuppliersLoading] = useState(false);
@@ -572,13 +574,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Auto-load suppliers on mount
   useEffect(() => {
-    loadSuppliers();
-  }, []);
+    if (isAuthenticated) loadSuppliers();
+  }, [isAuthenticated]);
 
   // Auto-load inventory on mount
   useEffect(() => {
-    loadInventory();
-  }, []);
+    if (isAuthenticated) loadInventory();
+  }, [isAuthenticated]);
 
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(false);
@@ -603,10 +605,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [purchaseInvoices, setPurchaseInvoices] = useState<
     PurchaseInvoiceRecord[]
   >([]);
-  const [purchaseInvoicesLoading, ] = useState(false);
-  const [purchaseInvoicesError,] = useState<
-    string | null
-  >(null);
+  const [purchaseInvoicesLoading] = useState(false);
+  const [purchaseInvoicesError] = useState<string | null>(null);
   // ===== GRN STATE =====
   const [grns, setGrns] = useState<GRNRecord[]>([]);
   const [grnsLoading, setGrnsLoading] = useState(false);
@@ -625,16 +625,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [expensesError, setExpensesError] = useState<string | null>(null);
   // ===== RECEIPT VOUCHERS STATE =====
   const [receiptVouchers, setReceiptVouchers] = useState<ReceiptVoucher[]>([]);
-  const [receiptVouchersLoading, ] = useState(false);
-  const [receiptVouchersError, ] = useState<
-    string | null
-  >(null);
+  const [receiptVouchersLoading] = useState(false);
+  const [receiptVouchersError] = useState<string | null>(null);
   // ===== PAYMENT VOUCHERS STATE =====
   const [paymentVouchers, setPaymentVouchers] = useState<PaymentVoucher[]>([]);
-  const [paymentVouchersLoading, ] = useState(false);
-  const [paymentVouchersError, ] = useState<
-    string | null
-  >(null);
+  const [paymentVouchersLoading] = useState(false);
+  const [paymentVouchersError] = useState<string | null>(null);
   // ===== QUOTATIONS STATE =====
   const [quotations, setQuotations] = useState<api.QuotationRecordPayload[]>(
     []
@@ -702,8 +698,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Auto-load categories on mount
   useEffect(() => {
-    loadCategories();
-  }, []);
+    if (isAuthenticated) loadCategories();
+  }, [isAuthenticated]);
 
   // ===== COLORS LOADER =====
   const loadColors = useCallback(async () => {
@@ -738,8 +734,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Auto-load colors on mount
   useEffect(() => {
-    loadColors();
-  }, []);
+    if (isAuthenticated) loadColors();
+  }, [isAuthenticated]);
 
   // ===== COLORS CRUD FUNCTIONS =====
   const createColor = useCallback(async (payload: Color) => {
@@ -785,7 +781,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
           description: updated.description,
         };
         setColors((prev) =>
-          prev.map((c) => (String(c._id) === String(id) || String(c.id) === String(id) ? color : c))
+          prev.map((c) =>
+            String(c._id) === String(id) || String(c.id) === String(id)
+              ? color
+              : c
+          )
         );
         showNotification({
           title: "Color Updated",
@@ -813,7 +813,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     setColorsLoading(true);
     try {
       await api.deleteColor(id);
-      setColors((prev) => prev.filter((c) => String(c._id) !== String(id) && String(c.id) !== String(id)));
+      setColors((prev) =>
+        prev.filter(
+          (c) => String(c._id) !== String(id) && String(c.id) !== String(id)
+        )
+      );
       showNotification({
         title: "Color Deleted",
         message: "Color has been removed",
@@ -2049,8 +2053,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Auto-load purchases on mount
   useEffect(() => {
-    loadPurchases();
-  }, []);
+    if (isAuthenticated) loadPurchases();
+  }, [isAuthenticated]);
 
   const loadPurchaseInvoices = async () => {
     if (loaderLoadedRef.current["purchaseInvoices"]) {
@@ -2079,8 +2083,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Auto-load purchase invoices on mount
   useEffect(() => {
-    loadPurchaseInvoices();
-  }, []);
+    if (isAuthenticated) loadPurchaseInvoices();
+  }, [isAuthenticated]);
 
   const loadGrns = async () => {
     if (loaderLoadedRef.current["grns"]) {
@@ -2116,8 +2120,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Auto-load expenses on mount
   useEffect(() => {
-    loadExpenses();
-  }, []);
+    if (isAuthenticated) loadExpenses();
+  }, [isAuthenticated]);
 
   const loadReceiptVouchers = async (): Promise<ReceiptVoucher[]> => {
     if (loaderLoadedRef.current["receiptVouchers"]) {
@@ -2141,8 +2145,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Auto-load receipt vouchers on mount
   useEffect(() => {
-    loadReceiptVouchers();
-  }, []);
+    if (isAuthenticated) loadReceiptVouchers();
+  }, [isAuthenticated]);
 
   const loadPaymentVouchers = async (): Promise<PaymentVoucher[]> => {
     if (loaderLoadedRef.current["paymentVouchers"]) {
@@ -2166,8 +2170,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Auto-load payment vouchers on mount
   useEffect(() => {
-    loadPaymentVouchers();
-  }, []);
+    if (isAuthenticated) loadPaymentVouchers();
+  }, [isAuthenticated]);
 
   // Only one loadQuotations function, returns correct type and is in correct order
   const loadQuotations = useCallback(async (): Promise<
@@ -2261,8 +2265,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Auto-load quotations on mount
   useEffect(() => {
-    loadQuotations();
-  }, []);
+    if (isAuthenticated) loadQuotations();
+  }, [isAuthenticated]);
 
   // Stubs for required purchase return functions
   function applyPurchaseReturnToInventory(ret: PurchaseReturnRecord) {

@@ -11,10 +11,39 @@ export const api = axios.create({
   },
 });
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+function unwrapPaginated<T>(response: T[] | PaginatedResponse<T>): T[] {
+  if (
+    response &&
+    typeof response === "object" &&
+    "data" in response &&
+    Array.isArray((response as any).data)
+  ) {
+    return (response as PaginatedResponse<T>).data;
+  }
+  return Array.isArray(response) ? response : [];
+}
+
 // Request interceptor for logging and authentication
 api.interceptors.request.use(
   (config) => {
     logger.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
+
+    // Attach token from localStorage if available (robust against React lifecycle timing)
+    const token = localStorage.getItem("auth_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
     return config;
   },
   (error) => {
@@ -633,8 +662,10 @@ export async function getInventory() {
   const candidates = ["/products"];
   for (const path of candidates) {
     try {
-      const { data } = await api.get<InventoryItemPayload[]>(path);
-      return data;
+      const { data } = await api.get<
+        InventoryItemPayload[] | PaginatedResponse<InventoryItemPayload>
+      >(path);
+      return unwrapPaginated(data);
     } catch (err: unknown) {
       // if server returned 404, try the next candidate; otherwise rethrow
       const error = err as { response?: { status?: number } };
@@ -648,8 +679,10 @@ export async function getInventory() {
 }
 
 export async function getSales() {
-  const { data } = await api.get<SaleRecordPayload[]>("/sale-invoice");
-  return data;
+  const { data } = await api.get<
+    SaleRecordPayload[] | PaginatedResponse<SaleRecordPayload>
+  >("/sale-invoice");
+  return unwrapPaginated(data);
 }
 
 // Quotations read endpoint

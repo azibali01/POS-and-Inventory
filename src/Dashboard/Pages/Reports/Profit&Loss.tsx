@@ -1,20 +1,13 @@
 "use client";
 
 import { useMemo, useEffect, useState } from "react";
-import {
-  Title,
-  Text,
-  Divider,
-
-  Grid,
-  Card,
-  Group,
-  Button,
-} from "@mantine/core";
+import { Title, Text, Divider, Grid, Card, Group, Button } from "@mantine/core";
 import { TextInput } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { useDataContext } from "../../Context/DataContext";
-import SalesDocShell, { type SalesPayload } from "../../../components/sales/SalesDocShell";
+import SalesDocShell, {
+  type SalesPayload,
+} from "../../../components/sales/SalesDocShell";
 import { Modal } from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import type {
@@ -52,7 +45,9 @@ export default function ProfitLoss() {
   } = useDataContext();
 
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerKind, setViewerKind] = useState<"sale" | "purchase" | "expense" | null>(null);
+  const [viewerKind, setViewerKind] = useState<
+    "sale" | "purchase" | "expense" | null
+  >(null);
   const [viewerData, setViewerData] = useState<any>(null);
   const navigate = useNavigate();
 
@@ -70,7 +65,11 @@ export default function ProfitLoss() {
     };
     return {
       sales:
-        start || end ? sales.filter((s: SaleRecord) => inRange(s.invoiceDate || s.date || s.quotationDate)) : sales,
+        start || end
+          ? sales.filter((s: SaleRecord) =>
+              inRange(s.invoiceDate || s.date || s.quotationDate)
+            )
+          : sales,
       purchaseInvoices:
         start || end
           ? purchaseInvoices.filter((p: PurchaseInvoiceRecord) =>
@@ -358,7 +357,10 @@ export default function ProfitLoss() {
 
       <div style={{ marginTop: 12 }}>
         <Text style={{ fontWeight: 600, marginBottom: 8 }}>Sales (latest)</Text>
-        <div className="app-table-wrapper" style={{ maxHeight: 240, overflow: 'auto' }}>
+        <div
+          className="app-table-wrapper"
+          style={{ maxHeight: 240, overflow: "auto" }}
+        >
           <Table
             withRowBorders
             withColumnBorders
@@ -374,9 +376,11 @@ export default function ProfitLoss() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {filtered.sales.map((s: SaleRecord) => (
+              {filtered.sales.map((s: SaleRecord, idx: number) => (
                 <Table.Tr
-                  key={s.id}
+                  key={
+                    s.id || s.invoiceNumber || (s as any)._id || `sale-${idx}`
+                  }
                   onDoubleClick={() => {
                     setViewerKind("sale");
                     setViewerData(s);
@@ -384,7 +388,9 @@ export default function ProfitLoss() {
                   }}
                 >
                   <Table.Td>{s.id}</Table.Td>
-                  <Table.Td>{formatDate(s.invoiceDate || s.date || s.quotationDate)}</Table.Td>
+                  <Table.Td>
+                    {formatDate(s.invoiceDate || s.date || s.quotationDate)}
+                  </Table.Td>
                   <Table.Td>
                     {typeof s.customer === "string"
                       ? s.customer
@@ -407,27 +413,43 @@ export default function ProfitLoss() {
         </div>
       </div>
 
-      <Modal opened={viewerOpen} onClose={() => setViewerOpen(false)} size="90%">
+      <Modal
+        opened={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        size="90%"
+      >
         {viewerKind === "sale" && viewerData ? (
-          <div style={{ height: '80vh' }}>
+          <div style={{ height: "80vh" }}>
             <SalesDocShell
               mode={"Invoice"}
-              initial={{
-                docNo: viewerData.invoiceNumber ?? viewerData.id ?? String(viewerData._id ?? ""),
-                docDate: viewerData.invoiceDate ?? viewerData.date ?? new Date().toISOString().slice(0,10),
-                items: (viewerData.items ?? viewerData.products) || [],
-                customer: viewerData.customer ?? viewerData.customerName ?? viewerData.customerId,
-                totals: {
-                  total: viewerData.total ?? viewerData.totalNetAmount ?? 0,
-                  amount: viewerData.total ?? viewerData.totalNetAmount ?? 0,
-                  totalGrossAmount: viewerData.totalGrossAmount ?? 0,
-                  totalDiscountAmount: viewerData.totalDiscountAmount ?? 0,
-                  totalNetAmount: viewerData.totalNetAmount ?? viewerData.total ?? 0,
-                  subTotal: viewerData.subTotal ?? 0,
-                },
-                remarks: viewerData.remarks ?? viewerData.note ?? "",
-                terms: viewerData.terms ?? "",
-              } as Partial<SalesPayload>}
+              initial={
+                {
+                  docNo:
+                    viewerData.invoiceNumber ??
+                    viewerData.id ??
+                    String(viewerData._id ?? ""),
+                  docDate:
+                    viewerData.invoiceDate ??
+                    viewerData.date ??
+                    new Date().toISOString().slice(0, 10),
+                  items: (viewerData.items ?? viewerData.products) || [],
+                  customer:
+                    viewerData.customer ??
+                    viewerData.customerName ??
+                    viewerData.customerId,
+                  totals: {
+                    total: viewerData.total ?? viewerData.totalNetAmount ?? 0,
+                    amount: viewerData.total ?? viewerData.totalNetAmount ?? 0,
+                    totalGrossAmount: viewerData.totalGrossAmount ?? 0,
+                    totalDiscountAmount: viewerData.totalDiscountAmount ?? 0,
+                    totalNetAmount:
+                      viewerData.totalNetAmount ?? viewerData.total ?? 0,
+                    subTotal: viewerData.subTotal ?? 0,
+                  },
+                  remarks: viewerData.remarks ?? viewerData.note ?? "",
+                  terms: viewerData.terms ?? "",
+                } as Partial<SalesPayload>
+              }
               customers={customers}
               products={inventory || []}
               submitting={false}
@@ -437,12 +459,30 @@ export default function ProfitLoss() {
           </div>
         ) : (
           <div>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(viewerData, null, 2)}</pre>
-            {viewerKind === 'purchase' && (
-              <Button onClick={() => { setViewerOpen(false); navigate('/purchase/invoices'); }} style={{ marginTop: 8 }}>Open Purchase Invoices</Button>
+            <pre style={{ whiteSpace: "pre-wrap" }}>
+              {JSON.stringify(viewerData, null, 2)}
+            </pre>
+            {viewerKind === "purchase" && (
+              <Button
+                onClick={() => {
+                  setViewerOpen(false);
+                  navigate("/purchase/invoices");
+                }}
+                style={{ marginTop: 8 }}
+              >
+                Open Purchase Invoices
+              </Button>
             )}
-            {viewerKind === 'expense' && (
-              <Button onClick={() => { setViewerOpen(false); navigate('/expenses'); }} style={{ marginTop: 8 }}>Open Expenses</Button>
+            {viewerKind === "expense" && (
+              <Button
+                onClick={() => {
+                  setViewerOpen(false);
+                  navigate("/expenses");
+                }}
+                style={{ marginTop: 8 }}
+              >
+                Open Expenses
+              </Button>
             )}
           </div>
         )}
@@ -454,7 +494,10 @@ export default function ProfitLoss() {
         <Text style={{ fontWeight: 600, marginBottom: 8 }}>
           Purchase Invoices (latest)
         </Text>
-        <div className="app-table-wrapper" style={{ maxHeight: 240, overflow: 'auto' }}>
+        <div
+          className="app-table-wrapper"
+          style={{ maxHeight: 240, overflow: "auto" }}
+        >
           <Table
             withRowBorders
             withColumnBorders
@@ -470,54 +513,63 @@ export default function ProfitLoss() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {filtered.purchaseInvoices.map((p: PurchaseInvoiceRecord) => (
-                <Table.Tr
-                  key={p.id}
-                  onDoubleClick={() => {
-                    setViewerKind("purchase");
-                    setViewerData(p);
-                    setViewerOpen(true);
-                  }}
-                >
-                  <Table.Td>{p.purchaseInvoiceNumber || p.id || "-"}</Table.Td>
-                  <Table.Td>{formatDate(p.invoiceDate as string)}</Table.Td>
-                  <Table.Td>
-                    {typeof p.supplier === "string"
-                      ? p.supplier
-                      : p.supplier?.name ?? "N/A"}
-                  </Table.Td>
-                  <Table.Td style={{ textAlign: "right" }}>
-                    {(() => {
-                      // Calculate total from purchase invoice.total, subTotal, or sum of products
-                      let purchaseTotal = 0;
+              {filtered.purchaseInvoices.map(
+                (p: PurchaseInvoiceRecord, idx: number) => (
+                  <Table.Tr
+                    key={
+                      p.id ||
+                      p.purchaseInvoiceNumber ||
+                      (p as any)._id ||
+                      `purchase-${idx}`
+                    }
+                    onDoubleClick={() => {
+                      setViewerKind("purchase");
+                      setViewerData(p);
+                      setViewerOpen(true);
+                    }}
+                  >
+                    <Table.Td>
+                      {p.purchaseInvoiceNumber || p.id || "-"}
+                    </Table.Td>
+                    <Table.Td>{formatDate(p.invoiceDate as string)}</Table.Td>
+                    <Table.Td>
+                      {typeof p.supplier === "string"
+                        ? p.supplier
+                        : p.supplier?.name ?? "N/A"}
+                    </Table.Td>
+                    <Table.Td style={{ textAlign: "right" }}>
+                      {(() => {
+                        // Calculate total from purchase invoice.total, subTotal, or sum of products
+                        let purchaseTotal = 0;
 
-                      // Try total first (handle undefined, null, 0)
-                      if (p.total != null && p.total > 0) {
-                        purchaseTotal = p.total;
-                      }
-                      // Try subTotal if total is not available
-                      else if (p.subTotal != null && p.subTotal > 0) {
-                        purchaseTotal = p.subTotal;
-                      }
-                      // Calculate from products as last resort
-                      else if (
-                        Array.isArray(p.products) &&
-                        p.products.length > 0
-                      ) {
-                        purchaseTotal = p.products.reduce((sum, product) => {
-                          const amount =
-                            product.amount ||
-                            product.quantity * product.rate ||
-                            0;
-                          return sum + amount;
-                        }, 0);
-                      }
+                        // Try total first (handle undefined, null, 0)
+                        if (p.total != null && p.total > 0) {
+                          purchaseTotal = p.total;
+                        }
+                        // Try subTotal if total is not available
+                        else if (p.subTotal != null && p.subTotal > 0) {
+                          purchaseTotal = p.subTotal;
+                        }
+                        // Calculate from products as last resort
+                        else if (
+                          Array.isArray(p.products) &&
+                          p.products.length > 0
+                        ) {
+                          purchaseTotal = p.products.reduce((sum, product) => {
+                            const amount =
+                              product.amount ||
+                              product.quantity * product.rate ||
+                              0;
+                            return sum + amount;
+                          }, 0);
+                        }
 
-                      return formatCurrency(purchaseTotal);
-                    })()}
-                  </Table.Td>
-                </Table.Tr>
-              ))}
+                        return formatCurrency(purchaseTotal);
+                      })()}
+                    </Table.Td>
+                  </Table.Tr>
+                )
+              )}
             </Table.Tbody>
           </Table>
         </div>
@@ -529,7 +581,10 @@ export default function ProfitLoss() {
         <Text style={{ fontWeight: 600, marginBottom: 8 }}>
           Expenses (latest)
         </Text>
-        <div className="app-table-wrapper" style={{ maxHeight: 240, overflow: 'auto' }}>
+        <div
+          className="app-table-wrapper"
+          style={{ maxHeight: 240, overflow: "auto" }}
+        >
           <Table
             highlightOnHover
             withRowBorders
@@ -545,9 +600,14 @@ export default function ProfitLoss() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {filtered.expenses.map((ex: Expense) => (
+              {filtered.expenses.map((ex: Expense, idx: number) => (
                 <Table.Tr
-                  key={ex.id}
+                  key={
+                    ex.id ||
+                    ex.expenseNumber ||
+                    (ex as any)._id ||
+                    `expense-${idx}`
+                  }
                   onDoubleClick={() => {
                     setViewerKind("expense");
                     setViewerData(ex);
