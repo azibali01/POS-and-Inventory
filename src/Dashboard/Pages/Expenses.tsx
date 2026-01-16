@@ -6,38 +6,29 @@ import {
   Select,
   NumberInput,
   Group,
+  LoadingOverlay,
 } from "@mantine/core";
 import Table from "../../lib/AppTable";
 import { Plus, Trash2 } from "lucide-react";
-// import { deleteExpense } from "../../lib/api";
+import { useExpenses } from "../../lib/hooks/useExpenses";
 
-import type {
-  Expense as ExpenseType,
-  ExpenseInput,
-} from "../Context/DataContext";
+import type { ExpensePayload } from "../../lib/api";
 
-// Use the provided ExpensePayload interface for backend API
-export interface ExpensePayload {
-  expenseNumber?: string;
+// Helper types derived from payload to match existing component expectations
+export interface ExpenseType {
+  id?: string;
+  _id?: string;
+  expenseNumber: string;
   amount: number;
-  date?: string;
-  categoryType?:
-    | "Rent"
-    | "Utilities"
-    | "Transportation"
-    | "Salary"
-    | "Maintenance"
-    | "Other";
+  date?: string | Date;
+  categoryType: string;
   description?: string;
   reference?: string;
-  paymentMethod?: string;
+  paymentMethod?: "Cash" | "Card";
   remarks?: string;
-  metadata?: Record<string, unknown>;
 }
-import { useDataContext } from "../Context/DataContext";
 
 function formatCurrency(value: number) {
-  // format as currency using user's locale; change currency code if needed
   return new Intl.NumberFormat(undefined, {
     style: "currency",
     currency: "PKR",
@@ -47,7 +38,6 @@ function formatCurrency(value: number) {
 function formatDate(value?: string | Date) {
   if (!value) return "";
   const d = typeof value === "string" ? new Date(value) : value;
-  // produce a short locale date string; adjust options for different formats
   return d.toLocaleDateString();
 }
 
@@ -61,77 +51,67 @@ const categories = [
 ] as const;
 
 export default function ExpensesPage() {
+  const {
+    expenses: rawExpenses,
+    isLoading,
+    createExpense,
+    deleteExpense,
+    updateExpense,
+  } = useExpenses();
+
+  // Cast raw expenses types if needed (or ensure hook returns compatible types)
+  const expenses = (rawExpenses || []) as unknown as ExpenseType[];
+
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<ExpenseType | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   // Find the next expense number in the format EXP-0001
   function getNextExpenseNumber() {
     const numbers = expenses
       .map((e) => {
-        const match = String(e.expenseNumber || e.expenseNumber || "").match(
-          /EXP-(\d+)/
-        );
+        const match = String(e.expenseNumber || "").match(/EXP-(\d+)/);
         return match ? parseInt(match[1], 10) : 0;
       })
       .filter((n) => !isNaN(n));
     const max = numbers.length > 0 ? Math.max(...numbers) : 0;
     return `EXP-${String(max + 1).padStart(4, "0")}`;
   }
-  const [q, setQ] = useState("");
-  const dataCtx = useDataContext();
-  const { loadExpenses } = dataCtx;
-  const expenses = useMemo(() => dataCtx.expenses ?? [], [dataCtx.expenses]);
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<ExpenseType | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Handle delete API call
+  // Handle delete
   async function handleDelete(expenseNumber: string) {
+    // We need the ID to delete, usually. But the old code used expenseNumber?
+    // Let's find the ID first.
+    const expense = expenses.find((e) => e.expenseNumber === expenseNumber);
+    if (!expense) return;
+    const id = expense._id || expense.id;
+    if (!id) return;
+
     setDeletingId(expenseNumber);
     try {
-      await dataCtx.deleteExpense?.(expenseNumber);
-      // No need to setLastSaved, DataContext will update state
+      deleteExpense(id, {
+        onSettled: () => setDeletingId(null),
+      });
     } catch (err) {
-      // Optionally show error
-    } finally {
       setDeletingId(null);
     }
   }
-  // Track when a save occurs to trigger refetch
-  const [lastSaved, setLastSaved] = useState(0);
-
-  // Always fetch all expenses from backend on mount and when opened
-  useEffect(() => {
-    if (typeof loadExpenses === "function") {
-      loadExpenses().catch(() => {});
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // (Optional) Also keep the original effect for empty context, if needed
-  // useEffect(() => {
-  //   if (
-  //     (!dataCtx.expenses || dataCtx.expenses.length === 0) &&
-  //     typeof loadExpenses === "function"
-  //   ) {
-  //     loadExpenses().catch(() => {});
-  //   }
-  // }, [loadExpenses]);
-
-  // Refetch expenses after a save
-  useEffect(() => {
-    if (lastSaved > 0 && typeof loadExpenses === "function") {
-      loadExpenses().catch(() => {});
-    }
-  }, [lastSaved, loadExpenses]);
 
   const filtered = useMemo(() => {
     const t = q.toLowerCase().trim();
     if (!t) return expenses;
     return expenses.filter(
-      (e: ExpenseType) =>
-        e.expenseNumber.toLowerCase().includes(t) ||
-        e.categoryType.toLowerCase().includes(t) ||
+      (e) =>
+        (e.expenseNumber || "").toLowerCase().includes(t) ||
+        (e.categoryType || "").toLowerCase().includes(t) ||
         (e.description || "").toLowerCase().includes(t)
     );
   }, [q, expenses]);
+
+  if (isLoading) {
+    return <LoadingOverlay visible={true} />;
+  }
 
   return (
     <div>
@@ -166,12 +146,11 @@ export default function ExpensesPage() {
           </tr>
         </thead>
         <tbody>
-          {filtered.map((e: ExpenseType, idx: number) => (
+          {filtered.map((e, idx) => (
             <tr
               key={e.id || e.expenseNumber || `exp-${idx}`}
               style={{ cursor: "pointer" }}
               onClick={(event) => {
-                // Prevent row click if delete icon is clicked
                 if (
                   (event.target as HTMLElement).closest(".delete-expense-btn")
                 )
@@ -219,27 +198,19 @@ export default function ExpensesPage() {
         onOpenChange={setOpen}
         nextExpenseNumber={getNextExpenseNumber()}
         onSave={(payload: ExpensePayload) => {
-          // Convert ExpensePayload to ExpenseInput for addExpense
-          const expenseInput: ExpenseInput = {
-            expenseNumber: payload.expenseNumber ?? "",
-            date: payload.date ?? "",
-            categoryType:
-              payload.categoryType === "Maintenance"
-                ? "Stationery"
-                : payload.categoryType === "Other"
-                ? "Misc"
-                : (payload.categoryType as ExpenseInput["categoryType"]),
-            description: payload.description ?? "",
+          createExpense({
+            ...payload,
+            date: payload.date || new Date().toISOString(),
+            // ensure required fields for API
+            expenseNumber: payload.expenseNumber || "",
             amount: payload.amount,
-            paymentMethod:
-              payload.paymentMethod as ExpenseInput["paymentMethod"],
-            reference: payload.reference ?? "",
-            remarks: payload.remarks ?? "",
-          };
-          (dataCtx as { addExpense?: (p: ExpenseInput) => void }).addExpense?.(
-            expenseInput
-          );
-          setLastSaved(Date.now()); // trigger refetch
+            categoryType: payload.categoryType || "Other",
+            description: payload.description || "",
+            paymentMethod: payload.paymentMethod || "Cash",
+            reference: payload.reference || "",
+            remarks: payload.remarks || "",
+          });
+          setOpen(false);
         }}
       />
       {editing && (
@@ -247,7 +218,13 @@ export default function ExpensesPage() {
           expense={editing}
           onClose={() => setEditing(null)}
           onSave={(patch) => {
-            dataCtx.updateExpense?.(editing.id, patch as Partial<ExpenseType>);
+            const id = editing.id || editing._id;
+            if (id) {
+              updateExpense({
+                id,
+                payload: patch as unknown as Partial<ExpensePayload>,
+              });
+            }
             setEditing(null);
           }}
         />

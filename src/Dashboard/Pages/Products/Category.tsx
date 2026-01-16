@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import {
   Card,
   Title,
@@ -10,31 +10,35 @@ import {
   ActionIcon,
   Pagination,
   Select,
+  LoadingOverlay,
 } from "@mantine/core";
-import Table from "../../../lib/AppTable";
 import { showNotification } from "@mantine/notifications";
 import { IconPlus, IconEdit, IconTrash } from "@tabler/icons-react";
-import { useDataContext } from "../../Context/DataContext";
+import Table from "../../../lib/AppTable";
+import { useInventory, useCategories } from "../../../lib/hooks/useInventory";
 
 export default function CategoryPage() {
+  const { inventory, isLoading: invLoading } = useInventory();
   const {
-    inventory,
-    categories = [],
-    addCategory,
-    renameCategory,
+    categories: categoryObjects,
+    isLoading: catLoading,
+    createCategory,
+    updateCategory,
     deleteCategory,
-    refreshFromBackend,
-  } = useDataContext();
+    isCreating,
+    isUpdating,
+    isDeleting,
+  } = useCategories();
 
-  useEffect(() => {
-    refreshFromBackend();
-  }, []);
+  // Combine loading states
+  const isLoading =
+    invLoading || catLoading || isCreating || isUpdating || isDeleting;
 
   const [addOpen, setAddOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmTarget, setConfirmTarget] = useState<string | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<string | null>(null); // Name of category to delete
+  const [editing, setEditing] = useState<string | null>(null); // Name of category being edited
 
   const [addValue, setAddValue] = useState("");
   const [renameValue, setRenameValue] = useState("");
@@ -42,21 +46,25 @@ export default function CategoryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<string>("25");
 
+  // Derive unique category names from both Inventory items and Categories collection
   const categoriesList = useMemo(() => {
     const s = new Set<string>();
+    // From inventory items (legacy string categories)
     for (const it of inventory || []) {
       const c = (it.category || "").trim();
       if (c) s.add(c);
     }
-    for (const c of categories || []) {
-      if (typeof c === "string" && c.trim()) s.add(c.trim());
+    // From explicit categories collection (objects)
+    for (const c of categoryObjects || []) {
+      if (c.name && typeof c.name === "string" && c.name.trim()) {
+        s.add(c.name.trim());
+      }
     }
     return Array.from(s).sort((a, b) => a.localeCompare(b));
-  }, [inventory, categories]);
+  }, [inventory, categoryObjects]);
 
   const totalCategories = categoriesList.length;
-  // test
-  // test 2
+
   // Pagination logic
   const totalPages = Math.ceil(categoriesList.length / parseInt(itemsPerPage));
   const paginatedCategories = useMemo(() => {
@@ -73,19 +81,18 @@ export default function CategoryPage() {
         message: "Category name required",
         color: "yellow",
       });
-    if (categoriesList.includes(v))
+    if (categoriesList.some((c) => c.toLowerCase() === v.toLowerCase()))
       return showNotification({
         title: "Exists",
         message: "Category already exists",
         color: "orange",
       });
-    addCategory(v);
-    setAddValue("");
-    setAddOpen(false);
-    showNotification({
-      title: "Added",
-      message: `Category '${v}' added`,
-      color: "green",
+
+    createCategory(v, {
+      onSuccess: () => {
+        setAddValue("");
+        setAddOpen(false);
+      },
     });
   }
 
@@ -98,15 +105,29 @@ export default function CategoryPage() {
         color: "yellow",
       });
     if (oldName === v) return setRenameOpen(false);
-    renameCategory(oldName, v);
-    setRenameOpen(false);
-    setEditing(null);
-    setRenameValue("");
-    showNotification({
-      title: "Renamed",
-      message: `'${oldName}' → '${v}'`,
-      color: "green",
-    });
+
+    // Find the category object to update
+    const catObj = categoryObjects.find((c: any) => c.name === oldName);
+
+    if (catObj && (catObj.id || catObj._id)) {
+      updateCategory(
+        { id: catObj.id || catObj._id, name: v },
+        {
+          onSuccess: () => {
+            setRenameOpen(false);
+            setEditing(null);
+            setRenameValue("");
+          },
+        }
+      );
+    } else {
+      showNotification({
+        title: "Cannot Rename",
+        message:
+          "This category is derived from product items and does not exist as a standalone category record yet.",
+        color: "orange",
+      });
+    }
   }
 
   function handleDelete(delName: string) {
@@ -117,16 +138,39 @@ export default function CategoryPage() {
     setRenameValue("");
   }
 
+  function confirmDelete() {
+    if (confirmTarget) {
+      const catObj = categoryObjects.find((c: any) => c.name === confirmTarget);
+      if (catObj && (catObj.id || catObj._id)) {
+        deleteCategory(catObj.id || catObj._id, {
+          onSuccess: () => {
+            setConfirmOpen(false);
+            setConfirmTarget(null);
+          },
+        });
+      } else {
+        showNotification({
+          title: "Cannot Delete",
+          message:
+            "This category is in use by products or not a managed category record.",
+          color: "orange",
+        });
+        setConfirmOpen(false);
+      }
+    }
+  }
+
   return (
     <div>
+      <LoadingOverlay visible={isLoading} />
       <Group justify="space-between" mb="md">
         <div>
           <Title order={2}>Categories</Title>
-          <Text color="dimmed">
+          <Text c="dimmed">
             Manage product categories used across inventory
           </Text>
           <Group gap="xs" mt="xs">
-            <Text size="sm" color="dimmed">
+            <Text size="sm" c="dimmed">
               Showing {paginatedCategories.length} of {totalCategories}{" "}
               categories
             </Text>
@@ -197,7 +241,7 @@ export default function CategoryPage() {
             {paginatedCategories.length === 0 && (
               <Table.Tr>
                 <Table.Td colSpan={3} style={{ textAlign: "center" }}>
-                  <Text color="dimmed">No categories available</Text>
+                  <Text c="dimmed">No categories available</Text>
                 </Table.Td>
               </Table.Tr>
             )}
@@ -233,7 +277,9 @@ export default function CategoryPage() {
           <Button onClick={() => setAddOpen(false)} variant="default">
             Cancel
           </Button>
-          <Button onClick={handleAdd}>Add</Button>
+          <Button onClick={handleAdd} loading={isCreating}>
+            Add
+          </Button>
         </Group>
       </Modal>
 
@@ -254,7 +300,10 @@ export default function CategoryPage() {
           <Button onClick={() => setRenameOpen(false)} variant="default">
             Cancel
           </Button>
-          <Button onClick={() => editing && handleRename(editing)}>
+          <Button
+            onClick={() => editing && handleRename(editing)}
+            loading={isUpdating}
+          >
             Rename
           </Button>
         </Group>
@@ -268,9 +317,7 @@ export default function CategoryPage() {
         }}
         title="Delete category"
       >
-        <Text>
-          Delete category '{confirmTarget}' and clear it from inventory items?
-        </Text>
+        <Text>Delete category '{confirmTarget}'?</Text>
         <Group justify="flex-end" mt="md">
           <Button
             onClick={() => {
@@ -281,23 +328,7 @@ export default function CategoryPage() {
           >
             Cancel
           </Button>
-          <Button
-            color="red"
-            onClick={() => {
-              if (confirmTarget) {
-                deleteCategory(confirmTarget);
-                showNotification({
-                  title: "Deleted",
-                  message: `Category '${confirmTarget}' removed`,
-                  color: "orange",
-                });
-              }
-              setConfirmOpen(false);
-              setConfirmTarget(null);
-              setAddValue("");
-              setRenameValue("");
-            }}
-          >
+          <Button color="red" onClick={confirmDelete} loading={isDeleting}>
             Delete
           </Button>
         </Group>
