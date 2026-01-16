@@ -56,7 +56,6 @@ export function CustomerForm({
         openingAmount: openingAmount,
         paymentType: paymentType, // Use 'Credit' | 'Debit' (capitalized)
         creditLimit: form.creditLimit || 0,
-        createdAt: form.createdAt,
       };
 
       if (customer) {
