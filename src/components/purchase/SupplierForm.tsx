@@ -72,11 +72,7 @@ export default function SupplierForm({
       address: (form.address as string) || "",
       city: (form.city as string) || "",
       openingBalance: Number(form.openingBalance || 0),
-      currentBalance: Number(form.currentBalance || 0),
       paymentType: openingType,
-      createdAt: form.createdAt
-        ? String(form.createdAt)
-        : new Date().toISOString(),
     };
     // Only include _id if editing (i.e. initial has _id)
     if (initial && initial._id) {

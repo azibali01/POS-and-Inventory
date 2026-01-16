@@ -20,7 +20,12 @@ import openPrintWindow from "../print/printWindow";
 import { generateGatePassHTML } from "../print/printTemplate";
 import type { InvoiceData } from "../print/printTemplate";
 import type { CustomerPayload } from "../../lib/api";
-import { getDraftByKey, createDraft, updateDraft, deleteDraft } from "../../lib/api";
+import {
+  getDraftByKey,
+  createDraft,
+  updateDraft,
+  deleteDraft,
+} from "../../lib/api";
 
 function generateId() {
   try {
@@ -122,7 +127,6 @@ export default function SalesDocShell({
   const lastSavedRef = useRef<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 
-
   // Reset customer and items when modal opens (when initial changes)
   useEffect(() => {
     // Helper to get supplier name for selected product
@@ -160,8 +164,15 @@ export default function SalesDocShell({
       setItems(
         (initial.items as LineItem[]).map((it) => ({
           _id:
-            (it as any)._id ?? (it as any).id ?? (it as any).productId ??
-            products.find((p) => p.itemName === it.itemName || String(p._id) === String((it as any)._id) || p.itemName === it.itemName)?._id ??
+            (it as any)._id ??
+            (it as any).id ??
+            (it as any).productId ??
+            products.find(
+              (p) =>
+                p.itemName === it.itemName ||
+                String(p._id) === String((it as any)._id) ||
+                p.itemName === it.itemName
+            )?._id ??
             "",
           itemName: it.itemName ?? "",
           invoiceNumber: it._id ?? generateId(),
@@ -190,8 +201,15 @@ export default function SalesDocShell({
       setItems(
         (initial.products as LineItem[]).map((it) => ({
           _id:
-            (it as any)._id ?? (it as any).id ?? (it as any).productId ??
-            products.find((p) => p.itemName === it.itemName || String(p._id) === String((it as any)._id) || p.itemName === it.itemName)?._id ??
+            (it as any)._id ??
+            (it as any).id ??
+            (it as any).productId ??
+            products.find(
+              (p) =>
+                p.itemName === it.itemName ||
+                String(p._id) === String((it as any)._id) ||
+                p.itemName === it.itemName
+            )?._id ??
             "",
           itemName: it.itemName ?? "",
           invoiceNumber: it._id ?? generateId(),
@@ -240,18 +258,18 @@ export default function SalesDocShell({
       const raw = localStorage.getItem(draftKey);
       if (raw) {
         const d = JSON.parse(raw);
-        // If there is a provided `initial` payload and it's non-empty, ask user before restoring.
+        // If there is a provided `initial` payload and it's non-empty, skip restoring.
+        // If it is empty, auto-restore without annoying the user.
         const initialEmpty = !initial || Object.keys(initial).length === 0;
-        const shouldRestore = initialEmpty
-          ? true
-          : window.confirm("A saved draft was found for this form. Restore it?");
+        const shouldRestore = initialEmpty;
+
         if (shouldRestore && d) {
-          setDocNo(d.docNo ?? (initial?.docNo ?? docNo));
-          setDocDate(d.docDate ?? (initial?.docDate ?? docDate));
+          setDocNo(d.docNo ?? initial?.docNo ?? docNo);
+          setDocDate(d.docDate ?? initial?.docDate ?? docDate);
           setCustomerId(d.customerId ?? "");
           if (Array.isArray(d.items) && d.items.length > 0) setItems(d.items);
-          setRemarks(d.remarks ?? (initial?.remarks ?? ""));
-          setTerms(d.terms ?? (initial?.terms ?? terms));
+          setRemarks(d.remarks ?? initial?.remarks ?? "");
+          setTerms(d.terms ?? initial?.terms ?? terms);
         }
       }
     } catch (err) {
@@ -267,7 +285,12 @@ export default function SalesDocShell({
       try {
         const sd = await getDraftByKey(draftKey);
         if (!mounted || !sd) return;
-        // If we already restored from localStorage above, prefer local unless user wants server
+        // Consolidate validation logic: auto-restore if empty, otherwise ignore.
+        // We prefer the local storage draft (handled above) or this server draft if local is missing.
+        // But since we can't easily ask the user without annoying alerts, we will:
+        // 1. If we already restored local, stick with it.
+        // 2. If NO local draft, and initial is empty, restore server draft automatically.
+
         const rawLocal = (() => {
           try {
             return localStorage.getItem(draftKey);
@@ -275,30 +298,23 @@ export default function SalesDocShell({
             return null;
           }
         })();
+
+        // If we found a local draft, we assume it was processed in the previous effect.
+        // We only care about server draft if there was NO local draft and state is empty.
         const initialEmpty = !initial || Object.keys(initial).length === 0;
-        let shouldRestore = false;
-        if (rawLocal) {
-          // Ask user which to restore
-          const useServer = window.confirm(
-            "A saved server draft was found. Replace local draft with server draft?"
-          );
-          shouldRestore = useServer;
-        } else {
-          shouldRestore = initialEmpty
-            ? true
-            : window.confirm("A saved server draft was found for this form. Restore it?");
-        }
-        if (shouldRestore && sd?.data) {
+
+        // Only use server draft if no local draft and we are starting fresh
+        if (!rawLocal && initialEmpty && sd?.data) {
           const d = sd.data as any;
-          setDocNo(d.docNo ?? (initial?.docNo ?? docNo));
-          setDocDate(d.docDate ?? (initial?.docDate ?? docDate));
+          setDocNo(d.docNo ?? initial?.docNo ?? docNo);
+          setDocDate(d.docDate ?? initial?.docDate ?? docDate);
           setCustomerId(d.customerId ?? "");
           if (Array.isArray(d.items) && d.items.length > 0) setItems(d.items);
-          setRemarks(d.remarks ?? (initial?.remarks ?? ""));
-          setTerms(d.terms ?? (initial?.terms ?? terms));
+          setRemarks(d.remarks ?? initial?.remarks ?? "");
+          setTerms(d.terms ?? initial?.terms ?? terms);
           setServerDraftId(sd._id ?? null);
         } else if (sd && sd._id) {
-          // keep id so future updates use PUT
+          // just keep the ID for future updates
           setServerDraftId(sd._id);
         }
       } catch (err) {
@@ -346,7 +362,8 @@ export default function SalesDocShell({
               await updateDraft(serverDraftId, { data: payload.data });
             } else {
               const created = await createDraft(payload);
-              if (created && created._id) setServerDraftId(created._id as string);
+              if (created && created._id)
+                setServerDraftId(created._id as string);
             }
           } catch (err) {
             // network/save failed — ignore, local draft still exists
@@ -463,7 +480,8 @@ export default function SalesDocShell({
     // Resolve customer ID from initial.customer (handles {id}, {_id}, or missing)
     const resolvedCustomerId = (() => {
       if (!initial.customer) return "";
-      const custId = (initial.customer as any).id ?? (initial.customer as any)._id;
+      const custId =
+        (initial.customer as any).id ?? (initial.customer as any)._id;
       if (custId !== undefined && custId !== null) {
         const found = customers.find((c) => String(c._id) === String(custId));
         console.log("[SalesDocShell] Resolved customer:", found);
@@ -482,13 +500,16 @@ export default function SalesDocShell({
     if (initial.items && Array.isArray(initial.items)) {
       console.log("[SalesDocShell] Mapping initial.items:", initial.items);
       const mappedItems = (initial.items as LineItem[]).map((it) => {
-        const itemId = (it as any)._id ?? (it as any).id ?? (it as any).productId ?? "";
+        const itemId =
+          (it as any)._id ?? (it as any).id ?? (it as any).productId ?? "";
         const itemNameValue = it.itemName ?? (it as any).productName ?? "";
         // Find matching product by id or name
         const matchedProduct = products.find(
           (p) =>
             String(p._id) === String(itemId) ||
-            (itemNameValue && String(p.itemName).toLowerCase() === String(itemNameValue).toLowerCase())
+            (itemNameValue &&
+              String(p.itemName).toLowerCase() ===
+                String(itemNameValue).toLowerCase())
         );
         const resolvedId = matchedProduct?._id ?? itemId;
         console.log("[SalesDocShell] Item mapping:", {
@@ -505,7 +526,9 @@ export default function SalesDocShell({
           quantity: Number(it.quantity ?? 0),
           salesRate: Number(it.salesRate ?? (it as any).rate ?? 0),
           discount: it.discount ?? 0,
-          amount: Number(it.quantity ?? 0) * Number(it.salesRate ?? (it as any).rate ?? 0),
+          amount:
+            Number(it.quantity ?? 0) *
+            Number(it.salesRate ?? (it as any).rate ?? 0),
           price: it.salesRate ?? 0,
           color: it.color ?? "",
           openingStock: it.openingStock ?? 0,
@@ -519,14 +542,20 @@ export default function SalesDocShell({
       console.log("[SalesDocShell] Final mapped items:", mappedItems);
       setItems(mappedItems);
     } else if (initial.products && Array.isArray(initial.products)) {
-      console.log("[SalesDocShell] Mapping initial.products:", initial.products);
+      console.log(
+        "[SalesDocShell] Mapping initial.products:",
+        initial.products
+      );
       const mappedItems = (initial.products as LineItem[]).map((it) => {
-        const itemId = (it as any)._id ?? (it as any).id ?? (it as any).productId ?? "";
+        const itemId =
+          (it as any)._id ?? (it as any).id ?? (it as any).productId ?? "";
         const itemNameValue = it.itemName ?? (it as any).productName ?? "";
         const matchedProduct = products.find(
           (p) =>
             String(p._id) === String(itemId) ||
-            (itemNameValue && String(p.itemName).toLowerCase() === String(itemNameValue).toLowerCase())
+            (itemNameValue &&
+              String(p.itemName).toLowerCase() ===
+                String(itemNameValue).toLowerCase())
         );
         const resolvedId = matchedProduct?._id ?? itemId;
         console.log("[SalesDocShell] Product mapping:", {
@@ -543,7 +572,9 @@ export default function SalesDocShell({
           quantity: Number(it.quantity ?? 0),
           salesRate: Number(it.salesRate ?? (it as any).rate ?? 0),
           discount: it.discount ?? 0,
-          amount: Number(it.quantity ?? 0) * Number(it.salesRate ?? (it as any).rate ?? 0),
+          amount:
+            Number(it.quantity ?? 0) *
+            Number(it.salesRate ?? (it as any).rate ?? 0),
           price: it.salesRate ?? 0,
           color: it.color ?? "",
           openingStock: it.openingStock ?? 0,
@@ -631,7 +662,10 @@ export default function SalesDocShell({
     console.log("[SalesDocShell] Calling onSubmit with payload");
     const maybePromise = onSubmit?.(payload);
     // If onSubmit returns a promise, clear draft only on success. Always reset submitting state.
-    if (maybePromise && typeof (maybePromise as Promise<unknown>).then === "function") {
+    if (
+      maybePromise &&
+      typeof (maybePromise as Promise<unknown>).then === "function"
+    ) {
       (maybePromise as Promise<unknown>)
         .then(() => {
           clearDraft();
@@ -872,7 +906,10 @@ export default function SalesDocShell({
                 Add item
               </Button>
             </div>
-            <div className="app-table-wrapper" style={{ maxHeight: '40vh', overflow: 'auto' }}>
+            <div
+              className="app-table-wrapper"
+              style={{ maxHeight: "40vh", overflow: "auto" }}
+            >
               <LineItemsTable
                 items={items}
                 onChange={setItems}
@@ -979,9 +1016,11 @@ export default function SalesDocShell({
                   const rate = Number(it.salesRate || 0);
                   const gross = length * quantity * rate;
                   const discountPercent = Number(it.discount || 0);
-                  const discountAmount = Number(it.discountAmount || ((gross * discountPercent) / 100));
+                  const discountAmount = Number(
+                    it.discountAmount || (gross * discountPercent) / 100
+                  );
                   const net = gross - discountAmount;
-                  
+
                   return {
                     sr: idx + 1,
                     itemName: it.itemName || "",
@@ -1040,9 +1079,10 @@ export default function SalesDocShell({
                   const quantity = item.quantity ?? 0;
                   const rate = item.salesRate ?? 0;
                   const gross = length * quantity * rate;
-                  const discountAmount = item.discountAmount ?? item.discount ?? 0;
+                  const discountAmount =
+                    item.discountAmount ?? item.discount ?? 0;
                   const net = gross - discountAmount;
-                  
+
                   return {
                     itemName: item.itemName ?? "",
                     color: item.color ?? "",
