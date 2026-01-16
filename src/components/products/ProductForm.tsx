@@ -72,9 +72,6 @@ export function ProductForm({ product, onClose }: Props) {
           : Number(form.minimumStockLevel),
       description: form.description.trim() || "",
       brand: form.brand.trim() || "",
-      quantity:
-        form.openingStock === "" ? undefined : Number(form.openingStock), // Map openingStock to quantity for backend
-      discount: 0, // Required by InventoryItemPayload
     };
 
     try {
@@ -84,7 +81,7 @@ export function ProductForm({ product, onClose }: Props) {
         await updateInventoryItem(product._id, payload);
       } else {
         console.log("Creating new product");
-        await createInventoryItem(payload);
+        await createInventoryItem(payload as any);
       }
       onClose();
     } catch (error) {

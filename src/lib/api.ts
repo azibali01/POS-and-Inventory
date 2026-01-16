@@ -450,7 +450,7 @@ export interface InventoryItemPayload {
   totalNetAmount?: number;
   brand?: string;
   color?: string;
-  discount: number;
+  discount?: number;
   length?: number;
   amount?: number;
   openingStock?: number;
