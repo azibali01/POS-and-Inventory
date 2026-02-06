@@ -111,7 +111,7 @@ export default function CategoryPage() {
 
     if (catObj && (catObj.id || catObj._id)) {
       updateCategory(
-        { id: catObj.id || catObj._id, name: v },
+        { id: String(catObj.id || catObj._id), name: v },
         {
           onSuccess: () => {
             setRenameOpen(false);
@@ -142,7 +142,7 @@ export default function CategoryPage() {
     if (confirmTarget) {
       const catObj = categoryObjects.find((c: any) => c.name === confirmTarget);
       if (catObj && (catObj.id || catObj._id)) {
-        deleteCategory(catObj.id || catObj._id, {
+        deleteCategory(String(catObj.id || catObj._id), {
           onSuccess: () => {
             setConfirmOpen(false);
             setConfirmTarget(null);

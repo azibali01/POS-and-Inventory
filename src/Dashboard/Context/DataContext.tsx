@@ -833,7 +833,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       const created = await api.createCustomer(mappedPayload);
       const customer: Customer = {
         ...created,
-        _id: created._id,
+        _id: created._id ? String(created._id) : created.id ? String(created.id) : "",
       };
       setCustomers((prev) => [customer, ...prev]);
       showNotification({
@@ -874,7 +874,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
         const updated = await api.updateCustomer(String(id), mappedPayload);
         const customer: Customer = {
           ...updated,
-          id: updated.id ?? id,
+          _id: updated._id ? String(updated._id) : updated.id ? String(updated.id) : String(id),
         };
         setCustomers((prev) =>
           prev.map((c) => (String(c._id) === String(id) ? customer : c))
@@ -971,13 +971,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
           ? payloadCustomer
           : (payload as { customerName?: string })?.customerName || null;
 
-        const normalizedCustomer =
-          (created as { customer?: Array<{ name?: string }> })?.customer &&
-          (created as { customer?: Array<{ name?: string }> })?.customer?.length
-            ? (created as { customer: Array<{ name?: string }> }).customer
-            : inferredCustomerName
-            ? [{ name: inferredCustomerName }]
-            : [];
+        // Handle customer field - API returns CustomerPayload | null, normalize to array
+        const createdCustomer = (created as api.SaleRecordPayload).customer;
+        const normalizedCustomer = createdCustomer
+          ? [{ name: createdCustomer.name || inferredCustomerName || "" }]
+          : inferredCustomerName
+          ? [{ name: inferredCustomerName }]
+          : [];
 
         const sale = {
           ...created,

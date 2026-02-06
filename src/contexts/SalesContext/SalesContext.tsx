@@ -330,19 +330,20 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         logger.debug("Create sale response:", created);
 
         const payloadCustomer = (payload as { customer?: unknown })?.customer;
+
         const inferredCustomerName = Array.isArray(payloadCustomer)
           ? (payloadCustomer[0] as { name?: string })?.name
           : typeof payloadCustomer === "string"
           ? payloadCustomer
           : (payload as { customerName?: string })?.customerName || null;
 
-        const normalizedCustomer =
-          (created as { customer?: Array<{ name?: string }> })?.customer &&
-          (created as { customer?: Array<{ name?: string }> })?.customer?.length
-            ? (created as { customer: Array<{ name?: string }> }).customer
-            : inferredCustomerName
-            ? [{ name: inferredCustomerName }]
-            : [];
+        // Handle customer field - API returns CustomerPayload | null, normalize to array
+        const createdCustomer = (created as api.SaleRecordPayload).customer;
+        const normalizedCustomer = createdCustomer
+          ? [{ name: createdCustomer.name || inferredCustomerName || "" }]
+          : inferredCustomerName
+          ? [{ name: inferredCustomerName }]
+          : [];
 
         const sale = {
           ...created,
@@ -350,13 +351,14 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
             (created as { invoiceNumber?: string | number })?.invoiceNumber ??
             created.id ??
             `sale-${Date.now()}`,
-          customer: normalizedCustomer,
+          customer: normalizedCustomer as any,
           customerName:
             (Array.isArray(normalizedCustomer) &&
               (normalizedCustomer[0] as { name?: string })?.name) ||
             (created as { customerName?: string })?.customerName ||
             inferredCustomerName ||
             "",
+          date: (created as { invoiceDate?: string })?.invoiceDate || "",
         } as SaleRecord;
 
         setSales((prev) => [sale, ...prev]);
@@ -552,7 +554,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       const created = await api.createCustomer(mappedPayload);
       const customer: Customer = {
         ...created,
-        _id: created._id,
+        _id: created._id ? String(created._id) : created.id ? String(created.id) : "",
       };
       setCustomers((prev) => [customer, ...prev]);
       showNotification({
@@ -593,7 +595,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         const updated = await api.updateCustomer(String(id), mappedPayload);
         const customer: Customer = {
           ...updated,
-          id: updated.id ?? id,
+          _id: updated._id ? String(updated._id) : updated.id ? String(updated.id) : String(id),
         };
         setCustomers((prev) =>
           prev.map((c) => (String(c._id) === String(id) ? customer : c))

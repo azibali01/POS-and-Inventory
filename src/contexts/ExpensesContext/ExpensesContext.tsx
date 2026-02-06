@@ -70,7 +70,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     async (payload: Omit<Expense, "id" | "createdAt" | "expenseNumber">) => {
       setExpensesLoading(true);
       try {
-        const created = await api.createExpense(payload);
+        const created = await api.createExpense(payload as unknown as api.ExpensePayload);
         const expense = { ...created } as Expense;
         setExpenses((prev) => [expense, ...prev]);
         showNotification({
@@ -99,7 +99,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     async (id: string, payload: Partial<Expense>) => {
       setExpensesLoading(true);
       try {
-        const updated = await api.updateExpense(id, payload);
+        const updated = await api.updateExpense(id, payload as unknown as api.ExpensePayload);
         const expense = { ...updated } as Expense;
         setExpenses((prev) =>
           prev.map((e) => (String(e.id) === String(id) ? expense : e))

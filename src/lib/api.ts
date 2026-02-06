@@ -463,6 +463,8 @@ export interface InventoryItemPayload {
 }
 type paymentMethod = "Card" | "Cash";
 export interface SaleRecordPayload {
+  _id?: string | number;
+  id?: string | number;
   invoiceNumber?: string;
   invoiceDate?: string;
   products?: InventoryItemPayload[];
@@ -568,6 +570,8 @@ export type PurchaseLineItem = {
 export type PurchaseLineItems = PurchaseLineItem[];
 
 export interface PurchaseRecordPayload {
+  _id?: string | number;
+  id?: string | number;
   poNumber: string;
   poDate: Date;
   expectedDelivery?: Date;
@@ -613,6 +617,8 @@ export interface PurchaseReturnRecordPayload {
 }
 
 export interface ExpensePayload {
+  _id?: string | number;
+  id?: string | number;
   expenseNumber?: string;
   amount: number;
   date?: string | Date;
@@ -631,6 +637,7 @@ export interface ExpensePayload {
 }
 
 export interface CustomerPayload {
+  _id?: string | number;
   id?: string | number;
   name: string;
   phone?: string;
@@ -653,6 +660,7 @@ export interface ColorPayload {
 }
 
 export interface CategoryPayload {
+  _id?: string | number;
   id?: string | number;
   name: string;
   metadata?: Record<string, unknown>;

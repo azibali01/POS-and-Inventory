@@ -582,7 +582,7 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updatePurchaseFromReturn = useCallback(
-    (ret: PurchaseReturnRecord) => {
+    (_ret: PurchaseReturnRecord) => {
       // Placeholder logic
     },
     []
@@ -624,7 +624,7 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
   );
 
   const processPurchaseReturn = useCallback(
-    (ret: PurchaseReturnRecord) => {
+    (_ret: PurchaseReturnRecord) => {
       try {
         // Placeholder for return processing
       return { applied: true, message: "Processed" };

@@ -25,7 +25,6 @@ import {
 import type {
   ReceiptVoucherPayload,
   PaymentVoucherPayload,
-  SaleRecordPayload,
   PurchaseInvoicePayload,
 } from "../../../lib/api";
 
