@@ -8,6 +8,7 @@ import {
   Menu,
   ActionIcon,
 } from "@mantine/core";
+import { logger } from "../../../lib/logger";
 import { IconDotsVertical, IconEdit, IconPrinter } from "@tabler/icons-react";
 import SalesDocShell, {
   type SalesPayload,
@@ -28,7 +29,7 @@ export default function SaleReturnPage() {
 
   // Debug: log customers to check structure
   useEffect(() => {
-    console.log("[SaleReturn] customers:", customers);
+    logger.debug("[SaleReturn] customers:", customers);
   }, [customers]);
 
   // Ensure products (inventory) are loaded on mount
@@ -140,7 +141,7 @@ export default function SaleReturnPage() {
       metadata: { source: "sale-return" },
     };
     try {
-      console.log(
+      logger.debug(
         "[SaleReturn] apiPayload sent to backend:",
         JSON.stringify(apiPayload, null, 2)
       );
@@ -201,7 +202,7 @@ export default function SaleReturnPage() {
       .then((data) => {
         setReturns(Array.isArray(data) ? data : []);
       })
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); });
   }, []);
 
   return (
@@ -222,7 +223,7 @@ export default function SaleReturnPage() {
               type="text"
               placeholder="Search returns..."
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={(e) => { setQ(e.target.value); }}
               style={{
                 padding: 6,
                 width: 260,
@@ -230,7 +231,7 @@ export default function SaleReturnPage() {
                 borderRadius: 4,
               }}
             />
-            <Button onClick={() => setOpen(true)} variant="filled" size="sm">
+            <Button onClick={() => { setOpen(true); }} variant="filled" size="sm">
               + Add Sale Return
             </Button>
           </div>
@@ -238,7 +239,7 @@ export default function SaleReturnPage() {
         {/* Add Sale Return Modal */}
         <Modal
           opened={open && !initialPayload}
-          onClose={() => setOpen(false)}
+          onClose={() => { setOpen(false); }}
           title="Create Sale Return"
           size="100%"
         >
@@ -359,10 +360,10 @@ export default function SaleReturnPage() {
                   })();
 
                   const openForEdit = (sourceRet: any) => {
-                    console.log("[SaleReturn] Opening for edit:", sourceRet);
+                    logger.debug("[SaleReturn] Opening for edit:", sourceRet);
                     let retCustomer: any = null;
                     const custRef = sourceRet.customer;
-                    console.log("[SaleReturn] Customer ref:", custRef);
+                    logger.debug("[SaleReturn] Customer ref:", custRef);
                     if (Array.isArray(custRef)) {
                       const found = custRef.find((c: any) => c && (c.name || c._id || typeof c === 'string'));
                       if (found) {
@@ -379,9 +380,9 @@ export default function SaleReturnPage() {
                       const byId = customers.find((c) => String(c._id) === String(custRef) || String(c.name).toLowerCase() === String(custRef).toLowerCase());
                       retCustomer = byId ? { id: byId._id, name: byId.name } : { id: custRef, name: custRef };
                     }
-                    console.log("[SaleReturn] Resolved customer:", retCustomer);
-                    console.log("[SaleReturn] Source products:", sourceRet.products);
-                    console.log("[SaleReturn] Available inventory:", inventory);
+                    logger.debug("[SaleReturn] Resolved customer:", retCustomer);
+                    logger.debug("[SaleReturn] Source products:", sourceRet.products);
+                    logger.debug("[SaleReturn] Available inventory:", inventory);
                     setEditPayload({
                       docNo: sourceRet.invoiceNumber || "",
                       docDate: sourceRet.invoiceDate || "",
@@ -393,7 +394,7 @@ export default function SaleReturnPage() {
                             String(p._id) === String(item._id) ||
                             String(p.itemName).toLowerCase().trim() === String(item.itemName ?? "").toLowerCase().trim()
                         );
-                        console.log("[SaleReturn] Mapping item:", {
+                        logger.debug("[SaleReturn] Mapping item:", {
                           itemId: item._id,
                           itemName: item.itemName,
                           foundInInventory: inventoryProduct?.itemName,
@@ -436,7 +437,7 @@ export default function SaleReturnPage() {
                           }
                         : undefined,
                     });
-                    console.log("[SaleReturn] Final edit payload:", {
+                    logger.debug("[SaleReturn] Final edit payload:", {
                       docNo: sourceRet.invoiceNumber,
                       customer: retCustomer,
                       itemsCount: sourceRet.products?.length,
@@ -446,7 +447,7 @@ export default function SaleReturnPage() {
                   };
 
                   return (
-                    <Table.Tr key={ret.invoiceNumber ?? idx} onDoubleClick={() => openForEdit(ret)} style={{ cursor: 'pointer' }}>
+                    <Table.Tr key={ret.invoiceNumber ?? idx} onDoubleClick={() => { openForEdit(ret); }} style={{ cursor: 'pointer' }}>
                       <Table.Td>{ret.invoiceNumber}</Table.Td>
                       <Table.Td>{ret.invoiceDate ? new Date(ret.invoiceDate).toLocaleDateString() : ""}</Table.Td>
                       <Table.Td>{displayCustomerName}</Table.Td>
@@ -457,7 +458,7 @@ export default function SaleReturnPage() {
                             <ActionIcon variant="subtle"><IconDotsVertical /></ActionIcon>
                           </Menu.Target>
                           <Menu.Dropdown>
-                            <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => openForEdit(ret)}>Edit</Menu.Item>
+                            <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => { openForEdit(ret); }}>Edit</Menu.Item>
                             <Menu.Item leftSection={<IconPrinter size={16} />} onClick={() => { /* Print if needed */ }}>Print</Menu.Item>
                             <Menu.Item color="red" onClick={() => { setDeleteTarget(ret.invoiceNumber ?? ""); setDeleteModalOpen(true); }}>Delete</Menu.Item>
                           </Menu.Dropdown>

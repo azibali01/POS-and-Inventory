@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useMemo, useEffect } from "react";
+import { logger } from "../../../lib/logger";
 import {
   Modal,
 
@@ -400,16 +401,16 @@ export default function SaleInvoice() {
           <div style={{ display: "flex", gap: 8, alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: 8 }}>
               <Button
-                onClick={() => setImportOpen(true)}
+                onClick={() => { setImportOpen(true); }}
                 variant="filled"
                 size="sm"
               >
                 Import from Quotation
               </Button>
-              <Button onClick={() => setOpen(true)} variant="filled" size="sm">
+              <Button onClick={() => { setOpen(true); }} variant="filled" size="sm">
                 + Add Sale Invoice
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setDraftsOpen(true)}>
+              <Button variant="outline" size="sm" onClick={() => { setDraftsOpen(true); }}>
                 Saved Drafts
               </Button>
             </div>
@@ -448,14 +449,14 @@ export default function SaleInvoice() {
                     let dateObj: Date;
                     if (sales && sales.length > 0) {
                       // Find the latest invoice date
-                      const latest = sales.reduce((max: Date | null, s) => {
+                      const latest = sales.reduce<Date | null>((max: Date | null, s) => {
                         const d = s.invoiceDate
                           ? new Date(s.invoiceDate)
                           : s.date
                           ? new Date(s.date)
                           : null;
                         return d && (!max || d > max) ? d : max;
-                      }, null as Date | null);
+                      }, null);
                       dateObj = latest ? latest : new Date();
                     } else {
                       dateObj = new Date();
@@ -495,7 +496,7 @@ export default function SaleInvoice() {
           </div>
         </Modal>
 
-        <Modal opened={draftsOpen} onClose={() => setDraftsOpen(false)} title="Saved Drafts" size="lg">
+        <Modal opened={draftsOpen} onClose={() => { setDraftsOpen(false); }} title="Saved Drafts" size="lg">
           <SavedDraftsPanel
             mode="Invoice"
             onRestore={(data) => {
@@ -872,7 +873,7 @@ export default function SaleInvoice() {
       {/* Import Quotation Modal */}
       <Modal
         opened={importOpen}
-        onClose={() => setImportOpen(false)}
+        onClose={() => { setImportOpen(false); }}
         title="Import from Quotation"
         size="100%"
       >
@@ -883,7 +884,7 @@ export default function SaleInvoice() {
               type="text"
               placeholder="Search by Quotation Number..."
               value={importQuotationSearch || ""}
-              onChange={(e) => setImportQuotationSearch(e.target.value)}
+              onChange={(e) => { setImportQuotationSearch(e.target.value); }}
               style={{
                 padding: 6,
                 width: 260,
@@ -912,7 +913,7 @@ export default function SaleInvoice() {
                     <div style={{ color: "#666" }}>
                       Date: {" "}
                       {q.quotationDate
-                        ? new Date(q.quotationDate as string).toLocaleDateString()
+                        ? new Date(q.quotationDate).toLocaleDateString()
                         : "-"}
                       {"validUntil" in q && q.validUntil
                         ? typeof q.validUntil === "string" ||
@@ -990,7 +991,7 @@ export default function SaleInvoice() {
                       });
                       const apiPayload: SalesPayload = {
                         docNo: q.quotationNumber ?? `Quotation ${idx + 1}`,
-                        docDate: q.quotationDate ? new Date(q.quotationDate as string).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+                        docDate: q.quotationDate ? new Date(q.quotationDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
                         mode: "Invoice",
                         items,
                         totals: {
@@ -1005,7 +1006,7 @@ export default function SaleInvoice() {
                         terms: "",
                         customer: cust ?? undefined,
                       };
-                      console.log("Importing quotation as SalePayload:", apiPayload);
+                      logger.debug("Importing quotation as SalePayload:", apiPayload);
                       setInitialPayload(apiPayload);
                       setOpen(true);
                       setImportOpen(false);
@@ -1023,7 +1024,7 @@ export default function SaleInvoice() {
       {/* Delete Confirmation Modal */}
       <Modal
         opened={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
+        onClose={() => { setDeleteModalOpen(false); }}
         title="Confirm Deletion"
       >
         <Box p="md">
@@ -1047,7 +1048,7 @@ export default function SaleInvoice() {
             >
               Delete Invoice
             </Button>
-            <Button variant="outline" onClick={() => setDeleteModalOpen(false)}>
+            <Button variant="outline" onClick={() => { setDeleteModalOpen(false); }}>
               Cancel
             </Button>
           </div>

@@ -229,7 +229,7 @@ export default function ProfitLoss() {
             type="date"
             label="From Date"
             value={fromDate}
-            onChange={(e) => setFromDate(e.currentTarget.value)}
+            onChange={(e) => { setFromDate(e.currentTarget.value); }}
             mx={8}
             style={{ minWidth: 140 }}
           />
@@ -237,7 +237,7 @@ export default function ProfitLoss() {
             type="date"
             label="To Date"
             value={toDate}
-            onChange={(e) => setToDate(e.currentTarget.value)}
+            onChange={(e) => { setToDate(e.currentTarget.value); }}
             mx={8}
             style={{ minWidth: 140 }}
           />
@@ -415,7 +415,7 @@ export default function ProfitLoss() {
 
       <Modal
         opened={viewerOpen}
-        onClose={() => setViewerOpen(false)}
+        onClose={() => { setViewerOpen(false); }}
         size="90%"
       >
         {viewerKind === "sale" && viewerData ? (

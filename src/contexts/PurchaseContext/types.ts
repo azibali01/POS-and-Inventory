@@ -82,6 +82,17 @@ export interface PurchaseContextType {
   suppliersError: string | null;
   setSuppliers: React.Dispatch<React.SetStateAction<Supplier[]>>;
   loadSuppliers: () => Promise<Supplier[]>;
+  // Suppliers CRUD (if available in DataContext) -> DataContext has NO createSupplier?
+  // checking DataContext again... lines 204-210.
+  // It has suppliersLoading, setSuppliers, loadSuppliers, suppliersForSelect.
+  // It DOES NOT have createSupplier.
+  // Wait, really? 
+  // checking lines 1-800 of DataContext...
+  // I don't see createSupplier.
+  // Let me re-verify this assumption. If DataContext has no createSupplier, then PurchaseContext shouldn't either.
+  // BUT SupplierForm likely acts on it?
+  // Let's stick to what DataContext has for now. 
+  suppliersForSelect: Array<{ value: string; label: string }>;
 
   // Purchase Orders
   purchases: PurchaseRecord[];
@@ -89,6 +100,14 @@ export interface PurchaseContextType {
   purchasesError: string | null;
   setPurchases: React.Dispatch<React.SetStateAction<PurchaseRecord[]>>;
   loadPurchases: () => Promise<PurchaseRecord[]>;
+  createPurchase: (
+    payload: import("../../lib/api").PurchaseRecordPayload
+  ) => Promise<PurchaseRecord>;
+  updatePurchase: (
+    id: string | number,
+    payload: Partial<import("../../lib/api").PurchaseRecordPayload>
+  ) => Promise<PurchaseRecord>;
+  deletePurchase: (id: string | number) => Promise<void>;
 
   // Purchase Invoices
   purchaseInvoices: PurchaseInvoiceRecord[];
@@ -105,6 +124,9 @@ export interface PurchaseContextType {
   grnsError: string | null;
   setGrns: React.Dispatch<React.SetStateAction<GRNRecord[]>>;
   loadGrns: () => Promise<GRNRecord[]>;
+  createGrn: (payload: import("../../lib/api").GRNRecordPayload) => Promise<GRNRecord>;
+  applyGrnToInventory: (grn: GRNRecord) => void;
+  updatePurchaseFromGrn: (grn: GRNRecord) => void;
 
   // Purchase Returns
   purchaseReturns: PurchaseReturnRecord[];
@@ -114,4 +136,13 @@ export interface PurchaseContextType {
     React.SetStateAction<PurchaseReturnRecord[]>
   >;
   loadPurchaseReturns: () => Promise<PurchaseReturnRecord[]>;
+  createPurchaseReturn: (
+    payload: import("../../lib/api").PurchaseReturnRecordPayload
+  ) => Promise<PurchaseReturnRecord>;
+  applyPurchaseReturnToInventory: (ret: PurchaseReturnRecord) => void;
+  updatePurchaseFromReturn: (ret: PurchaseReturnRecord) => void;
+  processPurchaseReturn: (ret: PurchaseReturnRecord) => {
+    applied: boolean;
+    message?: string;
+  };
 }

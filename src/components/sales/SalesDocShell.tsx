@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
+import { logger } from "../../lib/logger";
 import {
   Card,
   TextInput,
@@ -32,7 +33,7 @@ function generateId() {
     return typeof crypto !== "undefined" &&
       typeof (crypto as Crypto & { randomUUID?: () => string }).randomUUID ===
         "function"
-      ? (crypto as Crypto & { randomUUID?: () => string }).randomUUID!()
+      ? (crypto as Crypto & { randomUUID?: () => string }).randomUUID()
       : Math.random().toString(36).slice(2);
   } catch {
     return Math.random().toString(36).slice(2);
@@ -162,7 +163,7 @@ export default function SalesDocShell({
         ) : null;
       }
       setItems(
-        (initial.items as LineItem[]).map((it) => ({
+        (initial.items).map((it) => ({
           _id:
             (it as any)._id ??
             (it as any).id ??
@@ -305,7 +306,7 @@ export default function SalesDocShell({
 
         // Only use server draft if no local draft and we are starting fresh
         if (!rawLocal && initialEmpty && sd?.data) {
-          const d = sd.data as any;
+          const d = sd.data;
           setDocNo(d.docNo ?? initial?.docNo ?? docNo);
           setDocDate(d.docDate ?? initial?.docDate ?? docDate);
           setCustomerId(d.customerId ?? "");
@@ -363,7 +364,7 @@ export default function SalesDocShell({
             } else {
               const created = await createDraft(payload);
               if (created && created._id)
-                setServerDraftId(created._id as string);
+                setServerDraftId(created._id);
             }
           } catch (err) {
             // network/save failed — ignore, local draft still exists
@@ -466,9 +467,9 @@ export default function SalesDocShell({
   // sync the relevant fields into local state so the form is pre-filled.
   useEffect(() => {
     if (!initial) return;
-    console.log("[SalesDocShell] Syncing initial payload:", initial);
-    console.log("[SalesDocShell] Available customers:", customers);
-    console.log("[SalesDocShell] Available products:", products);
+    logger.debug("[SalesDocShell] Syncing initial payload:", initial);
+    logger.debug("[SalesDocShell] Available customers:", customers);
+    logger.debug("[SalesDocShell] Available products:", products);
     // Only update all local state when initial changes
     setDocNo(initial.docNo ?? "");
     setDocDate(
@@ -484,13 +485,13 @@ export default function SalesDocShell({
         (initial.customer as any).id ?? (initial.customer as any)._id;
       if (custId !== undefined && custId !== null) {
         const found = customers.find((c) => String(c._id) === String(custId));
-        console.log("[SalesDocShell] Resolved customer:", found);
+        logger.debug("[SalesDocShell] Resolved customer:", found);
         return found ? String(found._id) : "";
       }
       return "";
     })();
     setCustomerId(resolvedCustomerId);
-    console.log("[SalesDocShell] Set customerId to:", resolvedCustomerId);
+    logger.debug("[SalesDocShell] Set customerId to:", resolvedCustomerId);
     setRemarks(typeof initial.remarks === "string" ? initial.remarks : "");
     setTerms(
       typeof initial.terms === "string"
@@ -498,8 +499,8 @@ export default function SalesDocShell({
         : "Prices valid for 15 days.\nPayment terms: Due on receipt."
     );
     if (initial.items && Array.isArray(initial.items)) {
-      console.log("[SalesDocShell] Mapping initial.items:", initial.items);
-      const mappedItems = (initial.items as LineItem[]).map((it) => {
+      logger.debug("[SalesDocShell] Mapping initial.items:", initial.items);
+      const mappedItems = (initial.items).map((it) => {
         const itemId =
           (it as any)._id ?? (it as any).id ?? (it as any).productId ?? "";
         const itemNameValue = it.itemName ?? (it as any).productName ?? "";
@@ -512,7 +513,7 @@ export default function SalesDocShell({
                 String(itemNameValue).toLowerCase())
         );
         const resolvedId = matchedProduct?._id ?? itemId;
-        console.log("[SalesDocShell] Item mapping:", {
+        logger.debug("[SalesDocShell] Item mapping:", {
           itemId,
           itemNameValue,
           matchedProduct: matchedProduct?.itemName,
@@ -539,10 +540,10 @@ export default function SalesDocShell({
           discountAmount: it.discountAmount ?? 0,
         };
       });
-      console.log("[SalesDocShell] Final mapped items:", mappedItems);
+      logger.debug("[SalesDocShell] Final mapped items:", mappedItems);
       setItems(mappedItems);
     } else if (initial.products && Array.isArray(initial.products)) {
-      console.log(
+      logger.debug(
         "[SalesDocShell] Mapping initial.products:",
         initial.products
       );
@@ -558,7 +559,7 @@ export default function SalesDocShell({
                 String(itemNameValue).toLowerCase())
         );
         const resolvedId = matchedProduct?._id ?? itemId;
-        console.log("[SalesDocShell] Product mapping:", {
+        logger.debug("[SalesDocShell] Product mapping:", {
           itemId,
           itemNameValue,
           matchedProduct: matchedProduct?.itemName,
@@ -585,7 +586,7 @@ export default function SalesDocShell({
           discountAmount: it.discountAmount ?? 0,
         };
       });
-      console.log("[SalesDocShell] Final mapped products:", mappedItems);
+      logger.debug("[SalesDocShell] Final mapped products:", mappedItems);
       setItems(mappedItems);
     } else {
       setItems([
@@ -612,10 +613,10 @@ export default function SalesDocShell({
   const [submitLocked, setSubmitLocked] = useState(false);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    console.log("=== SalesDocShell handleSubmit called ===");
+    logger.debug("=== SalesDocShell handleSubmit called ===");
     e.preventDefault();
     if (submitting || submitLocked || saveDisabled) {
-      console.log("Submit blocked:", {
+      logger.debug("Submit blocked:", {
         submitting,
         submitLocked,
         saveDisabled,
@@ -657,9 +658,9 @@ export default function SalesDocShell({
       remarks,
       terms,
     };
-    console.log("[SalesDocShell] selectedCustomer:", selectedCustomer);
-    console.log("[SalesDocShell] payload:", payload);
-    console.log("[SalesDocShell] Calling onSubmit with payload");
+    logger.debug("[SalesDocShell] selectedCustomer:", selectedCustomer);
+    logger.debug("[SalesDocShell] payload:", payload);
+    logger.debug("[SalesDocShell] Calling onSubmit with payload");
     const maybePromise = onSubmit?.(payload);
     // If onSubmit returns a promise, clear draft only on success. Always reset submitting state.
     if (
@@ -715,7 +716,7 @@ export default function SalesDocShell({
               <TextInput
                 id="docNo"
                 value={docNo}
-                onChange={(e) => setDocNo(e.target.value)}
+                onChange={(e) => { setDocNo(e.target.value); }}
                 placeholder={`${mode === "Quotation" ? "QUO" : "INV"}-2025-001`}
               />
             </div>
@@ -727,7 +728,7 @@ export default function SalesDocShell({
                 id="docDate"
                 type="date"
                 value={docDate}
-                onChange={(e) => setDocDate(e.target.value)}
+                onChange={(e) => { setDocDate(e.target.value); }}
               />
             </div>
             {mode === "Quotation" ? (
@@ -764,7 +765,7 @@ export default function SalesDocShell({
               </Text>
               <Select
                 value={String(customerId)}
-                onChange={(v) => setCustomerId(String(v ?? ""))}
+                onChange={(v) => { setCustomerId(String(v ?? "")); }}
                 data={customers
                   .filter((c) => c._id && c.name)
                   .map((c) => ({
@@ -881,7 +882,7 @@ export default function SalesDocShell({
                 size="xs"
                 variant="outline"
                 onClick={() =>
-                  setItems((prev) => [
+                  { setItems((prev) => [
                     ...prev,
                     {
                       invoiceNumber: generateId(),
@@ -900,7 +901,7 @@ export default function SalesDocShell({
                       totalNetAmount: 0,
                       discountAmount: 0,
                     },
-                  ])
+                  ]); }
                 }
               >
                 Add item
@@ -932,7 +933,7 @@ export default function SalesDocShell({
               </Text>
               <Textarea
                 value={remarks}
-                onChange={(e) => setRemarks(e.currentTarget.value)}
+                onChange={(e) => { setRemarks(e.currentTarget.value); }}
                 minRows={3}
                 placeholder="Additional notes"
               />
@@ -1055,7 +1056,7 @@ export default function SalesDocShell({
               };
               openPrintWindow(data);
             } catch (err) {
-              console.error("Failed to open print preview", err);
+              logger.error("Failed to open print preview", err);
               window.print();
             }
           }}
@@ -1112,7 +1113,7 @@ export default function SalesDocShell({
                 printWindow.document.close();
               }
             } catch (err) {
-              console.error("Failed to open gate pass print", err);
+              logger.error("Failed to open gate pass print", err);
             }
           }}
         >
@@ -1122,10 +1123,10 @@ export default function SalesDocShell({
           type="submit"
           disabled={saveDisabled || submitting}
           onClick={() =>
-            console.log("=== Save button clicked ===", {
+            { logger.debug("=== Save button clicked ===", {
               saveDisabled,
               submitting,
-            })
+            }); }
           }
         >
           Save {mode}

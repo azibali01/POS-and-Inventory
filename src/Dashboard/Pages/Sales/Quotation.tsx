@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { logger } from "../../../lib/logger";
 import {
   Box,
   Button,
@@ -139,8 +140,8 @@ function Quotation() {
           ) === qNum
       );
 
-      if (toDelete && (toDelete as QuotationRecordPayload).quotationNumber) {
-        qNum = String((toDelete as QuotationRecordPayload).quotationNumber);
+      if (toDelete && (toDelete).quotationNumber) {
+        qNum = String((toDelete).quotationNumber);
       } else if (toDelete && (toDelete as any).quotationNumber) {
         qNum = String((toDelete as any).quotationNumber);
       }
@@ -188,7 +189,7 @@ function Quotation() {
   // form state for creating quotation
 
   // Only show actual quotations, not sales invoices
-  const quotes = (quotations || []) as QuotationRecordPayload[];
+  const quotes = (quotations || []);
 
   // Generate next human-friendly quotation number like Quo-0001
   function generateNextQuotationNumber(
@@ -249,7 +250,7 @@ function Quotation() {
           : typeof q.customer === "string"
           ? q.customer
           : ""
-      ) as string;
+      );
 
     return {
       title: "Quotation",
@@ -361,23 +362,23 @@ function Quotation() {
 
   // Save from SalesDocShell: create or update depending on editingId
   async function saveFromShell(payload: SalesPayload) {
-    console.log("=== saveFromShell called ===");
-    console.log("Payload:", payload);
-    console.log("Creating state:", creating);
+    logger.debug("=== saveFromShell called ===");
+    logger.debug("Payload:", payload);
+    logger.debug("Creating state:", creating);
     if (creating) return; // Prevent concurrent submissions
     // build customer object and validate
-    console.log("Payload customer:", payload.customer);
-    console.log("Available customers:", customers);
+    logger.debug("Payload customer:", payload.customer);
+    logger.debug("Available customers:", customers);
 
     let cust;
     if (typeof payload.customer === "object" && payload.customer !== null) {
       // payload.customer is already a customer object
       cust = payload.customer;
-      console.log("Using customer object directly:", cust);
+      logger.debug("Using customer object directly:", cust);
     } else {
       // payload.customer is an ID, find the full customer object
       cust = customers.find((c) => String(c._id) === String(payload.customer));
-      console.log("Found customer by ID:", cust);
+      logger.debug("Found customer by ID:", cust);
     }
     if (!cust) {
       showNotification({
@@ -519,7 +520,7 @@ function Quotation() {
         if (typeof setQuotations === "function") {
           setQuotations((prev) =>
             prev.map((s) =>
-              String((s as QuotationRecordPayload).quotationNumber) === qNum ||
+              String((s).quotationNumber) === qNum ||
               String(
                 (s as QuotationRecordPayload & { docNo?: string }).docNo
               ) === qNum ||
@@ -539,7 +540,7 @@ function Quotation() {
         });
       } else {
         const created = await createQuotation(
-          apiPayload as QuotationRecordPayload
+          apiPayload
         );
         if (created) {
           // Replace the temp row with server-provided record (match by quotationNumber)
@@ -580,7 +581,7 @@ function Quotation() {
           setQuotations((prev) =>
             prev.filter(
               (r) =>
-                String((r as QuotationRecordPayload).quotationNumber) !== tempId
+                String((r).quotationNumber) !== tempId
             )
           );
         }
@@ -608,7 +609,7 @@ function Quotation() {
     if (q && q.customer) {
       if (Array.isArray(q.customer) && q.customer[0]) {
         resolvedCustomerId =
-          (q.customer[0] as CustomerPayload).id ??
+          (q.customer[0]).id ??
           (q.customer[0] as any).customerId ??
           (q.customer[0] as any).name ??
           undefined;
@@ -628,7 +629,7 @@ function Quotation() {
 
     setInitialPayload({
       docNo: existingNumber,
-      docDate: (q.quotationDate ?? "") as string,
+      docDate: (q.quotationDate ?? ""),
       customer:
         Array.isArray(q.customer) && q.customer.length > 0
           ? { name: q.customer[0]?.name ?? String(q.customer[0]) }
@@ -732,7 +733,7 @@ function Quotation() {
               variant="outline"
               size="sm"
               ml={8}
-              onClick={() => setDraftsOpen(true)}
+              onClick={() => { setDraftsOpen(true); }}
             >
               Saved Drafts
             </Button>
@@ -774,7 +775,7 @@ function Quotation() {
                     (q.quotationDate ??
                       q.quotationDate ??
                       (q as QuotationRecordPayload & { docDate?: string })
-                        ?.docDate)) as string | undefined;
+                        ?.docDate));
                   const amountVal = Number(
                     q?.subTotal ??
                       q?.totalGrossAmount ??
@@ -833,7 +834,7 @@ function Quotation() {
                   return (
                     <Table.Tr
                       key={rowKey}
-                      onDoubleClick={() => openQuotationInEditor(q)}
+                      onDoubleClick={() => { openQuotationInEditor(q); }}
                       style={{ cursor: "pointer" }}
                     >
                       <Table.Td>{String(displayNumber ?? "-")}</Table.Td>
@@ -893,7 +894,7 @@ function Quotation() {
                               </Menu.Item>
 
                               <Menu.Item
-                                onClick={() => openQuotationInEditor(q)}
+                                onClick={() => { openQuotationInEditor(q); }}
                                 leftSection={<IconEdit size={14} />}
                               >
                                 Edit
@@ -903,7 +904,7 @@ function Quotation() {
                                 onClick={() => {
                                   const id =
                                     q.quotationNumber ??
-                                    (q as QuotationRecordPayload)
+                                    (q)
                                       .quotationNumber ??
                                     (
                                       q as QuotationRecordPayload & {
@@ -916,7 +917,7 @@ function Quotation() {
                                   setDeleteTargetDisplay(
                                     String(
                                       q.quotationNumber ??
-                                        (q as QuotationRecordPayload)
+                                        (q)
                                           .quotationNumber ??
                                         displayNumber ??
                                         id
@@ -1005,7 +1006,7 @@ function Quotation() {
             submitting={creating}
             setSubmitting={setCreating}
             onSubmit={(payload: SalesPayload) => {
-              console.log("=== Quotation onSubmit called ===");
+              logger.debug("=== Quotation onSubmit called ===");
               // Don't close modal immediately - let saveFromShell handle it
               saveFromShell(payload);
             }}
@@ -1017,7 +1018,7 @@ function Quotation() {
       {/* Delete confirmation modal OUTSIDE main modal */}
       <Modal
         opened={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
+        onClose={() => { setDeleteModalOpen(false); }}
         title="Confirm delete"
         centered
         size="xs"
@@ -1036,7 +1037,7 @@ function Quotation() {
               marginTop: 12,
             }}
           >
-            <Button variant="default" onClick={() => setDeleteModalOpen(false)}>
+            <Button variant="default" onClick={() => { setDeleteModalOpen(false); }}>
               Cancel
             </Button>
             <Button color="red" onClick={confirmDelete}>
@@ -1047,7 +1048,7 @@ function Quotation() {
       </Modal>
       <Modal
         opened={draftsOpen}
-        onClose={() => setDraftsOpen(false)}
+        onClose={() => { setDraftsOpen(false); }}
         title="Saved Drafts"
         size="lg"
       >

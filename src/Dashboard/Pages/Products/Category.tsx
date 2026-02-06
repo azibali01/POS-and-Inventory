@@ -104,7 +104,7 @@ export default function CategoryPage() {
         message: "New name required",
         color: "yellow",
       });
-    if (oldName === v) return setRenameOpen(false);
+    if (oldName === v) { setRenameOpen(false); return; }
 
     // Find the category object to update
     const catObj = categoryObjects.find((c: any) => c.name === oldName);
@@ -230,7 +230,7 @@ export default function CategoryPage() {
                     </ActionIcon>
                     <ActionIcon
                       variant="subtle"
-                      onClick={() => handleDelete(name)}
+                      onClick={() => { handleDelete(name); }}
                     >
                       <IconTrash size={18} color="red" />
                     </ActionIcon>
@@ -271,10 +271,10 @@ export default function CategoryPage() {
         <TextInput
           placeholder="Category name"
           value={addValue}
-          onChange={(e) => setAddValue(e.currentTarget.value)}
+          onChange={(e) => { setAddValue(e.currentTarget.value); }}
         />
         <Group justify="flex-end" mt="md">
-          <Button onClick={() => setAddOpen(false)} variant="default">
+          <Button onClick={() => { setAddOpen(false); }} variant="default">
             Cancel
           </Button>
           <Button onClick={handleAdd} loading={isCreating}>
@@ -294,10 +294,10 @@ export default function CategoryPage() {
         <TextInput
           placeholder="New name"
           value={renameValue}
-          onChange={(e) => setRenameValue(e.currentTarget.value)}
+          onChange={(e) => { setRenameValue(e.currentTarget.value); }}
         />
         <Group justify="flex-end" mt="md">
-          <Button onClick={() => setRenameOpen(false)} variant="default">
+          <Button onClick={() => { setRenameOpen(false); }} variant="default">
             Cancel
           </Button>
           <Button

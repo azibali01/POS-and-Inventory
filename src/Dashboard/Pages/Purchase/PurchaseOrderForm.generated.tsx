@@ -61,7 +61,7 @@ export function PurchaseOrderForm({
     if (!initialValues?.expectedDelivery) return "";
     const ed = initialValues.expectedDelivery as unknown;
     if (typeof ed === "string") {
-      return (ed as string).slice(0, 10);
+      return (ed).slice(0, 10);
     }
     if (ed instanceof Date) {
       return ed.toISOString().slice(0, 10);
@@ -228,7 +228,7 @@ export function PurchaseOrderForm({
                 type="date"
                 value={poDate}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setPoDate(e.target.value)
+                  { setPoDate(e.target.value); }
                 }
               />
             </div>
@@ -239,7 +239,7 @@ export function PurchaseOrderForm({
                 type="date"
                 value={expectedDelivery}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setExpectedDelivery(e.target.value)
+                  { setExpectedDelivery(e.target.value); }
                 }
               />
             </div>
@@ -256,7 +256,7 @@ export function PurchaseOrderForm({
                   label: `${s.name} — ${s.city}`,
                 }))}
                 value={supplierId || ""}
-                onChange={(v) => setSupplierId(v || "")}
+                onChange={(v) => { setSupplierId(v || ""); }}
                 placeholder={
                   suppliers.length === 0
                     ? "No suppliers found"
@@ -366,7 +366,7 @@ export function PurchaseOrderForm({
                 variant="subtle"
                 size="sm"
                 onClick={() =>
-                  setProducts((prev) => [
+                  { setProducts((prev) => [
                     ...prev,
                     {
                       id: crypto.randomUUID(),
@@ -385,7 +385,7 @@ export function PurchaseOrderForm({
                       length: 0,
                       amount: 0,
                     },
-                  ])
+                  ]); }
                 }
               >
                 + Add Row
@@ -499,13 +499,13 @@ export function PurchaseOrderForm({
                             }))}
                             value={it.color || ""}
                             onChange={(v) =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? { ...row, color: v || "" }
                                     : row
                                 )
-                              )
+                              ); }
                             }
                           />
                         </Table.Td>
@@ -513,13 +513,13 @@ export function PurchaseOrderForm({
                           <TextInput
                             value={it.thickness || ""}
                             onChange={(e) =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? { ...row, thickness: e.target.value || "" }
                                     : row
                                 )
-                              )
+                              ); }
                             }
                             placeholder="Thickness"
                           />
@@ -528,13 +528,13 @@ export function PurchaseOrderForm({
                           <TextInput
                             value={String(it.length || "")}
                             onChange={(e) =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? { ...row, length: e.target.value || "" }
                                     : row
                                 )
-                              )
+                              ); }
                             }
                             placeholder="Length"
                           />
@@ -543,7 +543,7 @@ export function PurchaseOrderForm({
                           <NumberInput
                             value={it.quantity === 0 ? "" : it.quantity}
                             onChange={(v) =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? {
@@ -552,7 +552,7 @@ export function PurchaseOrderForm({
                                       }
                                     : row
                                 )
-                              )
+                              ); }
                             }
                             min={1}
                             hideControls
@@ -562,7 +562,7 @@ export function PurchaseOrderForm({
                           <NumberInput
                             value={it.rate === 0 ? "" : it.rate}
                             onChange={(v) =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? {
@@ -571,7 +571,7 @@ export function PurchaseOrderForm({
                                       }
                                     : row
                                 )
-                              )
+                              ); }
                             }
                             hideControls
                             min={0}
@@ -584,9 +584,9 @@ export function PurchaseOrderForm({
                           <Button
                             variant="subtle"
                             onClick={() =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.filter((r) => r.id !== it.id)
-                              )
+                              ); }
                             }
                           >
                             <Trash2 size={14} />
@@ -605,7 +605,7 @@ export function PurchaseOrderForm({
             <Textarea
               value={remarks}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                setRemarks(e.target.value)
+                { setRemarks(e.target.value); }
               }
               minRows={3}
             />
@@ -638,7 +638,7 @@ export function PurchaseOrderForm({
       </Card>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <Button type="button" variant="outline" onClick={() => window.print()}>
+        <Button type="button" variant="outline" onClick={() => { window.print(); }}>
           Print
         </Button>
         <Button type="submit" onClick={handleSubmit}>

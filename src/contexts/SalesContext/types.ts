@@ -88,4 +88,22 @@ export interface SalesContextType {
   customersError: string | null;
   setCustomers: React.Dispatch<React.SetStateAction<Customer[]>>;
   loadCustomers: () => Promise<Customer[]>;
+  createCustomer: (payload: CustomerInput) => Promise<Customer>;
+  updateCustomer: (
+    id: string | number,
+    payload: Partial<CustomerInput>
+  ) => Promise<Customer>;
+  deleteCustomer: (id: string | number) => Promise<void>;
+
+  // Sales CRUD
+  createSale: (
+    payload: import("../../lib/api").SaleRecordPayload | SaleRecord
+  ) => Promise<SaleRecord>;
+  updateSale: (
+    invoiceNumber: string | number,
+    payload: Partial<import("../../lib/api").SaleRecordPayload>
+  ) => Promise<SaleRecord>;
+  deleteSale: (invoiceNumber: string | number) => Promise<void>;
 }
+
+export type CustomerInput = Omit<Customer, "_id" | "createdAt">;

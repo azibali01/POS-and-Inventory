@@ -120,7 +120,7 @@ const Login = () => {
               <Stack gap="md">
                 <TextInput
                   value={email}
-                  onChange={(event) => setEmail(event.currentTarget.value)}
+                  onChange={(event) => { setEmail(event.currentTarget.value); }}
                   label="Email Address"
                   placeholder="your.email@example.com"
                   size="md"
@@ -149,7 +149,7 @@ const Login = () => {
 
                 <PasswordInput
                   value={password}
-                  onChange={(event) => setPassword(event.currentTarget.value)}
+                  onChange={(event) => { setPassword(event.currentTarget.value); }}
                   label="Password"
                   placeholder="Enter your password"
                   size="md"

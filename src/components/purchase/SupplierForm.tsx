@@ -85,14 +85,14 @@ export default function SupplierForm({
   return (
     <Modal
       opened={open}
-      onClose={() => close(false)}
+      onClose={() => { close(false); }}
       title={initial?._id ? <strong>Edit Supplier</strong> : "Add Supplier"}
     >
       <div style={{ display: "grid", gap: 12 }}>
         <TextInput
           label="Name"
           value={String(form.name ?? "")}
-          onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+          onChange={(e) => { setForm({ ...form, name: e.currentTarget.value }); }}
         />
 
         <div
@@ -101,19 +101,19 @@ export default function SupplierForm({
           <TextInput
             label="Phone"
             value={String(form.phone ?? "")}
-            onChange={(e) => setForm({ ...form, phone: e.currentTarget.value })}
+            onChange={(e) => { setForm({ ...form, phone: e.currentTarget.value }); }}
           />
           <TextInput
             label="Email"
             value={String(form.email ?? "")}
-            onChange={(e) => setForm({ ...form, email: e.currentTarget.value })}
+            onChange={(e) => { setForm({ ...form, email: e.currentTarget.value }); }}
           />
         </div>
 
         <TextInput
           label="Address"
           value={String(form.address ?? "")}
-          onChange={(e) => setForm({ ...form, address: e.currentTarget.value })}
+          onChange={(e) => { setForm({ ...form, address: e.currentTarget.value }); }}
         />
 
         <div
@@ -122,7 +122,7 @@ export default function SupplierForm({
           <TextInput
             label="City"
             value={String(form.city ?? "")}
-            onChange={(e) => setForm({ ...form, city: e.currentTarget.value })}
+            onChange={(e) => { setForm({ ...form, city: e.currentTarget.value }); }}
           />
         </div>
 
@@ -163,7 +163,7 @@ export default function SupplierForm({
         </div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-          <Button variant="outline" onClick={() => close(false)}>
+          <Button variant="outline" onClick={() => { close(false); }}>
             Cancel
           </Button>
           <Button onClick={handleSave}>Save Supplier</Button>

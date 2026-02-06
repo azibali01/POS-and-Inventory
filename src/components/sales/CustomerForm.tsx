@@ -115,13 +115,13 @@ export function CustomerForm({
           label="Name"
           required
           value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+          onChange={(e) => { setForm({ ...form, name: e.currentTarget.value }); }}
           placeholder="Customer name"
         />
         <TextInput
           label="Phone"
           value={form.phone}
-          onChange={(e) => setForm({ ...form, phone: e.currentTarget.value })}
+          onChange={(e) => { setForm({ ...form, phone: e.currentTarget.value }); }}
           placeholder="+92 ..."
         />
       </Group>
@@ -130,13 +130,13 @@ export function CustomerForm({
         label="Address"
         minRows={2}
         value={form.address}
-        onChange={(e) => setForm({ ...form, address: e.currentTarget.value })}
+        onChange={(e) => { setForm({ ...form, address: e.currentTarget.value }); }}
       />
 
       <TextInput
         label="City"
         value={form.city}
-        onChange={(e) => setForm({ ...form, city: e.currentTarget.value })}
+        onChange={(e) => { setForm({ ...form, city: e.currentTarget.value }); }}
       />
 
       <Group grow>
@@ -161,7 +161,7 @@ export function CustomerForm({
             { value: "Debit", label: "Debit" },
           ]}
           onChange={(v) =>
-            setPaymentType((v as "Credit" | "Debit") || "Credit")
+            { setPaymentType((v as "Credit" | "Debit") || "Credit"); }
           }
           style={{ width: 150 }}
         />
@@ -169,7 +169,7 @@ export function CustomerForm({
           label="Credit Limit"
           value={form.creditLimit}
           onChange={(value: number | string) =>
-            setForm({ ...form, creditLimit: Number(value) || 0 })
+            { setForm({ ...form, creditLimit: Number(value) || 0 }); }
           }
           hideControls
         />

@@ -40,11 +40,11 @@ function Tr(props: React.HTMLAttributes<HTMLTableRowElement>) {
   return <tr {...props} />;
 }
 
-function Th(props: React.ThHTMLAttributes<HTMLTableHeaderCellElement>) {
+function Th(props: React.ThHTMLAttributes<HTMLTableCellElement>) {
   return <th {...props} />;
 }
 
-function Td(props: React.TdHTMLAttributes<HTMLTableDataCellElement>) {
+function Td(props: React.TdHTMLAttributes<HTMLTableCellElement>) {
   return <td {...props} />;
 }
 

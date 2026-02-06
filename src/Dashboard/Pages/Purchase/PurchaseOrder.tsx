@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { logger } from "../../../lib/logger";
 import {
   Modal,
   Button,
@@ -79,8 +80,8 @@ export default function PurchaseOrdersPage() {
   }
   // Update data from purchases and suppliers
   useEffect(() => {
-    console.log("[PO] Processing purchases:", purchases);
-    console.log("[PO] Available suppliers:", suppliers);
+    logger.debug("[PO] Processing purchases:", purchases);
+    logger.debug("[PO] Available suppliers:", suppliers);
     setData(
       (purchases || []).map((p) => {
         let expectedDeliveryDate: Date | undefined = undefined;
@@ -131,7 +132,7 @@ export default function PurchaseOrdersPage() {
           supplier = p.supplier as any;
         }
         
-        console.log("[PO] Resolved supplier for", p.poNumber, ":", supplier);
+        logger.debug("[PO] Resolved supplier for", p.poNumber, ":", supplier);
         let total = typeof p.total === "number" ? p.total : 0;
         if (!total && Array.isArray(p.products)) {
           total = p.products.reduce(
@@ -196,8 +197,8 @@ export default function PurchaseOrdersPage() {
     try {
       // Resolve supplier from supplierId
       const supplier = suppliers?.find((s) => String(s._id) === String(payload.supplierId));
-      console.log("[PO] Saving with supplier:", supplier);
-      console.log("[PO] Payload:", payload);
+      logger.debug("[PO] Saving with supplier:", supplier);
+      logger.debug("[PO] Payload:", payload);
       
       const purchasePayload = {
         poNumber: payload.poNumber,
@@ -216,7 +217,7 @@ export default function PurchaseOrdersPage() {
           api.updatePurchaseByNumber(editPO.poNumber, purchasePayload)
         );
         
-        console.log("[PO] Update response:", updatedPO);
+        logger.debug("[PO] Update response:", updatedPO);
         
         // Update local state immediately
         setData((prev) =>
@@ -314,11 +315,11 @@ export default function PurchaseOrdersPage() {
       // Reload in background to sync with server
       if (loadPurchases) {
         loadPurchases().catch((err) => {
-          console.error("[PO] Failed to reload purchases:", err);
+          logger.error("[PO] Failed to reload purchases:", err);
         });
       }
     } catch (err) {
-      console.error("[PO] Save error:", err);
+      logger.error("[PO] Save error:", err);
       showNotification({
         title: "Error",
         message: err instanceof Error ? err.message : "Failed to save purchase order",
@@ -365,13 +366,13 @@ export default function PurchaseOrdersPage() {
           <TextInput
             placeholder="Search PO number or supplier"
             value={q}
-            onChange={(e) => setQ(e.currentTarget.value)}
+            onChange={(e) => { setQ(e.currentTarget.value); }}
             style={{ width: 300 }}
             leftSection={<Search size={16} />}
           />
           
           
-          <Button onClick={() => setOpen(true)}
+          <Button onClick={() => { setOpen(true); }}
             leftSection={<IconPlus size={16} />}
           >
             Create PO
@@ -466,7 +467,7 @@ export default function PurchaseOrdersPage() {
                       >
                         Print
                       </Menu.Item>
-                      <Menu.Item color="red" onClick={() => setDeletePO(o)} leftSection={<IconTrash size={16} />}>
+                      <Menu.Item color="red" onClick={() => { setDeletePO(o); }} leftSection={<IconTrash size={16} />}>
                         Delete
                       </Menu.Item>
                     </Menu.Dropdown>
@@ -478,7 +479,7 @@ export default function PurchaseOrdersPage() {
       </Table>
       <Modal
         opened={!!deletePO}
-        onClose={() => setDeletePO(null)}
+        onClose={() => { setDeletePO(null); }}
         title="Confirm Delete"
         centered
         withCloseButton
@@ -490,7 +491,7 @@ export default function PurchaseOrdersPage() {
         <Group justify="right" mt="md">
           <Button
             variant="default"
-            onClick={() => setDeletePO(null)}
+            onClick={() => { setDeletePO(null); }}
             disabled={deleteLoading}
             style={{ color: '#222', backgroundColor: '#f3f3f3', border: '1px solid #ccc' }}
             aria-label="Cancel Delete PO"
@@ -503,10 +504,10 @@ export default function PurchaseOrdersPage() {
             onClick={async () => {
               if (!deletePO) return;
               setDeleteLoading(true);
-              console.log("[PO] Deleting:", deletePO.poNumber);
+              logger.debug("[PO] Deleting:", deletePO.poNumber);
               try {
                 const result = await deletePurchaseByNumber(deletePO.poNumber);
-                console.log("[PO] Delete response:", result);
+                logger.debug("[PO] Delete response:", result);
                 
                 // Remove from local state
                 setData((prev) =>
@@ -526,11 +527,11 @@ export default function PurchaseOrdersPage() {
                 // Reload in background
                 if (loadPurchases) {
                   loadPurchases().catch((err) => {
-                    console.error("[PO] Failed to reload after delete:", err);
+                    logger.error("[PO] Failed to reload after delete:", err);
                   });
                 }
               } catch (err) {
-                console.error("[PO] Delete error:", err);
+                logger.error("[PO] Delete error:", err);
                 let msg = "Failed to delete purchase order.";
                 if (
                   err &&

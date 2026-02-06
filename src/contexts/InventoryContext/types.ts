@@ -46,6 +46,14 @@ export interface InventoryContextType {
   inventoryError: string | null;
   setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
   loadInventory: () => Promise<InventoryItem[]>;
+  createInventory: (
+    payload: import("../../lib/api").InventoryItemPayload
+  ) => Promise<InventoryItem>;
+  updateInventory: (
+    id: string,
+    payload: Partial<import("../../lib/api").InventoryItemPayload>
+  ) => Promise<InventoryItem>;
+  deleteInventory: (id: string) => Promise<void>;
 
   // Categories
   categories: Category[];
@@ -53,6 +61,11 @@ export interface InventoryContextType {
   categoriesError: string | null;
   setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
   loadCategories: () => Promise<Category[]>;
+  createCategory: (
+    payload: Omit<Category, "id"> | { name: string }
+  ) => Promise<Category>;
+  updateCategory: (id: string | number, payload: Partial<Category>) => Promise<Category>;
+  deleteCategory: (id: string | number) => Promise<void>;
 
   // Colors
   colors: Color[];
@@ -60,4 +73,7 @@ export interface InventoryContextType {
   colorsError: string | null;
   setColors: React.Dispatch<React.SetStateAction<Color[]>>;
   loadColors: () => Promise<Color[]>;
+  createColor: (payload: { name: string; hex?: string }) => Promise<Color>;
+  updateColor: (id: string, payload: Partial<Color>) => Promise<Color>;
+  deleteColor: (id: string) => Promise<void>;
 }

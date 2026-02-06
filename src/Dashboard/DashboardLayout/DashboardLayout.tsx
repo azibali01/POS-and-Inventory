@@ -308,7 +308,7 @@ export default function DashboardLayout() {
           <TextInput
             placeholder="Search pages..."
             value={search}
-            onChange={(e) => setSearch(e.currentTarget.value)}
+            onChange={(e) => { setSearch(e.currentTarget.value); }}
             mb="md"
             size="sm"
             styles={{ input: { borderRadius: 8 } }}

@@ -90,7 +90,7 @@ export function PaymentVoucherForm({
   return (
     <Modal
       opened={open}
-      onClose={() => onOpenChange(false)}
+      onClose={() => { onOpenChange(false); }}
       title="Payment Voucher"
       centered
     >
@@ -115,7 +115,7 @@ export function PaymentVoucherForm({
               : form.values.voucherDate.toISOString().slice(0, 10)
           }
           onChange={(event) =>
-            form.setFieldValue("voucherDate", event.currentTarget.value)
+            { form.setFieldValue("voucherDate", event.currentTarget.value); }
           }
           required
         />
@@ -153,7 +153,7 @@ export function PaymentVoucherForm({
           {...form.getInputProps("remarks")}
         />
         <Group justify="flex-end" mt="md">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => { onOpenChange(false); }}>
             Cancel
           </Button>
           <Button type="submit">Save</Button>

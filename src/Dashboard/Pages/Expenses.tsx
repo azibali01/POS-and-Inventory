@@ -91,7 +91,7 @@ export default function ExpensesPage() {
     setDeletingId(expenseNumber);
     try {
       deleteExpense(id, {
-        onSettled: () => setDeletingId(null),
+        onSettled: () => { setDeletingId(null); },
       });
     } catch (err) {
       setDeletingId(null);
@@ -119,10 +119,10 @@ export default function ExpensesPage() {
         <TextInput
           placeholder="Search expenses..."
           value={q}
-          onChange={(e) => setQ((e.target as HTMLInputElement)?.value ?? "")}
+          onChange={(e) => { setQ((e.target as HTMLInputElement)?.value ?? ""); }}
           style={{ flex: 1, maxWidth: 420 }}
         />
-        <Button leftSection={<Plus />} onClick={() => setOpen(true)}>
+        <Button leftSection={<Plus />} onClick={() => { setOpen(true); }}>
           Add Expense
         </Button>
       </Group>
@@ -216,7 +216,7 @@ export default function ExpensesPage() {
       {editing && (
         <EditExpenseDialogMantine
           expense={editing}
-          onClose={() => setEditing(null)}
+          onClose={() => { setEditing(null); }}
           onSave={(patch) => {
             const id = editing.id || editing._id;
             if (id) {
@@ -300,14 +300,14 @@ function AddExpenseDialogMantine({
   return (
     <Modal
       opened={open}
-      onClose={() => onOpenChange(false)}
+      onClose={() => { onOpenChange(false); }}
       title="Add Expense"
     >
       <TextInput
         label="Expense No"
         value={expenseNumber}
         onChange={(e) =>
-          setExpenseNumber((e.target as HTMLInputElement)?.value ?? "")
+          { setExpenseNumber((e.target as HTMLInputElement)?.value ?? ""); }
         }
         placeholder="EXP-2025-001"
       />
@@ -320,7 +320,7 @@ function AddExpenseDialogMantine({
         type="date"
         value={expenseDate}
         onChange={(e) =>
-          setExpenseDate((e.target as HTMLInputElement)?.value ?? "")
+          { setExpenseDate((e.target as HTMLInputElement)?.value ?? ""); }
         }
       />
       {errors.expenseDate && (
@@ -331,14 +331,14 @@ function AddExpenseDialogMantine({
         label="Category"
         data={categories.map((c) => ({ value: c, label: c }))}
         value={category}
-        onChange={(v) => setCategory(v ?? categories[0])}
+        onChange={(v) => { setCategory(v ?? categories[0]); }}
       />
 
       <TextInput
         label="Description"
         value={description}
         onChange={(e) =>
-          setDescription((e.target as HTMLInputElement)?.value ?? "")
+          { setDescription((e.target as HTMLInputElement)?.value ?? ""); }
         }
       />
 
@@ -346,13 +346,13 @@ function AddExpenseDialogMantine({
         label="Amount"
         value={amount}
         onChange={(v) =>
-          setAmount(
+          { setAmount(
             typeof v === "number"
               ? v
               : v === "" || v == null
               ? undefined
               : Number(v)
-          )
+          ); }
         }
         hideControls
       />
@@ -362,26 +362,26 @@ function AddExpenseDialogMantine({
         label="Payment Method"
         data={["Cash", "Card"].map((v) => ({ value: v, label: v }))}
         value={paymentMethod}
-        onChange={(v) => setPaymentMethod(v as ExpenseType["paymentMethod"])}
+        onChange={(v) => { setPaymentMethod(v as ExpenseType["paymentMethod"]); }}
       />
 
       <TextInput
         label="Reference"
         value={reference}
         onChange={(e) =>
-          setReference((e.target as HTMLInputElement)?.value ?? "")
+          { setReference((e.target as HTMLInputElement)?.value ?? ""); }
         }
       />
       <TextInput
         label="Remarks"
         value={remarks}
         onChange={(e) =>
-          setRemarks((e.target as HTMLInputElement)?.value ?? "")
+          { setRemarks((e.target as HTMLInputElement)?.value ?? ""); }
         }
       />
 
       <Group justify="flex-end" mt="md">
-        <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <Button variant="outline" onClick={() => { onOpenChange(false); }}>
           Cancel
         </Button>
         <Button
@@ -425,10 +425,10 @@ function EditExpenseDialogMantine({
         label="Expense No"
         value={String(payload.expenseNumber ?? "")}
         onChange={(e) =>
-          setPayload((p: Partial<ExpenseType>) => ({
+          { setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             expenseNumber: (e.target as HTMLInputElement)?.value ?? "",
-          }))
+          })); }
         }
       />
       <TextInput
@@ -436,10 +436,10 @@ function EditExpenseDialogMantine({
         type="date"
         value={String(payload.date ?? "").slice(0, 10)}
         onChange={(e) =>
-          setPayload((p: Partial<ExpenseType>) => ({
+          { setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             date: (e.target as HTMLInputElement)?.value ?? "",
-          }))
+          })); }
         }
       />
       <Select
@@ -447,24 +447,24 @@ function EditExpenseDialogMantine({
         data={categories.map((c) => ({ value: c, label: c }))}
         value={String(payload.categoryType ?? categories[0])}
         onChange={(v) =>
-          setPayload((p) => ({ ...p, categoryType: v ?? undefined }))
+          { setPayload((p) => ({ ...p, categoryType: v ?? undefined })); }
         }
       />
       <TextInput
         label="Description"
         value={String(payload.description ?? "")}
         onChange={(e) =>
-          setPayload((p: Partial<ExpenseType>) => ({
+          { setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             description: (e.target as HTMLInputElement)?.value ?? "",
-          }))
+          })); }
         }
       />
       <NumberInput
         label="Amount"
         value={Number(payload.amount ?? 0)}
         onChange={(v) =>
-          setPayload((p: Partial<ExpenseType>) => ({ ...p, amount: Number(v) }))
+          { setPayload((p: Partial<ExpenseType>) => ({ ...p, amount: Number(v) })); }
         }
         hideControls
       />
@@ -473,37 +473,37 @@ function EditExpenseDialogMantine({
         data={["Cash", "Card"].map((v) => ({ value: v, label: v }))}
         value={String(payload.paymentMethod ?? "Cash")}
         onChange={(v) =>
-          setPayload((p: Partial<ExpenseType>) => ({
+          { setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             paymentMethod: v as ExpenseType["paymentMethod"],
-          }))
+          })); }
         }
       />
       <TextInput
         label="Reference"
         value={String(payload.reference ?? "")}
         onChange={(e) =>
-          setPayload((p: Partial<ExpenseType>) => ({
+          { setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             reference: (e.target as HTMLInputElement)?.value ?? "",
-          }))
+          })); }
         }
       />
       <TextInput
         label="Remarks"
         value={String(payload.remarks ?? "")}
         onChange={(e) =>
-          setPayload((p: Partial<ExpenseType>) => ({
+          { setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             remarks: (e.target as HTMLInputElement)?.value ?? "",
-          }))
+          })); }
         }
       />
       <Group justify="flex-end" mt="md">
         <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={() => onSave(payload)}>Save</Button>
+        <Button onClick={() => { onSave(payload); }}>Save</Button>
       </Group>
     </Modal>
   );

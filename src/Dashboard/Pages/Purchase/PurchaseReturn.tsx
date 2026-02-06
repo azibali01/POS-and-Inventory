@@ -70,7 +70,7 @@ export default function PurchaseReturnPage() {
                   typeof r.returnNumber === "string"
                     ? r.returnNumber
                     : String(r.returnNumber ?? r.id ?? ""),
-                returnDate: r.returnDate ?? (r as any).date ?? "",
+                returnDate: r.returnDate ?? (r).date ?? "",
                 subtotal: r.subtotal ?? r.total ?? 0,
                 total: r.total ?? r.subtotal ?? 0,
                 // Normalize supplier: if backend sent an object, store the name string as well
@@ -222,12 +222,12 @@ export default function PurchaseReturnPage() {
           <TextInput
             placeholder="Search returns..."
             value={q}
-            onChange={(e) => setQ(e.currentTarget.value)}
+            onChange={(e) => { setQ(e.currentTarget.value); }}
             style={{ width: 300 }}
             leftSection={<Search size={16} />}
           />
           <Button
-            onClick={() => setOpen(true)}
+            onClick={() => { setOpen(true); }}
             leftSection={<IconPlus size={16} />}
           >
             New Return
@@ -296,7 +296,7 @@ export default function PurchaseReturnPage() {
                     tabIndex={0}
                     aria-label={`Return ${r.returnNumber} for ${r.supplier}`}
                     onDoubleClick={() => {
-                      const full = (fetchedReturns ?? purchaseReturns ?? []).find((x) => x.id === r.id) as PurchaseReturnRecord | undefined;
+                      const full = (fetchedReturns ?? purchaseReturns ?? []).find((x) => x.id === r.id);
                       if (full) setEditReturn(full);
                     }}
                     style={{ cursor: 'pointer' }}
@@ -326,9 +326,7 @@ export default function PurchaseReturnPage() {
                                 fetchedReturns ??
                                 purchaseReturns ??
                                 []
-                              ).find((x) => x.id === r.id) as
-                                | PurchaseReturnRecord
-                                | undefined;
+                              ).find((x) => x.id === r.id);
                               if (full) setEditReturn(full);
                             }}
                             aria-label={`Edit return ${r.returnNumber}`}
@@ -342,9 +340,7 @@ export default function PurchaseReturnPage() {
                                 fetchedReturns ??
                                 purchaseReturns ??
                                 []
-                              ).find((x) => x.id === r.id) as
-                                | PurchaseReturnRecord
-                                | undefined;
+                              ).find((x) => x.id === r.id);
                               const items = (full?.items || [])
                                 .filter(
                                   (it) =>
@@ -409,7 +405,7 @@ export default function PurchaseReturnPage() {
       {/* ===== Shared Delete Confirmation Modal (moved outside map) ===== */}
       <Modal
         opened={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
+        onClose={() => { setDeleteTarget(null); }}
         size="sm"
         title="Confirm Delete"
         overlayProps={{ opacity: 0, blur: 0 }}
@@ -429,7 +425,7 @@ export default function PurchaseReturnPage() {
               marginTop: 16,
             }}
           >
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+            <Button variant="outline" onClick={() => { setDeleteTarget(null); }}>
               Cancel
             </Button>
             <Button
@@ -473,11 +469,11 @@ export default function PurchaseReturnPage() {
         </div>
       </Modal>
 
-      <Modal opened={open} onClose={() => setOpen(false)} size="80%">
+      <Modal opened={open} onClose={() => { setOpen(false); }} size="80%">
         <ReturnForm
           purchases={purchases}
           suppliers={suppliers}
-          onClose={() => setOpen(false)}
+          onClose={() => { setOpen(false); }}
           onSave={handleReturnSave}
           setOpen={setOpen}
           existingReturns={fetchedReturns ?? purchaseReturns}
@@ -486,14 +482,14 @@ export default function PurchaseReturnPage() {
       {/* Edit Modal */}
       <Modal
         opened={!!editReturn}
-        onClose={() => setEditReturn(null)}
+        onClose={() => { setEditReturn(null); }}
         size="80%"
       >
         {editReturn && (
           <ReturnForm
             purchases={purchases}
             suppliers={suppliers}
-            onClose={() => setEditReturn(null)}
+            onClose={() => { setEditReturn(null); }}
             onSave={handleEditSave}
             initialValues={editReturn}
             existingReturns={fetchedReturns ?? purchaseReturns}
@@ -644,7 +640,7 @@ function ReturnForm({
   useEffect(() => {
     if (poOptions.length > 0) {
       if (!poOptions.some((opt) => opt.value === linkedPoId)) {
-        setLinkedPoId(poOptions[0]!.value);
+        setLinkedPoId(poOptions[0].value);
       }
     } else if (linkedPoId !== "") {
       setLinkedPoId("");
@@ -654,7 +650,7 @@ function ReturnForm({
   useEffect(() => {
     if (supplierOptions.length > 0) {
       if (!supplierOptions.some((opt) => opt.value === supplierId)) {
-        setSupplierId(supplierOptions[0]!.value);
+        setSupplierId(supplierOptions[0].value);
       }
     } else if (supplierId !== "") {
       setSupplierId("");
@@ -909,7 +905,7 @@ function ReturnForm({
             id="returnDate"
             type="date"
             value={returnDate}
-            onChange={(e) => setReturnDate(e.currentTarget.value)}
+            onChange={(e) => { setReturnDate(e.currentTarget.value); }}
             aria-label="Return Date"
           />
         </div>
@@ -963,7 +959,7 @@ function ReturnForm({
           <Textarea
             id="reason"
             value={reason}
-            onChange={(e) => setReason(e.currentTarget.value)}
+            onChange={(e) => { setReason(e.currentTarget.value); }}
             minRows={3}
             aria-label="Return Reason"
           />
@@ -1006,7 +1002,7 @@ function ReturnForm({
       </div>
       <Modal
         opened={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
+        onClose={() => { setConfirmOpen(false); }}
         size="sm"
       >
         <div style={{ padding: 12 }}>
@@ -1023,7 +1019,7 @@ function ReturnForm({
               marginTop: 12,
             }}
           >
-            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+            <Button variant="outline" onClick={() => { setConfirmOpen(false); }}>
               Cancel
             </Button>
             <Button onClick={handleConfirmSave}>Confirm</Button>

@@ -178,7 +178,7 @@ export default function StockLedger() {
             label="Select Product"
             placeholder="Choose a product"
             value={selectedProductId}
-            onChange={(val) => setSelectedProductId(val || "")}
+            onChange={(val) => { setSelectedProductId(val || ""); }}
             data={inventory.map((p) => ({
               value: String(p._id),
               label: `${p.itemName} - ${p.category || ""} (${p.color || ""})`,
@@ -190,14 +190,14 @@ export default function StockLedger() {
             type="date"
             label="From Date"
             value={fromDate}
-            onChange={(e) => setFromDate(e.currentTarget.value)}
+            onChange={(e) => { setFromDate(e.currentTarget.value); }}
             style={{ minWidth: 140 }}
           />
           <TextInput
             type="date"
             label="To Date"
             value={toDate}
-            onChange={(e) => setToDate(e.currentTarget.value)}
+            onChange={(e) => { setToDate(e.currentTarget.value); }}
             style={{ minWidth: 140 }}
           />
           <Button

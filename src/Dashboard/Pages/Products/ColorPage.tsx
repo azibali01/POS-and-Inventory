@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { useState, useMemo, useEffect } from "react";
 import {
   Title,
@@ -157,7 +157,7 @@ export default function ColorPage() {
         <div>
           <Button
             leftSection={<IconPlus />}
-            onClick={() => handleOpenModal()}
+            onClick={() => { handleOpenModal(); }}
           >
             Add Color
           </Button>
@@ -193,13 +193,13 @@ export default function ColorPage() {
                     <Group justify="flex-end">
                       <ActionIcon
                         variant="subtle"
-                        onClick={() => handleOpenModal(color)}
+                        onClick={() => { handleOpenModal(color); }}
                       >
                         <IconEdit size={18} />
                       </ActionIcon>
                       <ActionIcon
                         variant="subtle"
-                        onClick={() => handleDeleteClick(color)}
+                        onClick={() => { handleDeleteClick(color); }}
                       >
                         <IconTrash size={18} color="red" />
                       </ActionIcon>
@@ -242,7 +242,7 @@ export default function ColorPage() {
           placeholder="Enter color name"
           required
           value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+          onChange={(e) => { setForm({ ...form, name: e.currentTarget.value }); }}
           mb="sm"
         />
         <Textarea
@@ -250,7 +250,7 @@ export default function ColorPage() {
           placeholder="Optional description"
           value={form.description}
           onChange={(e) =>
-            setForm({ ...form, description: e.currentTarget.value })
+            { setForm({ ...form, description: e.currentTarget.value }); }
           }
           rows={3}
           mb="md"
@@ -268,7 +268,7 @@ export default function ColorPage() {
       {/* Delete Confirmation Modal */}
       <Modal
         opened={deleteModalOpened}
-        onClose={() => setDeleteModalOpened(false)}
+        onClose={() => { setDeleteModalOpened(false); }}
         title="Delete Color"
         size="sm"
       >
@@ -279,7 +279,7 @@ export default function ColorPage() {
         <Group justify="flex-end">
           <Button
             variant="default"
-            onClick={() => setDeleteModalOpened(false)}
+            onClick={() => { setDeleteModalOpened(false); }}
           >
             Cancel
           </Button>

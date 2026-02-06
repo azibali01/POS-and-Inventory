@@ -22,7 +22,7 @@ interface EnvConfig {
  * Get environment variable with fallback
  */
 function getEnvVar(key: string, defaultValue: string = ""): string {
-  return import.meta.env[key] ?? defaultValue;
+  return (import.meta.env[key] as string | undefined) ?? defaultValue;
 }
 
 /**
@@ -60,9 +60,7 @@ function buildEnvConfig(): EnvConfig {
     ),
 
     // Environment
-    NODE_ENV:
-      (import.meta.env.MODE as "development" | "production" | "test") ||
-      "development",
+    NODE_ENV: import.meta.env.MODE as "development" | "production" | "test",
     IS_DEV: isDev,
     IS_PROD: isProd,
 

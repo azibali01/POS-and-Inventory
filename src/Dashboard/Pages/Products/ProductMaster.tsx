@@ -179,14 +179,14 @@ export default function ProductMaster() {
           <div>
             <Button
               leftSection={<IconPlus />}
-              onClick={() => setIsAddOpen(true)}
+              onClick={() => { setIsAddOpen(true); }}
             >
               Add Product
             </Button>
             <Button
               ml={8}
               variant="outline"
-              onClick={() => setIsUploadOpen(true)}
+              onClick={() => { setIsUploadOpen(true); }}
               style={{ marginLeft: 8 }}
             >
               Upload Rates
@@ -220,7 +220,7 @@ export default function ProductMaster() {
             <TextInput
               placeholder="Search products..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.currentTarget.value)}
+              onChange={(e) => { setSearchTerm(e.currentTarget.value); }}
               leftSection={<IconSearch size={16} />}
               style={{ flex: 1 }}
             />
@@ -233,7 +233,7 @@ export default function ProductMaster() {
                   label: c.label,
                 }))}
               value={selectedCategory ?? undefined}
-              onChange={(v) => setSelectedCategory(v ?? null)}
+              onChange={(v) => { setSelectedCategory(v ?? null); }}
               clearable
               style={{ width: 250 }}
             />
@@ -287,7 +287,7 @@ export default function ProductMaster() {
                     <Badge
                       size="sm"
                       style={{ cursor: "pointer" }}
-                      onClick={() => setSelectedCategory(p.category || null)}
+                      onClick={() => { setSelectedCategory(p.category || null); }}
                     >
                       {p.category}
                     </Badge>
@@ -332,7 +332,7 @@ export default function ProductMaster() {
                         variant="subtle"
                         leftSection={<IconTrash size={18} />}
                         color="red"
-                        onClick={() => handleDeleteRequest(String(p._id))}
+                        onClick={() => { handleDeleteRequest(String(p._id)); }}
                       />
                     </Group>
                   </Table.Td>
@@ -356,7 +356,7 @@ export default function ProductMaster() {
 
       <Modal
         opened={isViewOpen}
-        onClose={() => setIsViewOpen(false)}
+        onClose={() => { setIsViewOpen(false); }}
         title="Product Details"
         size={"70%"}
       >
@@ -369,25 +369,25 @@ export default function ProductMaster() {
 
       <Modal
         opened={isEditOpen}
-        onClose={() => setIsEditOpen(false)}
+        onClose={() => { setIsEditOpen(false); }}
         title="Edit Product"
         size={"70%"}
       >
         {selectedProduct && (
           <ProductForm
             product={selectedProduct}
-            onClose={() => setIsEditOpen(false)}
+            onClose={() => { setIsEditOpen(false); }}
           />
         )}
       </Modal>
 
       <Modal
         opened={isAddOpen}
-        onClose={() => setIsAddOpen(false)}
+        onClose={() => { setIsAddOpen(false); }}
         title={<strong>Add Product</strong>}
         size={"70%"}
       >
-        <ProductForm onClose={() => setIsAddOpen(false)} />
+        <ProductForm onClose={() => { setIsAddOpen(false); }} />
       </Modal>
 
       <Modal
@@ -405,7 +405,7 @@ export default function ProductMaster() {
             type="file"
             accept=".csv, .xlsx, .xls, .pdf"
             onChange={(e) =>
-              setUploadFile(e.target.files ? e.target.files[0] : null)
+              { setUploadFile(e.target.files ? e.target.files[0] : null); }
             }
           />
 
@@ -484,7 +484,7 @@ export default function ProductMaster() {
                         <Checkbox
                           checked={!!r.selected}
                           onChange={(e) =>
-                            setUploadPreview((prev) =>
+                            { setUploadPreview((prev) =>
                               prev
                                 ? prev.map((row, i) =>
                                     i === idx
@@ -495,7 +495,7 @@ export default function ProductMaster() {
                                       : row
                                   )
                                 : prev
-                            )
+                            ); }
                           }
                         />
                       </Table.Td>
@@ -630,7 +630,7 @@ export default function ProductMaster() {
       {/* Review modal */}
       <Modal
         opened={isReviewOpen}
-        onClose={() => setIsReviewOpen(false)}
+        onClose={() => { setIsReviewOpen(false); }}
         title="Review changes"
         size="70%"
       >
@@ -705,7 +705,7 @@ export default function ProductMaster() {
                     <Checkbox
                       checked={!!r.include}
                       onChange={(e) =>
-                        setReviewRows((prev) =>
+                        { setReviewRows((prev) =>
                           prev
                             ? prev.map((row, idx) =>
                                 idx === i
@@ -713,7 +713,7 @@ export default function ProductMaster() {
                                   : row
                               )
                             : prev
-                        )
+                        ); }
                       }
                     />
                   </Table.Td>
@@ -756,12 +756,12 @@ export default function ProductMaster() {
                 setUploadPreview(null);
                 setUploadFile(null);
                 // show small undo affordance by keeping undoSnapshot for 30s
-                setTimeout(() => setUndoSnapshot(null), 30000);
+                setTimeout(() => { setUndoSnapshot(null); }, 30000);
               }}
             >
               Confirm Apply
             </Button>
-            <Button variant="default" onClick={() => setIsReviewOpen(false)}>
+            <Button variant="default" onClick={() => { setIsReviewOpen(false); }}>
               Cancel
             </Button>
           </Group>

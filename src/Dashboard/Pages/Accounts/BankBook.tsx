@@ -107,7 +107,7 @@ export default function BankBookPage() {
 
       // Sale Invoices (Bank/Online In)
       const saleEntries: BankBookEntry[] = (
-        (sales as SaleRecordPayload[]) || []
+        (sales) || []
       )
         .filter((s) => {
           const mode =
@@ -265,7 +265,7 @@ export default function BankBookPage() {
             placeholder="Search by particulars or ref no..."
             value={q}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              setQ(e.currentTarget.value)
+              { setQ(e.currentTarget.value); }
             }
           />
           <TextInput
@@ -273,7 +273,7 @@ export default function BankBookPage() {
             label="From Date"
             w={220}
             value={fromDate}
-            onChange={(e) => setFromDate(e.currentTarget.value)}
+            onChange={(e) => { setFromDate(e.currentTarget.value); }}
             mx={4}
             style={{ minWidth: 140 }}
           />
@@ -282,7 +282,7 @@ export default function BankBookPage() {
             label="To Date"
             w={220}
             value={toDate}
-            onChange={(e) => setToDate(e.currentTarget.value)}
+            onChange={(e) => { setToDate(e.currentTarget.value); }}
             mx={4}
             style={{ minWidth: 140 }}
           />
@@ -304,7 +304,7 @@ export default function BankBookPage() {
               <NumberInput
                 label="Opening Balance"
                 value={tempOpening}
-                onChange={(val) => setTempOpening(Number(val) || 0)}
+                onChange={(val) => { setTempOpening(Number(val) || 0); }}
                 hideControls
                 styles={{ input: { width: 120 } }}
               />
@@ -338,7 +338,7 @@ export default function BankBookPage() {
               <Button
                 size="xs"
                 variant="default"
-                onClick={() => setEditingOpening(true)}
+                onClick={() => { setEditingOpening(true); }}
               >
                 Edit
               </Button>
@@ -425,7 +425,7 @@ export default function BankBookPage() {
                 {/* Transaction Details Modal */}
                 <Modal
                   opened={modalOpen}
-                  onClose={() => setModalOpen(false)}
+                  onClose={() => { setModalOpen(false); }}
                   title="Transaction Details"
                   size="md"
                   centered

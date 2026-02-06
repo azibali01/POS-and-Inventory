@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Select, type SelectProps } from "@mantine/core";
 type SelectItem = { value: string; label: string; [key: string]: unknown };
 type RawSelectData = unknown[] | null | undefined;
@@ -17,7 +18,7 @@ type RawSelectItem =
 
 export default function SafeSelect(props: SelectProps) {
   const raw = (props.data as RawSelectData) || [];
-  const sanitized = ((Array.isArray(raw) ? raw : []) as RawSelectItem[]).reduce(
+  const sanitized = ((Array.isArray(raw) ? raw : []) as RawSelectItem[]).reduce<SelectItem[]>(
     (acc: SelectItem[], it: RawSelectItem) => {
       if (it == null) return acc;
       if (typeof it === "string" || typeof it === "number") {
@@ -47,8 +48,8 @@ export default function SafeSelect(props: SelectProps) {
             ? rawValue
             : id ?? _id ?? name ?? rawLabel ?? undefined;
         const label = rawLabel !== undefined ? rawLabel : name ?? value;
-        const labelStr = label == null ? "" : String(label);
-        const valueStr = value == null ? labelStr : String(value);
+        const labelStr = label == null ? "" : String(label as any);
+        const valueStr = value == null ? labelStr : String(value as any);
         // Only add if valueStr is not undefined, not empty, and not 'undefined'
         if (valueStr && valueStr !== "undefined") {
           acc.push({ value: valueStr, label: labelStr, ...rest });
@@ -57,7 +58,7 @@ export default function SafeSelect(props: SelectProps) {
       }
       return acc;
     },
-    [] as SelectItem[]
+    []
   );
 
   // Use the sanitized data

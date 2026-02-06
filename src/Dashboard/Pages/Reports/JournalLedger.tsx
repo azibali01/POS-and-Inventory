@@ -878,7 +878,7 @@ export default function JournalLedger() {
             </Table.Tbody>
           </Table>
         </div>
-          <Modal opened={viewerOpen} onClose={() => setViewerOpen(false)} size="90%">
+          <Modal opened={viewerOpen} onClose={() => { setViewerOpen(false); }} size="90%">
             {viewerKind === "sale" && viewerData ? (
               <div style={{ height: '80vh' }}>
                 <SalesDocShell

@@ -16,7 +16,7 @@ export function formatNumberWithLeadingZero(value: number | string | undefined |
 
     // Only add leading zero for whole numbers less than 10 and greater than or equal to 0
     if (num >= 0 && num < 10 && Number.isInteger(num)) {
-        return `0${num}`;
+        return `0${String(num)}`;
     }
 
     return String(num);

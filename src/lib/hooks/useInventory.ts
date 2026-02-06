@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notifications } from "@mantine/notifications";
 import * as api from "../api";
 import { ensureArray } from "../api-response-utils";
-import type { InventoryItem } from "../../contexts/InventoryContext/types";
+import type { InventoryItemPayload, CategoryPayload, ColorPayload } from "../api";
 
 export const INVENTORY_QUERY_KEY = ["inventory"];
 export const CATEGORIES_QUERY_KEY = ["categories"];
@@ -14,19 +14,18 @@ export function useInventory() {
   const inventoryQuery = useQuery({
     queryKey: INVENTORY_QUERY_KEY,
     queryFn: async () => {
-      // Assuming api.getInventory exists as seen in InventoryContext
       const data = await api.getInventory();
       // Use existing utility to ensure array
-      return ensureArray<InventoryItem>(data, "inventory");
+      return ensureArray<InventoryItemPayload>(data, "inventory");
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
   // Example mutation: Delete Item
   const deleteInventoryMutation = useMutation({
-    mutationFn: (id: string) => (api as any).deleteInventory(id),
+    mutationFn: (id: string) => api.deleteInventory(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: INVENTORY_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: INVENTORY_QUERY_KEY });
       notifications.show({
         title: "Success",
         message: "Item deleted successfully",
@@ -57,7 +56,7 @@ export function useCategories() {
     queryKey: CATEGORIES_QUERY_KEY,
     queryFn: async () => {
       const data = await api.getCategories();
-      return ensureArray<any>(data, "categories");
+      return ensureArray<CategoryPayload>(data, "categories");
     },
     staleTime: 1000 * 60 * 60, // 1 hour (categories change rarely)
   });
@@ -65,7 +64,7 @@ export function useCategories() {
   const createCategoryMutation = useMutation({
     mutationFn: (name: string) => api.createCategory({ name }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: CATEGORIES_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: CATEGORIES_QUERY_KEY });
       notifications.show({
         title: "Success",
         message: "Category created successfully",
@@ -85,7 +84,7 @@ export function useCategories() {
     mutationFn: ({ id, name }: { id: string; name: string }) =>
       api.updateCategory(id, { name }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: CATEGORIES_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: CATEGORIES_QUERY_KEY });
       notifications.show({
         title: "Success",
         message: "Category updated successfully",
@@ -103,9 +102,9 @@ export function useCategories() {
 
   const deleteCategoryMutation = useMutation({
     // api.deleteCategory takes an ID (string)
-    mutationFn: (id: string) => (api as any).deleteCategory(id),
+    mutationFn: (id: string) => api.deleteCategory(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: CATEGORIES_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: CATEGORIES_QUERY_KEY });
       notifications.show({
         title: "Success",
         message: "Category deleted successfully",
@@ -141,7 +140,7 @@ export function useColors() {
     queryKey: COLORS_QUERY_KEY,
     queryFn: async () => {
       const data = await api.getColors();
-      return ensureArray<any>(data, "colors");
+      return ensureArray<ColorPayload>(data, "colors");
     },
     staleTime: 1000 * 60 * 60,
   });

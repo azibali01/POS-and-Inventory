@@ -74,7 +74,7 @@ export default function SavedDraftsPanel({
                 <td>{d.createdAt ? new Date(d.createdAt).toLocaleString() : "-"}</td>
                 <td style={{ textAlign: "right" }}>
                   <Group justify="flex-end">
-                    <Button size="xs" onClick={() => handleRestore(d)}>
+                    <Button size="xs" onClick={() => { handleRestore(d); }}>
                       Restore
                     </Button>
                     <Button color="red" size="xs" variant="light" onClick={() => handleDelete(d._id)}>

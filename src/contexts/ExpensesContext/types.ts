@@ -24,4 +24,9 @@ export interface ExpensesContextType {
   expensesError: string | null;
   setExpenses: React.Dispatch<React.SetStateAction<Expense[]>>;
   loadExpenses: () => Promise<Expense[]>;
+  createExpense: (
+    payload: Omit<Expense, "id" | "createdAt" | "expenseNumber">
+  ) => Promise<Expense>;
+  updateExpense: (id: string, payload: Partial<Expense>) => Promise<Expense>;
+  deleteExpense: (id: string) => Promise<void>;
 }

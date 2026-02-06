@@ -159,7 +159,7 @@ export default function SuppliersPage() {
             <Text c="dimmed">Manage purchase suppliers</Text>
           </div>
           <div>
-            <Button onClick={() => setOpenAdd(true)}>
+            <Button onClick={() => { setOpenAdd(true); }}>
               <IconPlus size={16} style={{ marginRight: 8 }} />
               Add Supplier
             </Button>
@@ -182,7 +182,7 @@ export default function SuppliersPage() {
                 <Input
                   placeholder="Search suppliers..."
                   value={search}
-                  onChange={(e) => setSearch(e.currentTarget.value)}
+                  onChange={(e) => { setSearch(e.currentTarget.value); }}
                 />
               </Group>
             </div>
@@ -281,7 +281,7 @@ export default function SuppliersPage() {
       </Card>
 
       {/* View Supplier Modal */}
-      <Modal opened={openView} onClose={() => setOpenView(false)} size="lg">
+      <Modal opened={openView} onClose={() => { setOpenView(false); }} size="lg">
         <Box p="md">
           {selected && (
             <div style={{ display: "grid", gap: 8 }}>
@@ -311,13 +311,13 @@ export default function SuppliersPage() {
       </Modal>
 
       {/* Edit Supplier Modal */}
-      <Modal opened={openEdit} onClose={() => setOpenEdit(false)} size="lg">
+      <Modal opened={openEdit} onClose={() => { setOpenEdit(false); }} size="lg">
         <Box p="md">
           {selected && (
             <SupplierForm
               open={openEdit}
               initial={selected}
-              onClose={() => setOpenEdit(false)}
+              onClose={() => { setOpenEdit(false); }}
               onSave={handleSave}
             />
           )}
@@ -325,11 +325,11 @@ export default function SuppliersPage() {
       </Modal>
 
       {/* Add Supplier Modal */}
-      <Modal opened={openAdd} onClose={() => setOpenAdd(false)} size="lg">
+      <Modal opened={openAdd} onClose={() => { setOpenAdd(false); }} size="lg">
         <Box p="md">
           <SupplierForm
             open={openAdd}
-            onClose={() => setOpenAdd(false)}
+            onClose={() => { setOpenAdd(false); }}
             onSave={handleSave}
           />
         </Box>

@@ -99,14 +99,14 @@ export function ProductForm({ product, onClose }: Props) {
           required
           value={form.itemName}
           onChange={(e) =>
-            setForm({ ...form, itemName: e.currentTarget.value })
+            { setForm({ ...form, itemName: e.currentTarget.value }); }
           }
         />
         <SafeSelect
           label="Category"
           data={categoriesForSelect || []}
           value={form.category}
-          onChange={(v) => setForm({ ...form, category: v || "" })}
+          onChange={(v) => { setForm({ ...form, category: v || "" }); }}
           searchable
           clearable
         />
@@ -114,7 +114,7 @@ export function ProductForm({ product, onClose }: Props) {
           label="Brand/Supplier"
           data={suppliersForSelect || []}
           value={form.brand}
-          onChange={(v) => setForm({ ...form, brand: v || "" })}
+          onChange={(v) => { setForm({ ...form, brand: v || "" }); }}
           searchable
           clearable
           placeholder="Select brand or supplier"
@@ -125,20 +125,20 @@ export function ProductForm({ product, onClose }: Props) {
         <NumberInput
           label="Thickness"
           value={form.thickness}
-          onChange={(v) => setForm({ ...form, thickness: v?.toString() ?? "" })}
+          onChange={(v) => { setForm({ ...form, thickness: v?.toString() ?? "" }); }}
           hideControls
         />
         <SafeSelect
           label="Unit"
           data={["ft", "pcs", "kg", "m", "sqft"]}
           value={form.unit}
-          onChange={(v) => setForm({ ...form, unit: v || "" })}
+          onChange={(v) => { setForm({ ...form, unit: v || "" }); }}
         />
         <SafeSelect
           label="Color"
           data={colorsForSelect || []}
           value={form.color}
-          onChange={(v) => setForm({ ...form, color: v || "" })}
+          onChange={(v) => { setForm({ ...form, color: v || "" }); }}
           placeholder="Select a color"
           searchable
           clearable
@@ -149,14 +149,14 @@ export function ProductForm({ product, onClose }: Props) {
         <NumberInput
           label="Sales Rate"
           value={form.salesRate}
-          onChange={(v) => setForm({ ...form, salesRate: v?.toString() ?? "" })}
+          onChange={(v) => { setForm({ ...form, salesRate: v?.toString() ?? "" }); }}
           hideControls
         />
         <NumberInput
           label="Opening Stock"
           value={form.openingStock}
           onChange={(v) =>
-            setForm({ ...form, openingStock: v?.toString() ?? "" })
+            { setForm({ ...form, openingStock: v?.toString() ?? "" }); }
           }
           hideControls
         />
@@ -164,7 +164,7 @@ export function ProductForm({ product, onClose }: Props) {
           label="Minimum Stock Level"
           value={form.minimumStockLevel}
           onChange={(v) =>
-            setForm({ ...form, minimumStockLevel: v?.toString() ?? "" })
+            { setForm({ ...form, minimumStockLevel: v?.toString() ?? "" }); }
           }
           hideControls
         />
@@ -175,7 +175,7 @@ export function ProductForm({ product, onClose }: Props) {
           label="Description"
           value={form.description}
           onChange={(e) =>
-            setForm({ ...form, description: e.currentTarget.value })
+            { setForm({ ...form, description: e.currentTarget.value }); }
           }
         />
       </Group>

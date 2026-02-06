@@ -110,7 +110,7 @@ export default function CustomersPage() {
             <Text c="dimmed">Manage customer directory and balances</Text>
           </div>
           <div>
-            <Button onClick={() => setOpenAdd(true)}>
+            <Button onClick={() => { setOpenAdd(true); }}>
               <IconPlus size={16} style={{ marginRight: 8 }} />
               Add Customer
             </Button>
@@ -133,7 +133,7 @@ export default function CustomersPage() {
                 <Input
                   placeholder="Search customers..."
                   value={search}
-                  onChange={(e) => setSearch(e.currentTarget.value)}
+                  onChange={(e) => { setSearch(e.currentTarget.value); }}
                 />
               </Group>
             </div>
@@ -211,24 +211,24 @@ export default function CustomersPage() {
         </Card.Section>
       </Card>
 
-      <Modal opened={openView} onClose={() => setOpenView(false)} size="lg">
+      <Modal opened={openView} onClose={() => { setOpenView(false); }} size="lg">
         <Box p="md">{selected && <CustomerDetails customer={selected} />}</Box>
       </Modal>
 
-      <Modal opened={openEdit} onClose={() => setOpenEdit(false)} size="lg">
+      <Modal opened={openEdit} onClose={() => { setOpenEdit(false); }} size="lg">
         <Box p="md">
           {selected && (
             <CustomerForm
               customer={selected}
-              onClose={() => setOpenEdit(false)}
+              onClose={() => { setOpenEdit(false); }}
             />
           )}
         </Box>
       </Modal>
 
-      <Modal opened={openAdd} onClose={() => setOpenAdd(false)} size="lg">
+      <Modal opened={openAdd} onClose={() => { setOpenAdd(false); }} size="lg">
         <Box p="md">
-          <CustomerForm onClose={() => setOpenAdd(false)} />
+          <CustomerForm onClose={() => { setOpenAdd(false); }} />
         </Box>
       </Modal>
 

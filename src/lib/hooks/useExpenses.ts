@@ -15,10 +15,10 @@ export function useExpenses() {
 
   const createExpenseMutation = useMutation({
     mutationFn: (payload: api.ExpensePayload) => {
-      return (api as any).createExpense(payload);
+      return api.createExpense(payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
       notifications.show({
         title: "Success",
         message: "Expense created successfully",
@@ -35,9 +35,9 @@ export function useExpenses() {
   });
 
   const deleteExpenseMutation = useMutation({
-    mutationFn: (id: string) => (api as any).deleteExpense(id),
+    mutationFn: (id: string) => api.deleteExpense(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
       notifications.show({
         title: "Success",
         message: "Expense deleted successfully",
@@ -61,9 +61,9 @@ export function useExpenses() {
     }: {
       id: string;
       payload: Partial<api.ExpensePayload>;
-    }) => (api as any).updateExpense(id, payload),
+    }) => api.updateExpense(id, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: EXPENSES_QUERY_KEY });
       notifications.show({
         title: "Success",
         message: "Expense updated successfully",

@@ -223,7 +223,7 @@ export function PurchaseInvoiceForm({
                 type="date"
                 value={invoiceDate}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setInvoiceDate(e.target.value)
+                  { setInvoiceDate(e.target.value); }
                 }
               />
             </div>
@@ -234,7 +234,7 @@ export function PurchaseInvoiceForm({
                 type="date"
                 value={expectedDelivery}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  setExpectedDelivery(e.target.value)
+                  { setExpectedDelivery(e.target.value); }
                 }
               />
             </div>
@@ -251,7 +251,7 @@ export function PurchaseInvoiceForm({
                   label: `${s.name} — ${s.city}`,
                 }))}
                 value={supplierId}
-                onChange={(v) => setSupplierId(v ?? "")}
+                onChange={(v) => { setSupplierId(v ?? ""); }}
                 placeholder={
                   suppliers.length === 0
                     ? "No suppliers found"
@@ -361,7 +361,7 @@ export function PurchaseInvoiceForm({
                 variant="subtle"
                 size="sm"
                 onClick={() =>
-                  setProducts((prev) => [
+                  { setProducts((prev) => [
                     ...prev,
                     {
                       id: crypto.randomUUID(),
@@ -379,7 +379,7 @@ export function PurchaseInvoiceForm({
                       netAmount: 0,
                       amount: 0,
                     },
-                  ])
+                  ]); }
                 }
               >
                 + Add Row
@@ -493,13 +493,13 @@ export function PurchaseInvoiceForm({
                             }))}
                             value={it.color}
                             onChange={(v) =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? { ...row, color: v ?? undefined }
                                     : row
                                 )
-                              )
+                              ); }
                             }
                           />
                         </Table.Td>
@@ -507,13 +507,13 @@ export function PurchaseInvoiceForm({
                           <TextInput
                             value={it.thickness ?? ""}
                             onChange={(e) =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? { ...row, thickness: e.target.value }
                                     : row
                                 )
-                              )
+                              ); }
                             }
                             placeholder="Thickness"
                           />
@@ -522,13 +522,13 @@ export function PurchaseInvoiceForm({
                           <TextInput
                             value={String(it.length ?? "")}
                             onChange={(e) =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? { ...row, length: e.target.value }
                                     : row
                                 )
-                              )
+                              ); }
                             }
                             placeholder="Length"
                           />
@@ -537,7 +537,7 @@ export function PurchaseInvoiceForm({
                           <NumberInput
                             value={it.quantity === 0 ? "" : it.quantity}
                             onChange={(v) =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? {
@@ -546,7 +546,7 @@ export function PurchaseInvoiceForm({
                                       }
                                     : row
                                 )
-                              )
+                              ); }
                             }
                             min={1}
                             hideControls
@@ -556,7 +556,7 @@ export function PurchaseInvoiceForm({
                           <NumberInput
                             value={it.rate === 0 ? "" : it.rate}
                             onChange={(v) =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? {
@@ -565,7 +565,7 @@ export function PurchaseInvoiceForm({
                                       }
                                     : row
                                 )
-                              )
+                              ); }
                             }
                             min={0}
                             hideControls
@@ -578,9 +578,9 @@ export function PurchaseInvoiceForm({
                           <Button
                             variant="subtle"
                             onClick={() =>
-                              setProducts((prev) =>
+                              { setProducts((prev) =>
                                 prev.filter((r) => r.id !== it.id)
-                              )
+                              ); }
                             }
                           >
                             <Trash2 size={14} />
@@ -599,7 +599,7 @@ export function PurchaseInvoiceForm({
             <Textarea
               value={remarks}
               onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                setRemarks(e.target.value)
+                { setRemarks(e.target.value); }
               }
               minRows={3}
             />
@@ -632,7 +632,7 @@ export function PurchaseInvoiceForm({
       </Card>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <Button type="button" variant="outline" onClick={() => window.print()}>
+        <Button type="button" variant="outline" onClick={() => { window.print(); }}>
           Print
         </Button>
         <Button type="submit" onClick={handleSubmit}>

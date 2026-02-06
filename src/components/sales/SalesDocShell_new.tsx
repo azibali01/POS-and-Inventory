@@ -137,7 +137,7 @@ export default function SalesDocShell({
               <TextInput
                 id="docNo"
                 value={docNo}
-                onChange={(e) => setDocNo(e.target.value)}
+                onChange={(e) => { setDocNo(e.target.value); }}
                 placeholder={`${mode === "Quotation" ? "QUO" : "INV"}-2025-001`}
               />
             </div>
@@ -149,7 +149,7 @@ export default function SalesDocShell({
                 id="docDate"
                 type="date"
                 value={docDate}
-                onChange={(e) => setDocDate(e.target.value)}
+                onChange={(e) => { setDocDate(e.target.value); }}
               />
             </div>
             {mode === "Quotation" ? (
@@ -163,7 +163,7 @@ export default function SalesDocShell({
                   id="valid"
                   type="date"
                   value={validUntil}
-                  onChange={(e) => setValidUntil(e.target.value)}
+                  onChange={(e) => { setValidUntil(e.target.value); }}
                 />
               </div>
             ) : (
@@ -195,7 +195,7 @@ export default function SalesDocShell({
               </Text>
               <Select
                 value={String(customerId)}
-                onChange={(v) => setCustomerId(String(v ?? ""))}
+                onChange={(v) => { setCustomerId(String(v ?? "")); }}
                 data={customers.map((c) => ({
                   value: String(c._id),
                   label: `${c.name} — ${c.city}`,
@@ -232,7 +232,7 @@ export default function SalesDocShell({
                 size="xs"
                 variant="outline"
                 onClick={() =>
-                  setItems((prev) => [
+                  { setItems((prev) => [
                     ...prev,
                     {
                       itemName: "",
@@ -249,7 +249,7 @@ export default function SalesDocShell({
                       totalGrossAmount: 0,
                       totalNetAmount: 0,
                     },
-                  ])
+                  ]); }
                 }
               >
                 Add item
@@ -276,7 +276,7 @@ export default function SalesDocShell({
               </Text>
               <Textarea
                 value={remarks}
-                onChange={(e) => setRemarks(e.currentTarget.value)}
+                onChange={(e) => { setRemarks(e.currentTarget.value); }}
                 minRows={3}
                 placeholder="Additional notes"
               />
@@ -321,7 +321,7 @@ export default function SalesDocShell({
           marginTop: 12,
         }}
       >
-        <Button type="button" variant="outline" onClick={() => window.print()}>
+        <Button type="button" variant="outline" onClick={() => { window.print(); }}>
           Print
         </Button>
         <Button type="submit">Save {mode}</Button>

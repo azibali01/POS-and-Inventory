@@ -204,9 +204,9 @@ export function LineItemsTableUniversal({
                     data={colors.map((c) => ({ value: c.name, label: c.name }))}
                     value={row.color}
                     onChange={(v: string | null) =>
-                      updateRow(row.id, {
+                      { updateRow(row.id, {
                         color: v ?? undefined,
-                      })
+                      }); }
                     }
                   />
                 </Table.Td>
@@ -214,7 +214,7 @@ export function LineItemsTableUniversal({
                   <TextInput
                     value={row.thickness}
                     onChange={(e) =>
-                      updateRow(row.id, { thickness: e.target.value })
+                      { updateRow(row.id, { thickness: e.target.value }); }
                     }
                     placeholder="Thickness"
                   />
@@ -223,7 +223,7 @@ export function LineItemsTableUniversal({
                   <TextInput
                     value={String(row.length ?? "")}
                     onChange={(e) =>
-                      updateRow(row.id, { length: e.target.value })
+                      { updateRow(row.id, { length: e.target.value }); }
                     }
                     placeholder="Length"
                   />
@@ -232,11 +232,11 @@ export function LineItemsTableUniversal({
                   <NumberInput
                     value={row.quantity}
                     onChange={(v) =>
-                      updateRow(row.id, {
+                      { updateRow(row.id, {
                         quantity: allowNegativeQty
                           ? Number(v)
                           : Math.max(0, Number(v || 0)),
-                      })
+                      }); }
                     }
                     min={allowNegativeQty ? undefined : 0}
                     hideControls
@@ -246,9 +246,9 @@ export function LineItemsTableUniversal({
                   <NumberInput
                     value={row.rate}
                     onChange={(v) =>
-                      editableRate
+                      { editableRate
                         ? updateRow(row.id, { rate: Number(v || 0) })
-                        : undefined
+                        : undefined; }
                     }
                     min={0}
                     readOnly={!editableRate}
@@ -260,7 +260,7 @@ export function LineItemsTableUniversal({
                   </Table.Td>
                 )}
                 <Table.Td style={{ padding: 8, textAlign: "left" }}>
-                  <Button variant="subtle" onClick={() => removeRow(row.id)}>
+                  <Button variant="subtle" onClick={() => { removeRow(row.id); }}>
                     <Trash2 size={16} />
                   </Button>
                 </Table.Td>

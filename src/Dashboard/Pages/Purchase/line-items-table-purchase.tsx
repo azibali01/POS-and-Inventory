@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { useMemo } from "react";
 import { Button, NumberInput } from "@mantine/core";
 import SafeSelect from "../../../lib/SafeSelect";
@@ -212,7 +212,7 @@ export function PurchaseLineItemsTable({
                   <NumberInput
                     value={row.percent}
                     onChange={(v) =>
-                      updateRow(row.id, { percent: Number(v || 0) })
+                      { updateRow(row.id, { percent: Number(v || 0) }); }
                     }
                     min={0}
                     max={100}
@@ -224,7 +224,7 @@ export function PurchaseLineItemsTable({
                   <NumberInput
                     value={row.discountAmount}
                     onChange={(v) =>
-                      updateRow(row.id, { discountAmount: Number(v || 0) })
+                      { updateRow(row.id, { discountAmount: Number(v || 0) }); }
                     }
                     min={0}
                     aria-label={`Discount amount for row ${row.id}`}
@@ -238,7 +238,7 @@ export function PurchaseLineItemsTable({
                   {formatCurrency(row.amount ?? row.netAmount ?? 0)}
                 </Table.Td>
                 <Table.Td style={{ padding: 8, textAlign: "right" }}>
-                  <Button variant="subtle" onClick={() => removeRow(row.id)} aria-label={`Remove row ${row.id}`}>
+                  <Button variant="subtle" onClick={() => { removeRow(row.id); }} aria-label={`Remove row ${row.id}`}>
                     <Trash2 size={14} />
                   </Button>
                 </Table.Td>

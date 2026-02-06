@@ -33,9 +33,9 @@ export function LineItemsTable({
 }) {
   const update = useCallback(
     (rowIdx: number, patch: Partial<LineItem>) =>
-      onChange(
+      { onChange(
         items.map((it, idx) => (idx === rowIdx ? { ...it, ...patch } : it))
-      ),
+      ); },
     [items, onChange]
   );
 
@@ -114,9 +114,9 @@ export function LineItemsTable({
                   <TextInput
                     value={it.itemName}
                     onChange={(e) =>
-                      update(idx, {
+                      { update(idx, {
                         itemName: e.currentTarget.value,
-                      })
+                      }); }
                     }
                     placeholder="Product Name (Thickness, Color)"
                   />
@@ -128,7 +128,7 @@ export function LineItemsTable({
                   value={it.color ?? ""}
                   placeholder="Color"
                   onChange={(e) =>
-                    update(idx, { color: e.currentTarget.value })
+                    { update(idx, { color: e.currentTarget.value }); }
                   }
                 />
               </Table.Td>
@@ -138,9 +138,9 @@ export function LineItemsTable({
                   value={String(it.thickness ?? "")}
                   placeholder="Thickness"
                   onChange={(e) =>
-                    update(idx, {
+                    { update(idx, {
                       thickness: Number(e.currentTarget.value),
-                    })
+                    }); }
                   }
                 />
               </Table.Td>
@@ -234,7 +234,7 @@ export function LineItemsTable({
                 <div style={{ display: "flex", justifyContent: "flex-start" }}>
                   <Button
                     variant="subtle"
-                    onClick={() => onChange(items.filter((_, i) => i !== idx))}
+                    onClick={() => { onChange(items.filter((_, i) => i !== idx)); }}
                     leftSection={<IconTrash size={18} />}
                   ></Button>
                 </div>

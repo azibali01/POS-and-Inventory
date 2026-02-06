@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { logger } from "../../../lib/logger";
 import { PurchaseInvoiceForm } from "./PurchaseInvoiceForm.generated";
 import {
   Button,
@@ -90,7 +91,7 @@ export default function PurchaseInvoicesPage() {
 
   // Ensure products (inventory) are loaded on mount
   React.useEffect(() => {
-    console.log("[PurchaseInvoice] inventory:", inventory);
+    logger.debug("[PurchaseInvoice] inventory:", inventory);
     if (!inventory || inventory.length === 0) {
       loadInventory();
     }
@@ -177,7 +178,7 @@ export default function PurchaseInvoicesPage() {
           const allSuppliers = invoices.map(
             (inv: unknown) => (inv as PurchaseInvoiceTableRow).supplier
           );
-          console.log("All suppliers from backend (invoices):", allSuppliers);
+          logger.debug("All suppliers from backend (invoices):", allSuppliers);
         }
         setData(
           (invoices || []).map(
@@ -223,7 +224,7 @@ export default function PurchaseInvoicesPage() {
   }, [suppliers, inventory, resolveSupplier]);
 
   async function handleCreate(payload: PurchaseInvoiceFormPayload) {
-    const products = (payload.products || []) as PurchaseLineItem[];
+    const products = (payload.products || []);
     const subTotal =
       payload.subTotal ?? products.reduce((s, it) => s + (it.amount || 0), 0);
     const total = payload.total ?? subTotal;
@@ -274,16 +275,14 @@ export default function PurchaseInvoicesPage() {
         })
       );
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn("Failed to optimistically update inventory after purchase invoice:", err);
+      logger.warn("Failed to optimistically update inventory after purchase invoice:", err);
     }
     // Refresh inventory after creating purchase invoice so stock reflects received quantities
     try {
       await loadInventory();
     } catch (err) {
       // non-fatal; inventory reload failed
-      // eslint-disable-next-line no-console
-      console.warn("Failed to reload inventory after creating purchase invoice:", err);
+      logger.warn("Failed to reload inventory after creating purchase invoice:", err);
     }
     setOpen(false);
     setEditInvoice(null);
@@ -374,7 +373,7 @@ export default function PurchaseInvoicesPage() {
       {/* Import from PO Modal */}
       <Modal
         opened={importOpen}
-        onClose={() => setImportOpen(false)}
+        onClose={() => { setImportOpen(false); }}
         title="Import from Purchase Order"
         size="80%"
       >
@@ -385,7 +384,7 @@ export default function PurchaseInvoicesPage() {
               type="text"
               placeholder="Search by PO Number..."
               value={importPOSearch || ""}
-              onChange={(e) => setImportPOSearch(e.target.value)}
+              onChange={(e) => { setImportPOSearch(e.target.value); }}
               style={{
                 padding: 6,
                 width: 260,
@@ -561,7 +560,7 @@ export default function PurchaseInvoicesPage() {
           <Title order={2}>Purchase Invoices</Title>
           <div style={{ display: "flex", gap: 8 }}>
             <Button
-              onClick={() => setImportOpen(true)}
+              onClick={() => { setImportOpen(true); }}
               variant="filled"
               size="sm"
             >
@@ -570,11 +569,11 @@ export default function PurchaseInvoicesPage() {
             <TextInput
               placeholder="Search invoices..."
               value={q}
-              onChange={(e) => setQ(e.currentTarget.value)}
+              onChange={(e) => { setQ(e.currentTarget.value); }}
               style={{ width: 260 }}
             />
             <Button
-              onClick={() => setOpen(true)}
+              onClick={() => { setOpen(true); }}
               leftSection={<IconPlus size={16} />}
             >
               Create Invoice
@@ -677,7 +676,7 @@ export default function PurchaseInvoicesPage() {
                               </Menu.Item>
                               <Menu.Item
                                 color="red"
-                                onClick={() => setDeleteInvoice(inv)}
+                                onClick={() => { setDeleteInvoice(inv); }}
                                 leftSection={<IconTrash size={14} />}
                               >
                                 Delete
@@ -696,7 +695,7 @@ export default function PurchaseInvoicesPage() {
       {/* Confirm Delete Modal (should only render once, outside the table and menu) */}
       <Modal
         opened={!!deleteInvoice}
-        onClose={() => setDeleteInvoice(null)}
+        onClose={() => { setDeleteInvoice(null); }}
         title="Confirm Delete"
         centered
         withCloseButton
@@ -715,7 +714,7 @@ export default function PurchaseInvoicesPage() {
         >
           <Button
             variant="default"
-            onClick={() => setDeleteInvoice(null)}
+            onClick={() => { setDeleteInvoice(null); }}
             disabled={deleteLoading}
             style={{ color: '#222', backgroundColor: '#f3f3f3', border: '1px solid #ccc' }}
             aria-label="Cancel Delete Invoice"
@@ -758,7 +757,7 @@ export default function PurchaseInvoicesPage() {
                         typeof inv.supplier === "object" &&
                         "name" in inv.supplier
                       ) {
-                        supplier = inv.supplier as Supplier;
+                        supplier = inv.supplier;
                       }
                       return {
                         id:

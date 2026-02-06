@@ -27,7 +27,7 @@ export default function Dashboard() {
   const { expenses } = useExpenses();
 
   const salesArray: SaleRecord[] = useMemo(() => {
-    if (Array.isArray(sales)) return sales as SaleRecord[];
+    if (Array.isArray(sales)) return sales;
     const maybe = sales as unknown as { data?: unknown } | undefined;
     if (maybe && Array.isArray(maybe.data)) return maybe.data as SaleRecord[];
     return [];

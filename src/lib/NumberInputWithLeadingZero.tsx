@@ -20,7 +20,7 @@ export function NumberInputWithLeadingZero(props: NumberInputProps) {
 
   // Format the display value
   const displayValue =
-    value !== undefined && value !== null
+    value !== undefined
       ? formatNumberWithLeadingZero(value)
       : undefined;
 
