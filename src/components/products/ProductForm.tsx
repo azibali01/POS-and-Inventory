@@ -12,6 +12,7 @@ import { showNotification } from "@mantine/notifications";
 import { useInventory, useCategories, useColors } from "../../lib/hooks/useInventory";
 import { useSupplier } from "../../hooks/useSupplier";
 import type { InventoryItemPayload } from "../../api";
+import { logger } from "../../lib/logger";
 
 interface Props {
   product?: InventoryItemPayload;
@@ -92,15 +93,19 @@ export function ProductForm({ product, onClose }: Props) {
     };
 
     try {
-      console.log("Submitting payload:", payload);
+      logger.debug("Submitting payload:", payload);
+      let id: string | undefined;
       if (product && product._id !== undefined) {
         // Ensure ID is string
-        const id = String(product._id);
-        console.log("Updating product with ID:", id);
-        await updateInventoryAsync({ id, payload });
+        id = String(product._id);
+      }
+
+      if (id) {
+        logger.debug("Updating product with ID:", id);
+        await updateInventoryAsync({ id, payload }); // Assuming updateInventoryAsync is the correct function name
       } else {
-        console.log("Creating new product");
-        await createInventoryAsync(payload);
+        logger.debug("Creating new product");
+        await createInventoryAsync(payload); // Assuming createInventoryAsync is the correct function name
       }
       onClose();
     } catch (error) {

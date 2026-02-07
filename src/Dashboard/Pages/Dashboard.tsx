@@ -16,6 +16,7 @@ import { usePurchase } from "../../contexts/PurchaseContext/PurchaseContext";
 import { useExpenses } from "../../contexts/ExpensesContext/ExpensesContext";
 import type { SaleRecord } from "../../contexts/SalesContext/types";
 import { formatCurrency } from "../../lib/format-utils";
+import { logger } from "../../lib/logger";
 import dayjs from "dayjs";
 // ...existing code...
 
@@ -36,8 +37,8 @@ export default function Dashboard() {
   const salesInvoices = useMemo(() => {
     // Debug: log all sales to see their structure
     if (salesArray.length > 0 && import.meta.env.DEV) {
-      console.log("All sales data:", salesArray);
-      console.log("First sale:", salesArray[0]);
+      logger.debug("All sales data:", salesArray);
+      logger.debug("First sale:", salesArray[0]);
     }
 
     // Keep it simple: just count all sales that are not explicitly quotations
@@ -47,7 +48,7 @@ export default function Dashboard() {
     });
 
     if (import.meta.env.DEV) {
-      console.log("Filtered invoices:", invoices.length, invoices);
+      logger.debug("Filtered invoices:", invoices.length, invoices);
     }
 
     return invoices;
@@ -65,7 +66,7 @@ export default function Dashboard() {
         0;
 
       if (import.meta.env.DEV && amount > 0) {
-        console.log("Sale amount:", {
+        logger.debug("Sale amount:", {
           id: it.id,
           invoiceNumber: it.invoiceNumber,
           total: it.total,
@@ -81,7 +82,7 @@ export default function Dashboard() {
     }, 0);
 
     if (import.meta.env.DEV) {
-      console.log("Total sales amount:", total);
+      logger.debug("Total sales amount:", total);
     }
 
     return total;

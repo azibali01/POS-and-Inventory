@@ -169,7 +169,8 @@ export function buildSaleApiPayload(
     totalNetAmount: Math.floor(payload.totals?.totalNetAmount ?? 0),
     discount: 0,
     totalDiscount: Math.floor(payload.totals?.totalDiscountAmount ?? 0),
-    customer: customer ?? undefined,
+    // Backend DTO expects Customer object (not null/undefined)
+    customer: customer ?? ({} as any),
     paymentMethod: undefined,
     length: payload.items?.length ?? 0,
     metadata: metadata ?? { source: "manual" },
