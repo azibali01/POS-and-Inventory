@@ -23,6 +23,7 @@ import { Search, RefreshCw } from "lucide-react";
 import { generateJournalLedgerHTML } from "../../../components/print/journalLedgerTemplate";
 import SalesDocShell, { type SalesPayload } from "../../../components/sales/SalesDocShell";
 import { useNavigate } from "react-router-dom";
+import { useInventory } from "../../../hooks/useInventory";
 
 // Add this type augmentation for PurchaseInvoiceRecord
 type PurchaseInvoiceRecord = {
@@ -68,8 +69,8 @@ export default function JournalLedger() {
     loadSuppliers,
     loadReceiptVouchers,
     loadPaymentVouchers,
-    inventory = [],
   } = useDataContext();
+  const { inventory = [] } = useInventory();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedEntity, setSelectedEntity] = useState<string | null>(null);

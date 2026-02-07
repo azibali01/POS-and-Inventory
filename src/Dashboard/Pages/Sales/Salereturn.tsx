@@ -21,23 +21,21 @@ import {
 } from "../../../lib/api";
 import { showNotification } from "@mantine/notifications";
 import { useDataContext } from "../../Context/DataContext";
+import { useInventory } from "../../../hooks/useInventory";
 import { formatCurrency } from "../../../lib/format-utils";
 import { useState, useEffect } from "react";
 
 export default function SaleReturnPage() {
-  const { customers, inventory, loadInventory } = useDataContext();
+  const { customers } = useDataContext();
+  const { inventory } = useInventory();
 
   // Debug: log customers to check structure
   useEffect(() => {
     logger.debug("[SaleReturn] customers:", customers);
   }, [customers]);
 
-  // Ensure products (inventory) are loaded on mount
-  useEffect(() => {
-    if (!inventory || inventory.length === 0) {
-      loadInventory();
-    }
-  }, [inventory, loadInventory]);
+  // Inventory is auto-loaded by useInventory hook
+  // No need for manual loadInventory calls
 
   const [returns, setReturns] = useState<SaleRecordPayload[]>([]);
   const [open, setOpen] = useState(false);

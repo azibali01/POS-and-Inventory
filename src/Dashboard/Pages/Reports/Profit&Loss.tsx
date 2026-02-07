@@ -5,6 +5,7 @@ import { Title, Text, Divider, Grid, Card, Group, Button } from "@mantine/core";
 import { TextInput } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { useDataContext } from "../../Context/DataContext";
+import { useInventory } from "../../../hooks/useInventory";
 import SalesDocShell, {
   type SalesPayload,
 } from "../../../components/sales/SalesDocShell";
@@ -41,8 +42,8 @@ export default function ProfitLoss() {
     loadPurchaseInvoices,
     loadExpenses,
     customers = [],
-    inventory = [],
   } = useDataContext();
+  const { inventory = [] } = useInventory();
 
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerKind, setViewerKind] = useState<

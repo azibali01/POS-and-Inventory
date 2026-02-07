@@ -5,10 +5,10 @@
 
 import { useState, useCallback } from "react";
 import { showNotification } from "@mantine/notifications";
-import * as api from "../lib/api";
+import { inventoryService } from "../api/services/inventoryService";
 import { logger } from "../lib/logger";
 import type { InventoryItem } from "../types";
-import type { InventoryItemPayload } from "../lib/api";
+import type { InventoryItemPayload } from "../api/services/salesService";
 
 /**
  * Hook for managing inventory state and operations
@@ -26,7 +26,7 @@ export function useInventory() {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.getInventory();
+      const data = await inventoryService.getAll();
       // Map _id to string for type safety
       const mapped = (data || []).map((item) => ({
         ...item,
@@ -56,7 +56,7 @@ export function useInventory() {
     async (payload: InventoryItemPayload): Promise<InventoryItem> => {
       setLoading(true);
       try {
-        const created = await api.createInventory(payload);
+        const created = await inventoryService.create(payload);
         const item: InventoryItem = {
           ...created,
           _id: created._id ? String(created._id) : "",
@@ -95,7 +95,7 @@ export function useInventory() {
     ): Promise<InventoryItem> => {
       setLoading(true);
       try {
-        const updated = await api.updateInventory(id, payload);
+        const updated = await inventoryService.update(id, payload);
         const item: InventoryItem = {
           ...updated,
           _id: updated._id ? String(updated._id) : id,
@@ -130,7 +130,7 @@ export function useInventory() {
   const deleteInventoryItem = useCallback(async (id: string): Promise<void> => {
     setLoading(true);
     try {
-      await api.deleteInventory(id);
+      await inventoryService.delete(id);
       setInventory((prev) => prev.filter((i) => i._id !== id));
       showNotification({
         title: "Product Deleted",

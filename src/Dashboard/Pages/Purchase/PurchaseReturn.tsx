@@ -22,6 +22,7 @@ import {
   type PurchaseRecord,
 
 } from "../../Context/DataContext";
+import { useInventory } from "../../../hooks/useInventory";
 import { LineItemsTableUniversal } from "./LineItemsTableUniversal";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
@@ -104,17 +105,11 @@ export default function PurchaseReturnPage() {
     suppliers = [],
     purchaseReturns = [],
     processPurchaseReturn,
-    inventory,
-    loadInventory,
     loadSuppliers,
   } = useDataContext();
+  useInventory(); // Ensure inventory is loaded
 
-  // Ensure products (inventory) and suppliers are loaded on mount
-  useEffect(() => {
-    if (!inventory || inventory.length === 0) {
-      loadInventory();
-    }
-  }, [inventory, loadInventory]);
+  // Inventory is auto-loaded by useInventory hook
 
   useEffect(() => {
     if (!suppliers || suppliers.length === 0) {
@@ -526,10 +521,10 @@ function ReturnForm({
   existingReturns,
 }: ReturnFormProps & { setOpen?: (open: boolean) => void }) {
   const {
-    inventory = [],
     colors = [],
     purchaseReturns = [],
   } = useDataContext();
+  const { inventory = [] } = useInventory();
 
   // Local loading and error state for async actions in ReturnForm
   // Local loading and error state for async actions in ReturnForm (not used for rendering)

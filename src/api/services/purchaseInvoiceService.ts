@@ -68,4 +68,27 @@ export const purchaseInvoiceService = {
     );
     return data;
   },
+
+  /**
+   * Update purchase invoice by ID or invoice number
+   * Note: Backend likely expects ID, but hooks might pass number.
+   * We will stick to ID as primary, or whatever backend supports.
+   */
+  async update(id: string | number, payload: Partial<PurchaseInvoiceRecordPayload>) {
+    const { data } = await axiosClient.put(
+      `${ENDPOINTS.PURCHASE_INVOICES}/${id}`,
+      payload
+    );
+    return data;
+  },
+
+  /**
+   * Delete purchase invoice by ID
+   */
+  async delete(id: string | number) {
+    const { data } = await axiosClient.delete(
+      `${ENDPOINTS.PURCHASE_INVOICES}/${id}`
+    );
+    return data;
+  },
 };

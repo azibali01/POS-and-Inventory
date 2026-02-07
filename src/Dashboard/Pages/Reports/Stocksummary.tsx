@@ -1,4 +1,5 @@
 import { useDataContext } from "../../Context/DataContext";
+import { useInventory } from "../../../hooks/useInventory";
 import { Table, Title, Text, Group, Select, Pagination } from "@mantine/core";
 import { useMemo, useState } from "react";
 
@@ -34,7 +35,8 @@ function getLastTransaction(
 }
 
 export default function Stocksummary() {
-  const { inventory, sales, purchases } = useDataContext();
+  const { sales, purchases } = useDataContext();
+  const { inventory } = useInventory();
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<string>("25");

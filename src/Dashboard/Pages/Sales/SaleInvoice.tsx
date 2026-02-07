@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { logger } from "../../../lib/logger";
 import {
   Modal,
-
   Button,
   Box,
   Text,
@@ -25,7 +24,9 @@ import SalesDocShell, {
   type SalesPayload,
 } from "../../../components/sales/SalesDocShell";
 import SavedDraftsPanel from "../../../components/sales/SavedDraftsPanel";
-import { useDataContext } from "../../Context/DataContext";
+import { useSales, useQuotations } from "../../../hooks/useSales";
+import { useCustomer } from "../../../hooks/useCustomer";
+import { useInventory } from "../../../lib/hooks/useInventory";
 import { formatCurrency } from "../../../lib/format-utils";
 import { showNotification } from "@mantine/notifications";
 import type { SaleRecordPayload } from "../../../lib/api";
@@ -65,24 +66,12 @@ type SaleItem = {
 };
 
 export default function SaleInvoice() {
-  const {
-    customers,
-    inventory,
-    quotations,
-    setQuotations,
-    createSale,
-    sales,
-    deleteSale,
-    loadInventory,
-  } = useDataContext();
+  const { sales, createSaleAsync, deleteSaleAsync } = useSales();
+  const { quotations, updateQuotationAsync } = useQuotations();
+  const { customers } = useCustomer();
+  const { inventory } = useInventory();
 
-  // Ensure products (inventory) are loaded on mount
-  useEffect(() => {
-    if (!inventory || inventory.length === 0) {
-      loadInventory();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Inventory is auto-loaded by useInventory hook
 
   const [importQuotationSearch, setImportQuotationSearch] = useState("");
   const [editOpen, setEditOpen] = useState(false);
@@ -114,7 +103,7 @@ export default function SaleInvoice() {
   async function confirmDelete() {
     if (!deleteTarget) return;
     try {
-      await deleteSale(String(deleteTarget));
+      await deleteSaleAsync(String(deleteTarget));
       showNotification({
         title: "Invoice Deleted",
         message: `Invoice ${deleteTarget} deleted successfully`,
@@ -148,13 +137,13 @@ export default function SaleInvoice() {
     const apiPayload = buildSaleApiPayload(
       payload,
       invoiceNumber,
-      inventory,
-      customers,
+      inventory as any,
+      customers as any,
       { source: "manual" }
     );
 
     try {
-      await createSale(apiPayload);
+      await createSaleAsync(apiPayload);
       showNotification({
         title: "Sale Invoice Created",
         message: `Invoice ${invoiceNumber} created successfully`,
@@ -195,8 +184,8 @@ export default function SaleInvoice() {
     const apiPayload = buildSaleApiPayload(
       payload,
       invoiceNumber,
-      inventory,
-      customers,
+      inventory as any,
+      customers as any,
       { source: "quotation-import" }
     );
 
@@ -207,7 +196,7 @@ export default function SaleInvoice() {
     };
 
     try {
-      await createSale(enrichedPayload);
+      await createSaleAsync(enrichedPayload);
       showNotification({
         title: "Sale Invoice Imported",
         message: `Invoice ${invoiceNumber} imported from quotation`,
@@ -232,24 +221,21 @@ export default function SaleInvoice() {
     }
 
     // Update quotation status
-    const now = new Date().toISOString();
-    setQuotations((prev) =>
-      prev.map((q) => {
-        const key = q.quotationNumber;
-        if (
-          key === payload.sourceQuotationId ||
-          String(key) === String(payload.sourceQuotationId)
-        ) {
-          return {
-            ...q,
-            status: "converted",
-            convertedInvoiceId: invoiceNumber,
-            convertedAt: now,
-          };
+    // Update quotation status via API
+    try {
+      const qNum = String(payload.sourceQuotationId);
+      await updateQuotationAsync({
+        quotationNumber: qNum,
+        data: {
+          status: "converted",
+          convertedInvoiceId: invoiceNumber,
+          convertedAt: new Date().toISOString(),
         }
-        return q;
-      })
-    );
+      });
+    } catch (err) {
+      console.error("Failed to update quotation status", err);
+      // Non-blocking error, but good to log
+    }
     setOpen(false);
     setInitialPayload(null);
   }
@@ -302,8 +288,8 @@ export default function SaleInvoice() {
           <div style={{ width: "100%" }}>
             <SalesDocShell
               mode="Invoice"
-              customers={customers}
-              products={inventory}
+              customers={customers as any}
+              products={inventory as any}
               submitting={submitting}
               setSubmitting={setSubmitting}
               onSubmit={
@@ -732,8 +718,8 @@ export default function SaleInvoice() {
           {editPayload && (
             <SalesDocShell
               mode="Invoice"
-              customers={customers}
-              products={inventory}
+              customers={customers as any}
+              products={inventory as any}
               initial={editPayload}
               submitting={submitting}
               setSubmitting={setSubmitting}
@@ -789,9 +775,7 @@ export default function SaleInvoice() {
                         ? new Date(q.quotationDate).toLocaleDateString()
                         : "-"}
                       {"validUntil" in q && q.validUntil
-                        ? typeof q.validUntil === "string" ||
-                          typeof q.validUntil === "number" ||
-                          q.validUntil instanceof Date
+                        ? typeof q.validUntil === "string"
                           ? ` • Valid until ${new Date(q.validUntil).toLocaleDateString()}`
                           : ""
                         : ""}

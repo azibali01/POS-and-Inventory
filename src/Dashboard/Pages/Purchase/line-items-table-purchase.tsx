@@ -4,7 +4,8 @@ import { Button, NumberInput } from "@mantine/core";
 import SafeSelect from "../../../lib/SafeSelect";
 import Table from "../../../lib/AppTable";
 import { Plus, Trash2 } from "lucide-react";
-import { useDataContext, type InventoryItem } from "../../Context/DataContext";
+import type { InventoryItem } from "../../Context/DataContext";
+import { useInventory } from "../../../hooks/useInventory";
 import { formatCurrency } from "../../../lib/format-utils";
 import type { PurchaseLineItem } from "./types";
 
@@ -15,7 +16,7 @@ export function PurchaseLineItemsTable({
   items: PurchaseLineItem[];
   onChange: (next: PurchaseLineItem[]) => void;
 }) {
-  const { inventory } = useDataContext();
+  const { inventory } = useInventory();
   // Error/loading states
   const loading = !inventory || inventory.length === 0;
   const error = !Array.isArray(inventory);

@@ -31,6 +31,28 @@ export function usePurchaseReturn() {
     },
   });
 
+  // Update mutation
+  const updateMutation = useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string | number;
+      payload: Partial<PurchaseReturnRecordPayload>;
+    }) => purchaseReturnService.update(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["purchaseReturns"] });
+    },
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: (id: string | number) => purchaseReturnService.delete(String(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["purchaseReturns"] });
+    },
+  });
+
   return {
     // Data
     purchaseReturns,
@@ -40,11 +62,17 @@ export function usePurchaseReturn() {
     // Actions (sync)
     refetch,
     createPurchaseReturn: createMutation.mutate,
+    updatePurchaseReturn: updateMutation.mutate,
+    deletePurchaseReturn: deleteMutation.mutate,
 
     // Actions (async)
     createPurchaseReturnAsync: createMutation.mutateAsync,
+    updatePurchaseReturnAsync: updateMutation.mutateAsync,
+    deletePurchaseReturnAsync: deleteMutation.mutateAsync,
 
     // Mutation states
     isCreating: createMutation.isPending,
+    isUpdating: updateMutation.isPending,
+    isDeleting: deleteMutation.isPending,
   };
 }

@@ -9,28 +9,45 @@ import {
 } from "@mantine/core";
 import SafeSelect from "../../lib/SafeSelect";
 import { showNotification } from "@mantine/notifications";
-import { useDataContext } from "../../Dashboard/Context/DataContext";
-import type { InventoryItem } from "../../Dashboard/Context/DataContext";
+import { useInventory, useCategories, useColors } from "../../lib/hooks/useInventory";
+import { useSupplier } from "../../hooks/useSupplier";
+import type { InventoryItemPayload } from "../../api";
 
 interface Props {
-  product?: InventoryItem;
+  product?: InventoryItemPayload;
   onClose: () => void;
 }
 
 export function ProductForm({ product, onClose }: Props) {
   const {
-    createInventoryItem,
-    updateInventoryItem,
-    categoriesForSelect,
-    suppliersForSelect,
-    colorsForSelect,
-  } = useDataContext();
+    createInventoryAsync,
+    updateInventoryAsync,
+  } = useInventory();
+  
+  const { categories } = useCategories();
+  const { suppliers } = useSupplier();
+  const { colors } = useColors();
+
+  const categoriesForSelect = (categories || []).map((c) => ({
+    value: c.name,
+    label: c.name,
+  }));
+
+  const suppliersForSelect = (suppliers || []).map((s) => ({
+    value: s.name,
+    label: s.name,
+  }));
+
+  const colorsForSelect = (colors || []).map((c) => ({
+    value: c.name,
+    label: c.name,
+  }));
 
   const [form, setForm] = useState({
     itemName: product?.itemName || "",
     category: product?.category || "",
     thickness: product?.thickness?.toString() ?? "",
-    unit: product?.unit || "",
+    unit: String(product?.unit || ""),
     color: product?.color || "",
     salesRate: product?.salesRate?.toString() ?? "",
     openingStock: product?.openingStock?.toString() ?? "",
@@ -77,11 +94,13 @@ export function ProductForm({ product, onClose }: Props) {
     try {
       console.log("Submitting payload:", payload);
       if (product && product._id !== undefined) {
-        console.log("Updating product with ID:", product._id);
-        await updateInventoryItem(product._id, payload);
+        // Ensure ID is string
+        const id = String(product._id);
+        console.log("Updating product with ID:", id);
+        await updateInventoryAsync({ id, payload });
       } else {
         console.log("Creating new product");
-        await createInventoryItem(payload as any);
+        await createInventoryAsync(payload);
       }
       onClose();
     } catch (error) {

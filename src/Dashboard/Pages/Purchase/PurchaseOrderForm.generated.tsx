@@ -16,6 +16,7 @@ import Table from "../../../lib/AppTable";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
 import { useDataContext } from "../../Context/DataContext";
+import { useInventory } from "../../../hooks/useInventory";
 import { Trash2 } from "lucide-react";
 import { Group } from "@mantine/core";
 import type { Supplier as BaseSupplier } from "../../../components/purchase/SupplierForm";
@@ -69,7 +70,8 @@ export function PurchaseOrderForm({
     // fallback for other representations
     return String(ed).slice(0, 10);
   });
-  const { inventory = [], colors = [], suppliers = [] } = useDataContext();
+  const { colors = [], suppliers = [] } = useDataContext();
+  const { inventory = [] } = useInventory();
   // Support both supplierId and supplier object for edit modal prefill
   function isSupplierObject(obj: unknown): obj is { _id: string } {
     return (

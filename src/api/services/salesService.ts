@@ -59,10 +59,16 @@ export interface SaleRecordPayload {
   totalNetAmount?: number;
   quotationDate?: string;
   customer?: CustomerPayload | null;
+  customerName?: string;
   paymentMethod?: PaymentMethod;
   length?: number;
   remarks?: string;
   metadata?: Record<string, unknown>;
+  date?: string;
+  amount?: number;
+  status?: string;
+  convertedInvoiceId?: string;
+  convertedAt?: string;
 }
 
 export interface QuotationRecordPayload {
@@ -76,6 +82,11 @@ export interface QuotationRecordPayload {
   totalDiscount?: number;
   quotationDate?: string;
   customer?: CustomerPayload[];
+  customerName?: string;
+  validUntil?: string;
+  status?: string;
+  convertedInvoiceId?: string;
+  convertedAt?: string;
   remarks?: string;
   length?: number;
   metadata?: Record<string, unknown>;

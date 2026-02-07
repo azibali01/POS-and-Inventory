@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { logger } from "../../../lib/logger";
 import {
   Box,
@@ -23,13 +23,12 @@ import { generateNextDocumentNumber } from "../../../utils/document-utils";
 import {
   normalizeQuotationCustomer,
   buildQuotationPayload,
-  buildTempQuotationRow,
 } from "./quotation-helpers";
 
 
 // openPrintWindow already imported above
 import type { InvoiceData } from "../../../components/print/printTemplate";
-import { useDataContext } from "../../Context/DataContext";
+// DataContext removed
 // SaleRecord type not used in this file anymore
 import SalesDocShell, {
   type SalesPayload,
@@ -38,13 +37,13 @@ import SavedDraftsPanel from "../../../components/sales/SavedDraftsPanel";
 // import ProductMaster from "../Products/ProductMaster";
 import { showNotification } from "@mantine/notifications";
 import {
-  createQuotation,
-  updateQuotationByNumber,
-  deleteQuotationByNumber,
   type QuotationRecordPayload,
   type InventoryItemPayload,
   type CustomerPayload,
 } from "../../../lib/api";
+import { useQuotations } from "../../../hooks/useSales";
+import { useCustomer } from "../../../hooks/useCustomer";
+import { useInventory } from "../../../lib/hooks/useInventory";
 
 // Use LineItem type for strict item mapping
 export type LineItem = {
@@ -67,51 +66,12 @@ import openPrintWindow from "../../../components/print/printWindow";
 import { generateGatePassHTML } from "../../../components/print/printTemplate";
 
 function Quotation() {
-  const {
-    sales,
-    quotations,
-    setQuotations,
-    loadSales,
-    loadQuotations,
-    customers,
-    loadCustomers,
-    loadInventory,
-    inventory,
-  } = useDataContext();
+  const { quotations, createQuotationAsync, updateQuotationAsync, deleteQuotationAsync } = useQuotations();
+  const { customers } = useCustomer();
+  // sales hook removed as unused
+  const { inventory } = useInventory(); // Ensure inventory is loaded
 
-  // Products are always sourced from DataContext inventory, which ProductMaster keeps in sync.
-
-  // Only run data loading on initial mount
-  // Filter out any temp rows (with temp- prefix) to avoid showing duplicates after optimistic insert
-  // (quotes is declared below with correct filtering, so this block is removed)
-  useEffect(() => {
-    if ((!sales || sales.length === 0) && typeof loadSales === "function") {
-      loadSales().catch(() => {});
-    }
-    if (
-      (!customers || customers.length === 0) &&
-      typeof loadCustomers === "function"
-    ) {
-      loadCustomers().catch(() => {});
-    }
-    if (
-      (!inventory || inventory.length === 0) &&
-      typeof loadInventory === "function"
-    ) {
-      loadInventory().catch(() => {});
-    }
-    if (typeof loadQuotations === "function") {
-      loadQuotations().catch(() => {});
-    }
-  }, [
-    loadSales,
-    loadCustomers,
-    loadInventory,
-    loadQuotations,
-    customers,
-    inventory,
-    sales,
-  ]);
+  // Removed DataContext and manual loading effects as React Query handles this
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [initialPayload, setInitialPayload] =
@@ -133,7 +93,7 @@ function Quotation() {
       return;
     }
     try {
-      // Find the correct unique identifier for deletion (prefer _id, then quotationNumber)
+      // Find the correct unique identifier for deletion (prefer quotationNumber)
       let qNum = String(id);
       const toDelete = (quotations || []).find(
         (q) =>
@@ -153,28 +113,8 @@ function Quotation() {
         qNum = String((toDelete as any).quotationNumber);
       }
 
-      await deleteQuotationByNumber(qNum);
-      // Immediately update UI for instant feedback
-      if (typeof setQuotations === "function") {
-        setQuotations((prev) =>
-          prev.filter(
-            (q) =>
-              String(q.quotationNumber) !== qNum &&
-              String((q as { _id?: string })._id) !== qNum &&
-              String(
-                (q as Partial<QuotationRecordPayload> & { id?: string }).id
-              ) !== qNum &&
-              String(
-                (q as Partial<QuotationRecordPayload> & { docNo?: string })
-                  .docNo
-              ) !== qNum
-          )
-        );
-      }
-      // Then reload from server to ensure backend sync
-      if (typeof loadQuotations === "function") {
-        await loadQuotations();
-      }
+      await deleteQuotationAsync(qNum);
+      
       showNotification({
         title: "Deleted",
         message: "Quotation deleted",
@@ -344,7 +284,7 @@ function Quotation() {
     if (creating) return; // Prevent concurrent submissions
 
     // Normalize customer using helper function
-    const cust = normalizeQuotationCustomer(payload.customer, customers);
+    const cust = normalizeQuotationCustomer(payload.customer, customers as any);
     logger.debug("Normalized customer:", cust);
 
     if (!cust) {
@@ -369,101 +309,38 @@ function Quotation() {
       );
 
     // Build API payload using helper function
-    const apiPayload = buildQuotationPayload(payload, assignedQuotationNumber, customers);
+    const apiPayload = buildQuotationPayload(payload, assignedQuotationNumber, customers as any);
 
-    // Build temporary row for optimistic UI update
-    const tempRow = buildTempQuotationRow(payload, assignedQuotationNumber, cust);
-
-    // Optimistically insert into UI so user sees the new quotation immediately.
     try {
-      if (!editingId) {
-        if (typeof setQuotations === "function") {
-          setQuotations((prev) => [tempRow, ...prev]);
-        }
-      }
-
-      // Close modal immediately to show the new row; keep creating flag until server responds
-      setOpen(false);
-      setInitialPayload(null);
-      setEditingId(null);
-
       // ensure payload includes a quotationNumber for create
       if (!editingId) apiPayload.quotationNumber = assignedQuotationNumber;
 
       if (editingId) {
         // prefer updating by quotationNumber
         const qNum = String(editingId);
-        const updated = await updateQuotationByNumber(qNum, apiPayload);
-        // update quotations state
-        if (typeof setQuotations === "function") {
-          setQuotations((prev) =>
-            prev.map((s) =>
-              String((s).quotationNumber) === qNum ||
-              String(
-                (s as QuotationRecordPayload & { docNo?: string }).docNo
-              ) === qNum ||
-              String((s as QuotationRecordPayload & { id?: string }).id) ===
-                qNum ||
-              String((s as QuotationRecordPayload & { _id?: string })._id) ===
-                qNum
-                ? (updated as QuotationRecordPayload)
-                : s
-            )
-          );
-        }
+        await updateQuotationAsync({ quotationNumber: qNum, data: apiPayload });
+        
         showNotification({
           title: "Quotation Updated",
           message: "Quotation has been updated.",
           color: "blue",
         });
       } else {
-        const created = await createQuotation(
-          apiPayload
-        );
-        if (created) {
-          // Replace the temp row with server-provided record (match by quotationNumber)
-          if (typeof setQuotations === "function") {
-            setQuotations((prev) => [
-              created as QuotationRecordPayload,
-              ...prev.filter(
-                (
-                  r: QuotationRecordPayload & {
-                    quotationNumber?: string;
-                    docNo?: string;
-                  }
-                ) =>
-                  String(
-                    r.quotationNumber ?? (r as { docNo?: string }).docNo
-                  ) !== String(created.quotationNumber)
-              ),
-            ]);
-          }
-        } else {
-          // If server returned nothing, leave the optimistic row but notify
-          showNotification({
-            title: "Created (local)",
-            message: "Quotation added locally (server did not return data).",
-            color: "yellow",
-          });
-        }
+        await createQuotationAsync(apiPayload);
+        
         showNotification({
           title: "Quotation Created",
           message: "Quotation created.",
           color: "green",
         });
       }
+      
+      // Close modal immediately
+      setOpen(false);
+      setInitialPayload(null);
+      setEditingId(null);
+      
     } catch (err: unknown) {
-      // On error, remove optimistic row and notify
-      if (!editingId) {
-        if (typeof setQuotations === "function") {
-          setQuotations((prev) =>
-            prev.filter(
-              (r) =>
-                String((r).quotationNumber) !== assignedQuotationNumber
-            )
-          );
-        }
-      }
       showNotification({
         title: editingId ? "Update Failed" : "Create Failed",
         message: err instanceof Error ? err.message : String(err),
@@ -579,10 +456,7 @@ function Quotation() {
             <Button
               leftSection={<IconPlus size={16} />}
               onClick={async () => {
-                // Always reload inventory before opening modal
-                if (typeof loadInventory === "function") {
-                  await loadInventory();
-                }
+                // Inventory is auto-loaded by useInventory hook
                 const gen = generateNextDocumentNumber(
                   "Quo",
                   quotes.map((q) => String(q.quotationNumber || "")),
@@ -681,7 +555,7 @@ function Quotation() {
                   }
                   // Fallback for optimistic rows: lookup customerId or customer[0]?.id in customers list
                   if (!customerDisplay && Array.isArray(customers)) {
-                    let customerId = null;
+                    let customerId: any = null;
                     if (q.customer) {
                       customerId = q.customer;
                     } else if (
@@ -848,8 +722,8 @@ function Quotation() {
           </Text>
           <SalesDocShell
             mode="Quotation"
-            customers={customers}
-            products={(inventory || []).map((p) => {
+            customers={customers as any}
+            products={(inventory || []).map((p: any) => {
               const item = p as InventoryItemPayload;
               let unitVal = item.unit;
               if (typeof unitVal === "number") unitVal = String(unitVal);

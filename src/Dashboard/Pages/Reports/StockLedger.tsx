@@ -11,6 +11,7 @@ import {
 import { IconPrinter } from "@tabler/icons-react";
 import Table from "../../../lib/AppTable";
 import { useDataContext } from "../../Context/DataContext";
+import { useInventory } from "../../../hooks/useInventory";
 import type {
   SaleRecord,
   PurchaseInvoiceRecord,
@@ -24,10 +25,10 @@ export default function StockLedger() {
   const [toDate, setToDate] = useState<string>("");
 
   const {
-    inventory = [],
     sales = [],
     purchaseInvoices = [],
   } = useDataContext();
+  const { inventory = [] } = useInventory();
 
   const selectedProduct = useMemo(
     () => inventory.find((p) => String(p._id) === selectedProductId),

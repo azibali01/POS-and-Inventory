@@ -20,6 +20,7 @@ import {
 } from "@tabler/icons-react";
 import type { Supplier } from "../../../components/purchase/SupplierForm";
 import { useDataContext } from "../../Context/DataContext";
+import { useInventory } from "../../../hooks/useInventory";
 import { formatDate, formatCurrency } from "../../../lib/format-utils";
 import openPrintWindow from "../../../components/print/printWindow";
 // Helper to format invoice data for printing
@@ -87,15 +88,10 @@ export default function PurchaseInvoicesPage() {
 
   // Place useEffect after all hooks, before return
 
-  const { suppliers, inventory, purchases, loadInventory, setInventory } = useDataContext();
+  const { suppliers, purchases } = useDataContext();
+  const { inventory, loadInventory } = useInventory();
 
-  // Ensure products (inventory) are loaded on mount
-  React.useEffect(() => {
-    logger.debug("[PurchaseInvoice] inventory:", inventory);
-    if (!inventory || inventory.length === 0) {
-      loadInventory();
-    }
-  }, [inventory, loadInventory]);
+  // Inventory is auto-loaded by useInventory hook
   const [data, setData] = useState<PurchaseInvoiceTableRow[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -247,36 +243,7 @@ export default function PurchaseInvoicesPage() {
       remarks: payload.remarks,
     };
     await createPurchaseInvoice(invoicePayload);
-    // Optimistically increment inventory locally for each purchased item
-    try {
-      setInventory((prev = []) =>
-        (prev || []).map((inv: any) => {
-          const match = (products || []).find((it) => {
-            const key = String(it.id ?? it.productName ?? "");
-            return (
-              key &&
-              (String(inv._id) === key ||
-                String(inv.itemName) === key ||
-                String(inv.itemName) === String(it.productName))
-            );
-          });
-          if (!match) return inv;
-          const qty = Number(match.quantity ?? 0);
-          if (!qty) return inv;
-          const current = Number(
-            inv.openingStock ?? inv.stock ?? inv.quantity ?? 0
-          );
-          const nextQty = current + qty;
-          return {
-            ...inv,
-            openingStock: nextQty,
-            stock: nextQty,
-          };
-        })
-      );
-    } catch (err) {
-      logger.warn("Failed to optimistically update inventory after purchase invoice:", err);
-    }
+    // Optimistically increment inventory  locally for each purchased item is now handled by backend
     // Refresh inventory after creating purchase invoice so stock reflects received quantities
     try {
       await loadInventory();

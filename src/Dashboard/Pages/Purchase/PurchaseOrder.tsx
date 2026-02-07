@@ -30,6 +30,7 @@ import {
   buildLocalPurchaseOrder,
   type PurchaseLineItem,
 } from "./purchase-order-helpers";
+import { useInventory } from "../../../hooks/useInventory";
 
 type PO = {
   id: string;
@@ -48,19 +49,13 @@ type PO = {
 export default function PurchaseOrdersPage() {
   const {
     purchases,
-    suppliers,
+  suppliers,
     loadSuppliers,
     loadPurchases,
-    inventory,
-    loadInventory,
   } = useDataContext();
+  useInventory(); // Ensure inventory is loaded
 
-  // Ensure products (inventory) and suppliers are loaded on mount
-  useEffect(() => {
-    if (!inventory || inventory.length === 0) {
-      loadInventory();
-    }
-  }, [inventory, loadInventory]);
+  // Inventory is auto-loaded by useInventory hook
 
   useEffect(() => {
     if (!suppliers || suppliers.length === 0) {

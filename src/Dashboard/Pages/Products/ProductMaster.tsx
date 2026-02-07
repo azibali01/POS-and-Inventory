@@ -27,9 +27,8 @@ import {
   IconCheck,
   IconX,
 } from "@tabler/icons-react";
-
-import { useDataContext } from "../../Context/DataContext";
-import type { InventoryItem } from "../../Context/DataContext";
+import { useInventory, useCategories } from "../../../lib/hooks/useInventory";
+import type { InventoryItemPayload } from "../../../api";
 
 import { ProductForm } from "../../../components/products/ProductForm";
 import { ProductDetails } from "../../../components/products/ProductDetails";
@@ -63,26 +62,35 @@ export default function ProductMaster() {
   };
 
   type ApplyResponse = { updated?: Array<{ _id: string; newPrice?: number }> };
+  
   const {
-    categoriesForSelect = [],
-    deleteInventoryItem,
-    loadInventory,
+    categories: categoryData = [],
+  } = useCategories();
+
+  const categoriesForSelect = useMemo(() => {
+    return (categoryData || []).map((c: any) => ({
+      value: c.name,
+      label: c.name,
+    }));
+  }, [categoryData]);
+
+  const {
     inventory,
-  } = useDataContext();
+    deleteInventoryAsync: deleteInventoryItem,
+    refetch: loadInventory,
+  } = useInventory();
+  
+  // Inventory is auto-loaded by useInventory hook
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch] = useDebouncedValue(searchTerm, 200);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(
+  const [selectedProduct, setSelectedProduct] = useState<InventoryItemPayload | null>(
     null
   );
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<string>("25");
 
-  // Load products from backend on mount
-  useEffect(() => {
-    loadInventory();
-  }, []);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
@@ -125,8 +133,8 @@ export default function ProductMaster() {
     setCurrentPage(1);
   }, [debouncedSearch, selectedCategory]);
 
-  const getStockStatus = (item: InventoryItem) => {
-    const stock = item.openingStock ?? item.stock;
+  const getStockStatus = (item: InventoryItemPayload) => {
+    const stock = item.openingStock ?? (item as any).stock;
     const min = item.minimumStockLevel;
     if (stock == null) return <Badge color="gray">Unknown</Badge>;
     if (stock < 0) return <Badge color="red">Negative</Badge>;
@@ -301,7 +309,7 @@ export default function ProductMaster() {
                     {p.color ?? "-"}
                   </Table.Td>
                   <Table.Td style={{ padding: "8px" }}>
-                    {formatNumber(p.openingStock ?? p.stock)}
+                    {formatNumber(p.openingStock ?? (p as any).stock)}
                   </Table.Td>
                   <Table.Td style={{ padding: "8px" }}>
                     {formatCurrency(p.salesRate ?? null)}
@@ -361,7 +369,7 @@ export default function ProductMaster() {
         size={"70%"}
       >
         {selectedProduct ? (
-          <ProductDetails product={selectedProduct} />
+          <ProductDetails product={selectedProduct as any} />
         ) : (
           <Text c="dimmed">No product selected</Text>
         )}
@@ -375,7 +383,7 @@ export default function ProductMaster() {
       >
         {selectedProduct && (
           <ProductForm
-            product={selectedProduct}
+            product={selectedProduct as any}
             onClose={() => { setIsEditOpen(false); }}
           />
         )}

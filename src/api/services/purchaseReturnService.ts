@@ -58,6 +58,17 @@ export const purchaseReturnService = {
   },
 
   /**
+   * Update purchase return by ID
+   */
+  async update(id: string | number, payload: Partial<PurchaseReturnRecordPayload>) {
+    const { data } = await axiosClient.put(
+      `${ENDPOINTS.PURCHASE_RETURNS}/${id}`,
+      payload
+    );
+    return data;
+  },
+
+  /**
    * Delete purchase return by ID
    */
   async delete(id: string): Promise<void> {
