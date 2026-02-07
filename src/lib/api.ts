@@ -2,11 +2,12 @@
 import axios from "axios";
 import { env } from "./env";
 import { logger } from "./logger";
+import { API_TIMEOUT, MAX_ITEMS_LIMIT } from "./constants";
 
 // Create axios instance with environment-based configuration
 export const api = axios.create({
   baseURL: env.API_URL,
-  timeout: 30000, // 30 seconds
+  timeout: API_TIMEOUT,
   headers: {
     "Content-Type": "application/json",
   },
@@ -357,6 +358,24 @@ export async function deletePurchaseInvoice(id: string | number) {
 // This logs method+url and a stack trace so we can see which component/effect
 // initiated the request. Disabled in production to avoid leaking internals.
 
+// ==========================
+// SALES
+
+/**
+ * Fetches all sales/invoices from the backend
+ * @returns Promise resolving to array of sale records
+ * @throws Error if the request fails
+ */
+export async function getAllSales() {
+  const { data } = await api.get<
+    SaleRecordPayload[] | PaginatedResponse<SaleRecordPayload>
+  >("/sale-invoice");
+  return unwrapPaginated(data);
+}
+
+// Backward compatibility alias
+export const getSales = getAllSales;
+
 // test
 
 // Get all purchase orders
@@ -499,10 +518,14 @@ export interface QuotationRecordPayload {
 }
 
 // --- Drafts (server-side autosave) ---
+export interface DraftData {
+  [key: string]: unknown;
+}
+
 export interface DraftRecord {
   _id?: string;
   key: string;
-  data: any;
+  data: DraftData;
   userId?: string;
   title?: string;
   createdAt?: string;
@@ -527,9 +550,14 @@ export async function getDraftByKey(key: string, userId?: string) {
   }
 }
 
+/**
+ * Creates a new draft for auto-save functionality
+ * @param payload - Draft data including key, data object, and optional metadata
+ * @returns Promise resolving to created draft record
+ */
 export async function createDraft(payload: {
   key: string;
-  data: any;
+  data: DraftData;
   userId?: string;
   title?: string;
 }) {
@@ -540,9 +568,16 @@ export async function createDraft(payload: {
   return data;
 }
 
+/**
+ * Updates an existing draft
+ * @param id - Draft ID to update
+ * @param patch - Fields to update (data and/or title)
+ * @param userId - Optional user ID for authorization
+ * @returns Promise resolving to updated draft record
+ */
 export async function updateDraft(
   id: string,
-  patch: { data?: any; title?: string },
+  patch: { data?: DraftData; title?: string },
   userId?: string
 ) {
   const opts = userId ? { headers: { "x-user-id": userId } } : undefined;
@@ -673,7 +708,7 @@ export async function getInventory() {
     try {
       const { data } = await api.get<
         InventoryItemPayload[] | PaginatedResponse<InventoryItemPayload>
-      >(path, { params: { limit: 10000 } });
+      >(path, { params: { limit: MAX_ITEMS_LIMIT } });
       return unwrapPaginated(data);
     } catch (err: unknown) {
       // if server returned 404, try the next candidate; otherwise rethrow
@@ -685,13 +720,6 @@ export async function getInventory() {
   }
   // nothing found — return empty list to keep app usable
   return [] as InventoryItemPayload[];
-}
-
-export async function getSales() {
-  const { data } = await api.get<
-    SaleRecordPayload[] | PaginatedResponse<SaleRecordPayload>
-  >("/sale-invoice");
-  return unwrapPaginated(data);
 }
 
 // Quotations read endpoint
@@ -717,6 +745,13 @@ export async function getExpenses() {
   return data;
 }
 
+// ==========================
+// CUSTOMERS
+
+/**
+ * Fetches all customers from the backend
+ * @returns Promise resolving to array of customer records
+ */
 export async function getCustomers() {
   const { data } = await api.get<CustomerPayload[]>("/customers");
   return data;
@@ -757,6 +792,11 @@ export async function createInventory(item: InventoryItemPayload) {
   return data;
 }
 
+/**
+ * Creates a new sale/invoice
+ * @param payload - Sale data including items, customer, and totals
+ * @returns Promise resolving to created sale record
+ */
 export async function createSale(payload: SaleRecordPayload) {
   logger.log("createSale called with payload:", payload);
   try {
@@ -890,6 +930,12 @@ export async function updateCategory(
 }
 
 // Customer endpoints
+
+/**
+ * Creates a new customer
+ * @param payload - Customer data including name, contact, and opening balance
+ * @returns Promise resolving to created customer record
+ */
 export async function createCustomer(payload: CustomerPayload) {
   const { data } = await api.post<CustomerPayload>("/customers", payload);
   return data;
@@ -981,6 +1027,11 @@ export async function updateSale(
   return data;
 }
 
+/**
+ * Deletes a sale by invoice number
+ * @param invoiceNumber - Invoice number to delete
+ * @returns Promise resolving when deletion is complete
+ */
 export async function deleteSale(invoiceNumber: string) {
   // Try dedicated number-based endpoint first
 

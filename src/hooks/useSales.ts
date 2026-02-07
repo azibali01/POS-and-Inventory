@@ -109,7 +109,7 @@ export function useSaleReturns() {
 
   // Create sale return mutation
   const createMutation = useMutation({
-    mutationFn: (saleReturn: unknown) => saleReturnService.create(saleReturn),
+    mutationFn: (saleReturn: Record<string, unknown>) => saleReturnService.create(saleReturn),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
     },
@@ -122,7 +122,7 @@ export function useSaleReturns() {
       data,
     }: {
       invoiceNumber: string;
-      data: unknown;
+      data: Record<string, unknown>;
     }) => saleReturnService.updateByInvoiceNumber(invoiceNumber, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
