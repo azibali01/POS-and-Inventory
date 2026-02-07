@@ -1,10 +1,4 @@
 /* eslint-disable react-refresh/only-export-components */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import React, { createContext, useState, useCallback, useRef } from "react";
 import { showNotification } from "@mantine/notifications";
 import * as api from "../../lib/api";
@@ -132,8 +126,8 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
           } else if (typeof o.customer === "object" && o.customer !== null) {
             customer = [
               {
-                id: (o.customer as { id?: string | number })?.id,
-                name: (o.customer as { name?: string })?.name ?? "",
+                id: (o.customer as { id?: string | number }).id,
+                name: (o.customer as { name?: string }).name ?? "",
               },
             ];
           } else if (typeof o.customer === "string" && o.customer.trim()) {
@@ -308,6 +302,9 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       setSalesLoading(true);
       try {
         // Only send SaleRecordPayload to API
+        // Helper to safely extract customer
+        const rawCustomer = (payload as { customer?: unknown }).customer;
+        
         const apiPayload: import("../../lib/api").SaleRecordPayload = {
           ...payload,
           quotationDate:
@@ -317,19 +314,17 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
               ? payload.quotationDate.toISOString()
               : undefined,
           customer:
-            Array.isArray((payload as any).customer) &&
-            (payload as any).customer.length > 0
-              ? (payload as any).customer[0]
-              : typeof (payload as any).customer === "object" &&
-                (payload as any).customer !== null
-              ? (payload as any).customer
+            Array.isArray(rawCustomer) && rawCustomer.length > 0
+              ? (rawCustomer[0] as api.CustomerPayload)
+              : typeof rawCustomer === "object" && rawCustomer !== null
+              ? (rawCustomer as api.CustomerPayload)
               : undefined,
         };
         const created = await api.createSale(apiPayload);
 
         logger.debug("Create sale response:", created);
 
-        const payloadCustomer = (payload as { customer?: unknown })?.customer;
+        const payloadCustomer = (payload as { customer?: unknown }).customer;
 
         const inferredCustomerName = Array.isArray(payloadCustomer)
           ? (payloadCustomer[0] as { name?: string })?.name
@@ -350,15 +345,18 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
           id:
             (created as { invoiceNumber?: string | number })?.invoiceNumber ??
             created.id ??
-            `sale-${Date.now()}`,
-          customer: normalizedCustomer as any,
+            `sale-${String(Date.now())}`,
+          customer: normalizedCustomer[0] ? {
+            ...normalizedCustomer[0],
+            _id: normalizedCustomer[0].name || "temp"
+          } : null,
           customerName:
             (Array.isArray(normalizedCustomer) &&
-              (normalizedCustomer[0] as { name?: string })?.name) ||
-            (created as { customerName?: string })?.customerName ||
+              normalizedCustomer[0]?.name) ||
+            (created as { customerName?: string }).customerName ||
             inferredCustomerName ||
             "",
-          date: (created as { invoiceDate?: string })?.invoiceDate || "",
+          date: (created as api.SaleRecordPayload).invoiceDate || new Date(),
         } as SaleRecord;
 
         setSales((prev) => [sale, ...prev]);
@@ -369,33 +367,40 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
         });
         // Update inventory quantities locally to reflect the sale
         try {
-          const soldItems: any[] =
-            (payload as any)?.items ||
-            (payload as any)?.products ||
-            (created as any)?.items ||
-            [];
-          if (Array.isArray(soldItems) && soldItems.length > 0) {
+          // Robustly extract items from payload or response
+          const p = payload as { items?: unknown; products?: unknown };
+          const c = created as { items?: unknown };
+          
+          const soldItems = (
+             (Array.isArray(p.items) ? p.items : undefined) ??
+             (Array.isArray(p.products) ? p.products : undefined) ??
+             (Array.isArray(c.items) ? c.items : undefined) ??
+             []
+          ) as Record<string, unknown>[];
+
+          if (soldItems.length > 0) {
             setInventory((prev) =>
               prev.map((inv) => {
                 // Find matching sold item by several possible keys
-                const match = soldItems.find((it: any) => {
+                const match = soldItems.find((it) => {
+                  const item = it as Record<string, unknown>;
                   const key = String(
-                    it._id ??
-                      it.id ??
-                      it.sku ??
-                      it.productId ??
-                      it.itemName ??
+                    (item._id as string | number) ||
+                      (item.id as string | number) ||
+                      (item.sku as string | number) ||
+                      (item.productId as string | number) ||
+                      (item.itemName as string) ||
                       ""
                   );
                   return (
                     key &&
                     (String(inv._id) === key ||
                       String(inv.itemName) === key ||
-                      String(inv.itemName) === String(it.productName))
+                      inv.itemName === String(item.productName))
                   );
                 });
                 if (!match) return inv;
-                const qty = Number(match.quantity ?? 0);
+                const qty = Number(match.quantity || 0);
                 if (!qty) return inv;
                 const current = Number(
                   inv.openingStock ?? inv.stock ?? inv.quantity ?? 0
@@ -446,18 +451,19 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     ) => {
       setSalesLoading(true);
       try {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const updated = await api.updateSaleByNumber(String(id), payload);
         logger.debug("Update sale response:", updated);
-        const payloadCustomer = (payload as { customer?: unknown })?.customer;
+        const payloadCustomer = (payload as { customer?: unknown }).customer;
         const inferredCustomerName = Array.isArray(payloadCustomer)
-          ? (payloadCustomer[0] as { name?: string })?.name
+          ? (payloadCustomer[0] as { name?: string }).name
           : typeof payloadCustomer === "string"
           ? payloadCustomer
-          : (payload as { customerName?: string })?.customerName || null;
+          : (payload as { customerName?: string }).customerName || null;
 
         const normalizedCustomer =
-          (updated as { customer?: Array<{ name?: string }> })?.customer &&
-          (updated as { customer?: Array<{ name?: string }> })?.customer?.length
+          (updated as { customer?: Array<{ name?: string }> }).customer &&
+          (updated as { customer?: Array<{ name?: string }> }).customer?.length
             ? (updated as { customer: Array<{ name?: string }> }).customer
             : inferredCustomerName
             ? [{ name: inferredCustomerName }]
@@ -465,14 +471,18 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
 
         const sale = {
           ...updated,
-          id: updated.id ?? id,
-          customer: normalizedCustomer,
+          id: (updated as api.SaleRecordPayload).id ?? id,
+          customer: normalizedCustomer[0] ? {
+             ...normalizedCustomer[0],
+             _id: normalizedCustomer[0].name || "temp"
+          } : null,
           customerName:
             (Array.isArray(normalizedCustomer) &&
-              (normalizedCustomer[0] as { name?: string })?.name) ||
-            (updated as { customerName?: string })?.customerName ||
+              normalizedCustomer[0]?.name) ||
+            (updated as { customerName?: string }).customerName ||
             inferredCustomerName ||
             "",
+          date: (updated as { invoiceDate?: string }).invoiceDate || new Date(),
         } as SaleRecord;
 
         setSales((prev) =>
@@ -504,6 +514,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     setSalesLoading(true);
     try {
       logger.debug("Deleting sale id/invoiceNumber:", String(id));
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const resp = await api.deleteSaleByNumber(String(id));
 
       logger.debug("Delete sale response:", resp);
@@ -598,7 +609,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
           _id: updated._id ? String(updated._id) : updated.id ? String(updated.id) : String(id),
         };
         setCustomers((prev) =>
-          prev.map((c) => (String(c._id) === String(id) ? customer : c))
+          prev.map((c) => (c._id === String(id) ? customer : c))
         );
         showNotification({
           title: "Customer Updated",
@@ -628,7 +639,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     setCustomersLoading(true);
     try {
       await api.deleteCustomer(String(id));
-      setCustomers((prev) => prev.filter((c) => String(c._id) !== String(id)));
+      setCustomers((prev) => prev.filter((c) => c._id !== String(id)));
       showNotification({
         title: "Customer Deleted",
         message: "Customer has been removed",
@@ -707,6 +718,7 @@ export function useSales(): SalesContextType {
   }
   return context;
 }
+
 
 export { SalesContext };
 export type { SaleRecord, QuotationRecord, Customer };

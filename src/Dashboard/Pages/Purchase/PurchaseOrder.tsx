@@ -16,12 +16,20 @@ import Table from "../../../lib/AppTable";
 import { showNotification } from "@mantine/notifications";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
 import { deletePurchaseByNumber } from "../../../lib/api";
-import type { PurchaseLineItem } from "./types";
+// type import replaced by helper import below
 import { PurchaseOrderForm as GeneratedPOForm } from "./PurchaseOrderForm.generated";
 import { useDataContext } from "../../Context/DataContext";
 
 import { IconEdit, IconPlus, IconPrinter, IconTrash } from "@tabler/icons-react";
 import { Search } from "lucide-react";
+import { generateNextDocumentNumber } from "../../../utils/document-utils";
+import {
+  normalizePurchaseSupplier,
+  mapPurchaseOrderItems,
+  buildPurchaseOrderPayload,
+  buildLocalPurchaseOrder,
+  type PurchaseLineItem,
+} from "./purchase-order-helpers";
 
 type PO = {
   id: string;
@@ -67,16 +75,13 @@ export default function PurchaseOrdersPage() {
   const [deletePO, setDeletePO] = useState<PO | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Helper to get next PO number in format PO-0001, PO-0002, ...
+  // Replace custom getNextPONumber with shared utility
   function getNextPONumber(): string {
-    const numbers = (purchases || [])
-      .map((p) => {
-        const match = String(p.poNumber || "").match(/PO-(\d+)/);
-        return match ? parseInt(match[1], 10) : 0;
-      })
-      .filter((n) => !isNaN(n));
-    const next = (numbers.length > 0 ? Math.max(...numbers) : 0) + 1;
-    return `PO-${next.toString().padStart(3, "0")}`;
+    return generateNextDocumentNumber(
+      "PO",
+      (purchases || []).map((p) => p.poNumber || ""),
+      3
+    );
   }
   // Update data from purchases and suppliers
   useEffect(() => {
@@ -93,46 +98,16 @@ export default function PurchaseOrdersPage() {
             expectedDeliveryDate = isNaN(d.getTime()) ? undefined : d;
           }
         }
-        // Robust supplier resolution: try _id, then supplierId (if present), fallback to supplier object
-        let supplier = undefined;
-        
-        // Try to resolve from supplier object with _id
-        if (
-          p.supplier &&
-          typeof p.supplier === "object" &&
-          "_id" in p.supplier &&
-          typeof (p.supplier as { _id?: unknown })._id === "string"
-        ) {
-          const supplierId = (p.supplier as { _id: string })._id;
-          supplier = suppliers?.find((s) => String(s._id) === String(supplierId));
-          if (!supplier && "name" in p.supplier) {
-            // If not found in list, use the embedded supplier object
-            supplier = p.supplier as any;
-          }
-        } else if (hasSupplierId(p)) {
-          supplier = suppliers?.find((s) => String(s._id) === String(p.supplierId));
-        }
-        
-        function hasSupplierId(obj: unknown): obj is { supplierId: string } {
-          return (
-            typeof obj === "object" &&
-            obj !== null &&
-            "supplierId" in obj &&
-            typeof (obj as { supplierId?: unknown }).supplierId === "string"
-          );
-        }
-        
-        // Final fallback: if supplier is object with name, use it directly
-        if (
-          !supplier &&
-          p.supplier &&
-          typeof p.supplier === "object" &&
-          "name" in p.supplier
-        ) {
-          supplier = p.supplier as any;
-        }
+
+        // Use helper to resolve supplier
+        const supplier = normalizePurchaseSupplier(
+          p.supplier, 
+          (p as any).supplierId, 
+          suppliers || []
+        );
         
         logger.debug("[PO] Resolved supplier for", p.poNumber, ":", supplier);
+        
         let total = typeof p.total === "number" ? p.total : 0;
         if (!total && Array.isArray(p.products)) {
           total = p.products.reduce(
@@ -140,32 +115,16 @@ export default function PurchaseOrdersPage() {
             0
           );
         }
+
+        // Map items using helper (casting to PurchaseLineItem[] as expected by helper)
+        const products = mapPurchaseOrderItems((p.products || []) as PurchaseLineItem[]);
+
         return {
           id: p.id || p.poNumber || crypto.randomUUID(),
           poNumber: p.poNumber || "(No PO#)",
           poDate: p.poDate,
           supplier,
-          products: (p.products || []).map((item) => ({
-            id: typeof item.id === "string" ? item.id : crypto.randomUUID(),
-            productId: "",
-            productName:
-              typeof item.productName === "string" ? item.productName : "",
-            code: "",
-            unit: "pcs",
-            percent: 0,
-            quantity: typeof item.quantity === "number" ? item.quantity : 0,
-            rate: typeof item.rate === "number" ? item.rate : 0,
-            color: typeof item.color === "string" ? item.color : "",
-            grossAmount: 0,
-            discountAmount: 0,
-            netAmount: 0,
-            thickness: typeof item.thickness === "string" ? item.thickness : "",
-            length:
-              typeof item.length === "string" || typeof item.length === "number"
-                ? item.length
-                : "",
-            amount: typeof item.amount === "number" ? item.amount : 0,
-          })),
+          products,
           subTotal: typeof p.subTotal === "number" ? p.subTotal : total,
           total,
           status: p.status || "",
@@ -195,21 +154,18 @@ export default function PurchaseOrdersPage() {
     total?: number;
   }) {
     try {
-      // Resolve supplier from supplierId
-      const supplier = suppliers?.find((s) => String(s._id) === String(payload.supplierId));
+      // Resolve supplier from supplierId using helper
+      const supplier = normalizePurchaseSupplier(
+        undefined, 
+        payload.supplierId, 
+        suppliers || []
+      );
+      
       logger.debug("[PO] Saving with supplier:", supplier);
       logger.debug("[PO] Payload:", payload);
       
-      const purchasePayload = {
-        poNumber: payload.poNumber,
-        poDate: payload.poDate,
-        expectedDelivery: payload.expectedDelivery,
-        supplier: supplier,
-        products: payload.products,
-        remarks: payload.remarks,
-        subTotal: payload.subTotal,
-        total: payload.total ?? payload.subTotal ?? 0,
-      };
+      // Build API payload
+      const purchasePayload = buildPurchaseOrderPayload(payload, supplier);
       
       if (editPO) {
         // Update existing PO
@@ -228,32 +184,10 @@ export default function PurchaseOrdersPage() {
                            String(po.poNumber) === String(payload.poNumber);
             
             if (isMatch) {
+              // Build updated local object
               return {
                 ...po,
-                poNumber: payload.poNumber,
-                poDate: payload.poDate,
-                supplier: supplier,
-                products: payload.products.map((item) => ({
-                  id: item.id || crypto.randomUUID(),
-                  productId: "",
-                  productName: item.productName || "",
-                  code: "",
-                  unit: "pcs",
-                  percent: 0,
-                  quantity: item.quantity || 0,
-                  rate: item.rate || 0,
-                  color: item.color || "",
-                  grossAmount: 0,
-                  discountAmount: 0,
-                  netAmount: 0,
-                  thickness: item.thickness || "",
-                  length: item.length || "",
-                  amount: item.amount || 0,
-                })),
-                subTotal: payload.subTotal ?? 0,
-                total: payload.total ?? payload.subTotal ?? 0,
-                expectedDeliveryDate: payload.expectedDelivery,
-                remarks: payload.remarks,
+                ...buildLocalPurchaseOrder(payload, supplier, po.id, po.status)
               };
             }
             return po;
@@ -272,35 +206,9 @@ export default function PurchaseOrdersPage() {
         );
         
         // Add to local state immediately
-        const newPO: PO = {
-          id: payload.poNumber,
-          poNumber: payload.poNumber,
-          poDate: payload.poDate,
-          supplier: supplier,
-          products: payload.products.map((item) => ({
-            id: item.id || crypto.randomUUID(),
-            productId: "",
-            productName: item.productName || "",
-            code: "",
-            unit: "pcs",
-            percent: 0,
-            quantity: item.quantity || 0,
-            rate: item.rate || 0,
-            color: item.color || "",
-            grossAmount: 0,
-            discountAmount: 0,
-            netAmount: 0,
-            thickness: item.thickness || "",
-            length: item.length || "",
-            amount: item.amount || 0,
-          })),
-          subTotal: payload.subTotal ?? 0,
-          total: payload.total ?? payload.subTotal ?? 0,
-          status: "Draft",
-          expectedDeliveryDate: payload.expectedDelivery,
-          remarks: payload.remarks,
-          createdAt: new Date(),
-        };
+        // Use helper to build new local PO object
+        const newPO = buildLocalPurchaseOrder(payload, supplier, payload.poNumber) as PO;
+        
         setData((prev) => [...prev, newPO]);
         
         showNotification({

@@ -9,14 +9,22 @@ import {
   Select,
   Text,
   Paper,
+  Modal,
+  SegmentedControl,
+  Stack,
+  Group,
+  NumberInput,
 } from "@mantine/core";
+import { useDisclosure } from '@mantine/hooks';
 import { formatCurrency } from "../../lib/format-utils";
 import LineItemsTable from "./line-items-table";
 import type { LineItem } from "./line-items-table";
 import type {
   Customer,
   InventoryItem,
+  CustomerInput,
 } from "../../Dashboard/Context/DataContext";
+import { useDataContext } from "../../Dashboard/Context/DataContext";
 import openPrintWindow from "../print/printWindow";
 import { generateGatePassHTML } from "../print/printTemplate";
 import type { InvoiceData } from "../print/printTemplate";
@@ -62,6 +70,7 @@ export interface SalesPayload {
   sourceQuotationId?: string | number;
   convertedInvoiceId?: string | number;
   convertedAt?: string;
+  receivedAmount?: number;
 }
 
 export default function SalesDocShell({
@@ -100,6 +109,10 @@ export default function SalesDocShell({
       ? initial.terms
       : "Prices valid for 15 days.\nPayment terms: Due on receipt."
   );
+
+  const [receivedAmount, setReceivedAmount] = useState<number>(
+    initial?.receivedAmount ?? 0
+  );
   // Always start with at least one empty item row
   const [items, setItems] = useState<LineItem[]>([
     {
@@ -127,6 +140,47 @@ export default function SalesDocShell({
   const saveTimer = useRef<number | null>(null);
   const lastSavedRef = useRef<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const { createCustomer } = useDataContext();
+
+  // Customer Type State
+  const [customerType, setCustomerType] = useState<string>("Regular");
+  // Walking Customer Details
+  const [walkingName, setWalkingName] = useState("");
+  const [walkingPhone, setWalkingPhone] = useState("");
+  const [walkingAddress, setWalkingAddress] = useState("");
+
+  // New Customer Modal
+  const [newCustomerOpened, { open: openNewCustomer, close: closeNewCustomer }] = useDisclosure(false);
+  const [newCustomer, setNewCustomer] = useState<CustomerInput>({
+    name: "",
+    phone: "",
+    address: "",
+    city: "",
+    creditLimit: 0,
+    openingAmount: 0,
+    paymentType: "Debit",
+  });
+
+  const handleCreateCustomer = async () => {
+    if (!newCustomer.name) return;
+    try {
+        const created = await createCustomer(newCustomer);
+        setCustomerId(String(created._id));
+        setCustomerType("Regular");
+        closeNewCustomer();
+        setNewCustomer({
+            name: "",
+            phone: "",
+            address: "",
+            city: "",
+            creditLimit: 0,
+            openingAmount: 0,
+            paymentType: "Debit",
+        });
+    } catch (error) {
+        logger.error("Failed to create customer", error);
+    }
+  };
 
   // Reset customer and items when modal opens (when initial changes)
   useEffect(() => {
@@ -286,11 +340,7 @@ export default function SalesDocShell({
       try {
         const sd = await getDraftByKey(draftKey);
         if (!mounted || !sd) return;
-        // Consolidate validation logic: auto-restore if empty, otherwise ignore.
-        // We prefer the local storage draft (handled above) or this server draft if local is missing.
-        // But since we can't easily ask the user without annoying alerts, we will:
-        // 1. If we already restored local, stick with it.
-        // 2. If NO local draft, and initial is empty, restore server draft automatically.
+       
 
         const rawLocal = (() => {
           try {
@@ -300,11 +350,9 @@ export default function SalesDocShell({
           }
         })();
 
-        // If we found a local draft, we assume it was processed in the previous effect.
-        // We only care about server draft if there was NO local draft and state is empty.
+      
         const initialEmpty = !initial || Object.keys(initial).length === 0;
 
-        // Only use server draft if no local draft and we are starting fresh
         if (!rawLocal && initialEmpty && sd?.data) {
           const d = sd.data;
           setDocNo(d.docNo ?? initial?.docNo ?? docNo);
@@ -319,7 +367,6 @@ export default function SalesDocShell({
           setServerDraftId(sd._id);
         }
       } catch (err) {
-        // ignore network errors — user will still have local drafts
       }
     })();
     return () => {
@@ -433,12 +480,19 @@ export default function SalesDocShell({
     // subtotal (for display) — keep it as gross minus discounts? We'll show both
     const sub = totalGrossAmount - totalDiscountAmount;
     // net = sub (no tax/GST per request)
+    // net = sub (no tax/GST per request)
     const totalNetAmount = sub;
+    
+    // Pending Amount
+    const pendingAmount = totalNetAmount - receivedAmount;
+
     return {
       sub,
       totalGrossAmount,
       totalDiscountAmount,
       totalNetAmount,
+      receivedAmount,
+      pendingAmount,
       // keep legacy fields for compatibility
       tax: 0,
       total: totalNetAmount,
@@ -446,8 +500,10 @@ export default function SalesDocShell({
       totalGrossAmount: number;
       totalDiscountAmount: number;
       totalNetAmount: number;
+      receivedAmount: number;
+      pendingAmount: number;
     };
-  }, [items]);
+  }, [items, receivedAmount]);
 
   const selectedCustomer = useMemo(
     () => customers.find((c) => String(c._id) === String(customerId)),
@@ -629,7 +685,15 @@ export default function SalesDocShell({
       mode,
       docNo,
       docDate,
-      customer: selectedCustomer
+      customer: customerType === 'Walking' 
+        ? {
+            name: walkingName || "Walking Customer",
+            phone: walkingPhone,
+            address: walkingAddress,
+            paymentType: "Debit", // Assume cash/walking is debit/immediate? Or Credit? Usually separate ledger handling. But payload needs structure.
+            metadata: { isWalking: true }
+          }
+        : selectedCustomer
         ? {
             id: selectedCustomer._id,
             name: selectedCustomer.name,
@@ -655,6 +719,7 @@ export default function SalesDocShell({
         totalNetAmount: totals.totalNetAmount,
         amount: totals.total ?? totals.totalNetAmount,
       },
+      receivedAmount,
       remarks,
       terms,
     };
@@ -684,6 +749,48 @@ export default function SalesDocShell({
   }
 
   return (
+    <>
+      <Modal opened={newCustomerOpened} onClose={closeNewCustomer} title="Add New Customer">
+        <Stack>
+            <TextInput 
+                label="Name" 
+                placeholder="Required" 
+                value={newCustomer.name} 
+                onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                required
+            />
+            <TextInput 
+                label="Phone" 
+                placeholder="Mobile" 
+                value={newCustomer.phone} 
+                onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+            />
+            <Textarea 
+                label="Address" 
+                placeholder="Optional" 
+                value={newCustomer.address} 
+                onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
+            />
+            <TextInput 
+                label="City" 
+                placeholder="Optional" 
+                value={newCustomer.city} 
+                onChange={(e) => setNewCustomer({ ...newCustomer, city: e.target.value })}
+            />
+            <NumberInput
+                label="Opening Balance"
+                value={newCustomer.openingAmount}
+                onChange={(v) => setNewCustomer({ ...newCustomer, openingAmount: Number(v || 0) })}
+            />
+             <Select
+                label="Payment Type"
+                data={['Credit', 'Debit']}
+                value={newCustomer.paymentType}
+                onChange={(v) => setNewCustomer({ ...newCustomer, paymentType: (v as "Credit" | "Debit") || "Debit" })}
+            />
+            <Button onClick={handleCreateCustomer}>Save Customer</Button>
+        </Stack>
+      </Modal>
     <form onSubmit={handleSubmit}>
       <Card w={"100%"}>
         <Card.Section
@@ -753,91 +860,100 @@ export default function SalesDocShell({
 
           <div
             style={{
-              display: "grid",
-              gap: 12,
-              gridTemplateColumns: "repeat(2, 1fr)",
               marginTop: 12,
+              border: "1px solid #eee",
+              padding: 12,
+              borderRadius: 8,
             }}
           >
-            <div>
-              <Text style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-                Customer
-              </Text>
-              <Select
-                value={String(customerId)}
-                onChange={(v) => { setCustomerId(String(v ?? "")); }}
-                data={customers
-                  .filter((c) => c._id && c.name)
-                  .map((c) => ({
-                    value: String(c._id),
-                    label: `${c.name} — ${c.city ?? ""}`,
-                  }))}
-                clearable
-              />
-            </div>
-            <div>
-              <Text style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-                Customer Details
-              </Text>
-              {selectedCustomer ? (
-                <Paper
-                  withBorder
-                  style={{ padding: 12, boxShadow: "var(--mantine-shadow-xs)" }}
-                >
-                  <div style={{ fontWeight: 700 }}>{selectedCustomer.name}</div>
-                  <div style={{ color: "#666", marginTop: 6 }}>
-                    {selectedCustomer.address}
-                  </div>
-                  <div style={{ marginTop: 8, display: "flex", gap: 16 }}>
+            <Group mb="xs" justify="space-between">
+                <Text style={{ fontSize: 14, fontWeight: 600 }}>Customer Details</Text>
+                <SegmentedControl
+                    value={customerType}
+                    onChange={setCustomerType}
+                    data={[
+                        { label: 'Regular Customer', value: 'Regular' },
+                        { label: 'Walking Customer', value: 'Walking' },
+                    ]}
+                    size="xs"
+                />
+            </Group>
+
+            {customerType === 'Regular' ? (
+                <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
                     <div>
-                      <div style={{ fontSize: 12, color: "#888" }}>
-                        Opening Amount
-                      </div>
-                      <div style={{ fontWeight: 600 }}>
-                        {formatCurrency(selectedCustomer.openingAmount ?? 0)}
-                      </div>
+                        <Select
+                            label="Select Customer"
+                            placeholder="Select or Search"
+                            value={String(customerId)}
+                            onChange={(v) => { setCustomerId(String(v ?? "")); }}
+                            data={customers
+                            .filter((c) => c._id && c.name)
+                            .map((c) => ({
+                                value: String(c._id),
+                                label: `${c.name} — ${c.city ?? ""}`,
+                            }))}
+                            clearable
+                            searchable
+                            nothingFoundMessage={
+                                <Button variant="subtle" size="xs" fullWidth onClick={openNewCustomer}>
+                                    + Add "{customerId}"
+                                </Button>
+                            }
+                        />
+                        <Button variant="subtle" size="xs" mt={4} onClick={openNewCustomer}>
+                            + Create New Customer
+                        </Button>
                     </div>
-                    <div>
-                      <div style={{ fontSize: 12, color: "#888" }}>
-                        Payment Type
-                      </div>
-                      <div style={{ fontWeight: 700 }}>
-                        {selectedCustomer.paymentType === "Debit"
-                          ? "Debit"
-                          : "Credit"}
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, color: "#888" }}>
-                        Credit/Debit
-                      </div>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          color:
-                            selectedCustomer.paymentType === "Debit"
-                              ? "red"
-                              : "green",
-                        }}
-                      >
-                        {(selectedCustomer.openingAmount ?? 0) > 0
-                          ? `${
-                              selectedCustomer.paymentType === "Debit"
-                                ? "Debit"
-                                : "Credit"
-                            } ${formatCurrency(
-                              selectedCustomer.openingAmount ?? 0
-                            )}`
-                          : "Nil"}
-                      </div>
-                    </div>
-                  </div>
-                </Paper>
-              ) : (
-                <Textarea readOnly value={""} minRows={4} />
-              )}
-            </div>
+
+                    {selectedCustomer && (
+                    <Paper
+                        withBorder
+                        p="xs"
+                        style={{ boxShadow: "var(--mantine-shadow-xs)" }}
+                    >
+                        <div style={{ fontWeight: 700 }}>{selectedCustomer.name}</div>
+                        <div style={{ color: "#666", fontSize: 13, marginTop: 4 }}>
+                            {selectedCustomer.address || "No Address"}
+                        </div>
+                        <div style={{ marginTop: 8, display: "flex", gap: 16 }}>
+                            <div>
+                                <div style={{ fontSize: 11, color: "#888" }}>
+                                    Opening Amount
+                                </div>
+                                <div style={{ fontWeight: 600, fontSize: 14 }}>
+                                    {formatCurrency(selectedCustomer.openingAmount ?? 0)}
+                                </div>
+                            </div>
+                        </div>
+                    </Paper>
+                    )}
+                </div>
+            ) : (
+                <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr 1fr" }}>
+                    <TextInput
+                        label="Customer Name"
+                        placeholder="Name"
+                        value={walkingName}
+                        onChange={(e) => setWalkingName(e.target.value)}
+                        required
+                    />
+                    <TextInput
+                        label="Phone"
+                        placeholder="Mobile No"
+                        value={walkingPhone}
+                        onChange={(e) => setWalkingPhone(e.target.value)}
+                    />
+                    <TextInput
+                        label="Address"
+                        placeholder="Address"
+                        value={walkingAddress}
+                        onChange={(e) => setWalkingAddress(e.target.value)}
+                    />
+                </div>
+            )}
           </div>
+
 
           <div style={{ marginTop: 16 }}>
             {/* Supplier label for selected product (first item) */}
@@ -869,6 +985,8 @@ export default function SalesDocShell({
                   </Badge>
                 ) : null;
               })()}
+            </div>
+
             <div
               style={{
                 display: "flex",
@@ -917,7 +1035,7 @@ export default function SalesDocShell({
                 products={products}
               />
             </div>
-          </div>
+
 
           <div
             style={{
@@ -941,46 +1059,67 @@ export default function SalesDocShell({
           </div>
         </Card.Section>
 
-        <Card.Section
-          style={{
-            padding: 12,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{ fontSize: 13, color: "var(--mantine-color-dimmed, #666)" }}
-          >
-            Date: {new Date(docDate).toLocaleDateString()} • Customer Balance:{" "}
-            {selectedCustomer?.paymentType === "Debit" ? "-" : ""}
-            {Number(selectedCustomer?.openingAmount ?? 0).toLocaleString()}
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 12, color: "#888" }}>Subtotal</div>
-            <div style={{ fontSize: 14 }}>{totals.sub.toFixed(2)}</div>
+        <Card.Section inheritPadding py="xs" withBorder>
+            <Group grow align="flex-start">
+                {/* Left Side: Summary / Status */}
+                <Stack gap="xs" style={{ maxWidth: '50%' }}>
+                     <Group justify="space-between">
+                         <Text size="sm" c="dimmed">Items Count:</Text>
+                         <Text size="sm" fw={500}>{items.length}</Text>
+                     </Group>
+                     <Group justify="space-between">
+                         <Text size="sm" c="dimmed">Total Quantity:</Text>
+                         <Text size="sm" fw={500}>{items.reduce((s, i) => s + (Number(i.quantity) || 0), 0)}</Text>
+                     </Group>
+                     <Group justify="space-between">
+                         <Text size="sm" c="dimmed">Total Feet:</Text>
+                         <Text size="sm" fw={500}>{items.reduce((s, i) => s + (Number(i.length) * Number(i.quantity) || 0), 0).toFixed(2)}</Text>
+                     </Group>
+                </Stack>
 
-            <div style={{ fontSize: 12, color: "#888", marginTop: 8 }}>
-              Total Gross Amount
-            </div>
-            <div style={{ fontSize: 14 }}>
-              {totals.totalGrossAmount.toFixed(2)}
-            </div>
-
-            <div style={{ fontSize: 12, color: "#888", marginTop: 8 }}>
-              Total Discount Amount
-            </div>
-            <div style={{ fontSize: 14 }}>
-              {totals.totalDiscountAmount.toFixed(2)}
-            </div>
-
-            <div style={{ fontSize: 12, color: "#888", marginTop: 8 }}>
-              Total Net Amount
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>
-              {totals.totalNetAmount.toFixed(2)}
-            </div>
-          </div>
+                {/* Right Side: Totals */}
+                <Stack gap="xs">
+                    <Group justify="space-between">
+                        <Text size="sm">Subtotal</Text>
+                        <Text size="sm">{totals.totalGrossAmount.toFixed(2)}</Text>
+                    </Group>
+                     <Group justify="space-between">
+                        <Text size="sm">Discount</Text>
+                        <Text size="sm" c="red">-{totals.totalDiscountAmount.toFixed(2)}</Text>
+                    </Group>
+                    <div style={{ borderTop: '1px dashed #eee', margin: '4px 0' }} />
+                    <Group justify="space-between">
+                        <Text fw={700} size="lg">Net Total</Text>
+                        <Text fw={700} size="lg">{totals.totalNetAmount.toFixed(2)}</Text>
+                    </Group>
+                     
+                     <div style={{ borderTop: '1px solid #eee', margin: '8px 0' }} />
+                     
+                     {/* Payment Section */}
+                     <Group justify="space-between" align="center">
+                         <Text fw={500}>Received Amount</Text>
+                         <NumberInput 
+                            value={receivedAmount}
+                            onChange={(v) => setReceivedAmount(Number(v))}
+                            min={0}
+                            decimalScale={2}
+                            fixedDecimalScale
+                            thousandSeparator
+                            prefix="Rs. "
+                            styles={{ input: { textAlign: 'right', fontWeight: 600 } }}
+                            style={{ width: 150 }}
+                         />
+                     </Group>
+                     <Group justify="space-between" align="center" mt={4}>
+                         <Text fw={500} c={totals.pendingAmount > 0 ? "red" : "green"}>
+                            {totals.pendingAmount >= 0 ? "Pending Amount" : "Change Return"}
+                         </Text>
+                         <Text fw={700} size="lg" c={totals.pendingAmount > 0 ? "red" : "green"}>
+                             {Math.abs(totals.pendingAmount).toFixed(2)}
+                         </Text>
+                     </Group>
+                </Stack>
+            </Group>
         </Card.Section>
       </Card>
 
@@ -1133,5 +1272,6 @@ export default function SalesDocShell({
         </Button>
       </div>
     </form>
+    </>
   );
 }

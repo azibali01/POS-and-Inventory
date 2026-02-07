@@ -673,7 +673,7 @@ export async function getInventory() {
     try {
       const { data } = await api.get<
         InventoryItemPayload[] | PaginatedResponse<InventoryItemPayload>
-      >(path);
+      >(path, { params: { limit: 10000 } });
       return unwrapPaginated(data);
     } catch (err: unknown) {
       // if server returned 404, try the next candidate; otherwise rethrow

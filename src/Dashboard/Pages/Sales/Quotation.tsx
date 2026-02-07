@@ -19,6 +19,13 @@ import {
   IconTrash,
   IconEdit,
 } from "@tabler/icons-react";
+import { generateNextDocumentNumber } from "../../../utils/document-utils";
+import {
+  normalizeQuotationCustomer,
+  buildQuotationPayload,
+  buildTempQuotationRow,
+} from "./quotation-helpers";
+
 
 // openPrintWindow already imported above
 import type { InvoiceData } from "../../../components/print/printTemplate";
@@ -191,39 +198,8 @@ function Quotation() {
   // Only show actual quotations, not sales invoices
   const quotes = (quotations || []);
 
-  // Generate next human-friendly quotation number like Quo-0001
-  function generateNextQuotationNumber(
-    existing: QuotationRecordPayload[]
-  ): string {
-    // Pick the smallest positive integer not already used so we can fill gaps
-    try {
-      const nums = (existing || [])
-        .map(
-          (q: QuotationRecordPayload | Partial<QuotationRecordPayload>) =>
-            q.quotationNumber ?? (q as { docNo?: string }).docNo ?? null
-        )
-        .filter(Boolean)
-        .map((s: string | null) => {
-          const m = String(s).match(/(\d+)$/);
-          return m ? Number(m[1]) : NaN;
-        })
-        .filter(
-          (n: number) => !Number.isNaN(n) && Number.isFinite(n) && Number(n) > 0
-        )
-        .sort((a: number, b: number) => a - b);
-
-      // If nothing exists, start at 1
-      if (!nums.length) return `Quo-${String(1).padStart(4, "0")}`;
-
-      // Create a set for O(1) lookups and find the smallest missing positive integer
-      const used = new Set(nums);
-      let candidate = 1;
-      while (used.has(candidate)) candidate += 1;
-      return `Quo-${String(candidate).padStart(4, "0")}`;
-    } catch {
-      return `Quo-0001`;
-    }
-  }
+  // Note: generateNextDocumentNumber is imported from utils/document-utils
+  // It replaces the custom generateNextQuotationNumber function
 
   type QuotationLike = QuotationRecordPayload & {
     quotationNumber?: string;
@@ -366,20 +342,11 @@ function Quotation() {
     logger.debug("Payload:", payload);
     logger.debug("Creating state:", creating);
     if (creating) return; // Prevent concurrent submissions
-    // build customer object and validate
-    logger.debug("Payload customer:", payload.customer);
-    logger.debug("Available customers:", customers);
 
-    let cust;
-    if (typeof payload.customer === "object" && payload.customer !== null) {
-      // payload.customer is already a customer object
-      cust = payload.customer;
-      logger.debug("Using customer object directly:", cust);
-    } else {
-      // payload.customer is an ID, find the full customer object
-      cust = customers.find((c) => String(c._id) === String(payload.customer));
-      logger.debug("Found customer by ID:", cust);
-    }
+    // Normalize customer using helper function
+    const cust = normalizeQuotationCustomer(payload.customer, customers);
+    logger.debug("Normalized customer:", cust);
+
     if (!cust) {
       showNotification({
         title: "Customer not found",
@@ -390,111 +357,22 @@ function Quotation() {
       return;
     }
 
-    const gross =
-      (payload.products as InventoryItemPayload[] | undefined)?.reduce(
-        (s, it) =>
-          s +
-          (Number((it as InventoryItemPayload & { rate?: number }).rate) || 0) *
-            (Number(
-              (it as InventoryItemPayload & { quantity?: number }).quantity
-            ) || 0),
-        0
-      ) ?? 0;
-    const apiPayload: QuotationRecordPayload = {
-      products:
-        payload.products?.map((it) => ({
-          _id: it._id ?? "",
-          itemName: it.itemName ?? "",
-          unit: it.unit ?? "",
-          discount:
-            typeof (it as { discount?: unknown }).discount === "number"
-              ? Math.floor(Number((it as { discount?: number }).discount))
-              : 0,
-          discountAmount:
-            typeof (it as { discountAmount?: unknown }).discountAmount ===
-            "number"
-              ? Math.floor(
-                  Number((it as { discountAmount?: number }).discountAmount)
-                )
-              : 0,
-          salesRate: Math.floor(it.salesRate ?? 0),
-          color: it.color ?? "",
-          openingStock: Math.floor(it.openingStock ?? 0),
-          quantity: Math.floor(it.quantity ?? 0),
-          thickness: Math.floor(it.thickness ?? 0),
-          amount:
-            typeof (it as { amount?: unknown }).amount === "number"
-              ? Math.floor(Number((it as { amount?: number }).amount))
-              : 0,
-          length:
-            typeof (it as { length?: unknown }).length === "number"
-              ? Math.floor(Number((it as { length?: number }).length))
-              : 0,
-          totalGrossAmount:
-            typeof (it as { totalGrossAmount?: unknown }).totalGrossAmount ===
-            "number"
-              ? Math.floor(
-                  Number((it as { totalGrossAmount?: number }).totalGrossAmount)
-                )
-              : 0,
-          totalNetAmount:
-            typeof (it as { totalNetAmount?: unknown }).totalNetAmount ===
-            "number"
-              ? Math.floor(
-                  Number((it as { totalNetAmount?: number }).totalNetAmount)
-                )
-              : 0,
-        })) ?? [],
-      quotationDate: payload.docDate ?? new Date().toISOString(),
-      customer: cust ? [cust] : [],
-      remarks: payload.remarks ?? "",
-      subTotal: Math.floor(payload.totals?.subTotal ?? gross),
-      // Accept either spelling from various places: `totalGrossAmount` or `totalGrossAmmount`
-      totalGrossAmount: Math.floor(
-        (payload as SalesPayload & { totalGrossAmount?: number })
-          .totalGrossAmount ??
-          payload.totals?.total ??
-          gross
-      ),
-      // totalDiscount may be provided under different keys in different forms
-      totalDiscount:
-        (
-          payload as SalesPayload & {
-            totalDiscount?: number;
-            totalDiscountAmount?: number;
-          }
-        ).totalDiscount ??
-        (
-          payload as SalesPayload & {
-            totalDiscount?: number;
-            totalDiscountAmount?: number;
-          }
-        ).totalDiscountAmount ??
-        0,
-      length: payload.products?.length ?? 0,
-    };
-
     setCreating(true);
-    // Build a lightweight display object for optimistic insert.
-    const tempId = `temp-${Date.now()}`;
-    // determine quotationNumber: prefer provided docNo, otherwise generate
+    
+    // Determine quotationNumber: prefer provided docNo, otherwise generate using utility
     const assignedQuotationNumber =
       (payload as Partial<SalesPayload> & { docNo?: string }).docNo ??
-      generateNextQuotationNumber(quotes);
+      generateNextDocumentNumber(
+        "Quo",
+        quotes.map((q) => String(q.quotationNumber || "")),
+        4
+      );
 
-    const tempRow: QuotationRecordPayload = {
-      quotationNumber: assignedQuotationNumber,
-      products: apiPayload.products,
-      quotationDate: apiPayload.quotationDate,
-      // Set customer as array for type compatibility, and store full customer object or fallback
-      customer: cust ? [cust] : [],
+    // Build API payload using helper function
+    const apiPayload = buildQuotationPayload(payload, assignedQuotationNumber, customers);
 
-      remarks: apiPayload.remarks,
-      subTotal: apiPayload.subTotal,
-      totalGrossAmount: apiPayload.totalGrossAmount,
-      totalDiscount: apiPayload.totalDiscount,
-      length: apiPayload.length,
-    };
+    // Build temporary row for optimistic UI update
+    const tempRow = buildTempQuotationRow(payload, assignedQuotationNumber, cust);
 
     // Optimistically insert into UI so user sees the new quotation immediately.
     try {
@@ -581,7 +459,7 @@ function Quotation() {
           setQuotations((prev) =>
             prev.filter(
               (r) =>
-                String((r).quotationNumber) !== tempId
+                String((r).quotationNumber) !== assignedQuotationNumber
             )
           );
         }
@@ -705,7 +583,11 @@ function Quotation() {
                 if (typeof loadInventory === "function") {
                   await loadInventory();
                 }
-                const gen = generateNextQuotationNumber(quotes);
+                const gen = generateNextDocumentNumber(
+                  "Quo",
+                  quotes.map((q) => String(q.quotationNumber || "")),
+                  4
+                );
                 setInitialPayload({
                   docNo: gen,
                   items: [

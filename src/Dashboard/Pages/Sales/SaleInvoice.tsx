@@ -29,6 +29,8 @@ import { useDataContext } from "../../Context/DataContext";
 import { formatCurrency } from "../../../lib/format-utils";
 import { showNotification } from "@mantine/notifications";
 import type { SaleRecordPayload } from "../../../lib/api";
+import { generateNextDocumentNumber } from "../../../utils/document-utils";
+import { buildSaleApiPayload } from "./sale-invoice-helpers";
 
 // Extend SaleRecord type to include items, id, and date for edit logic compatibility
 export type SaleRecordWithItems = SaleRecordPayload & {
@@ -130,105 +132,27 @@ export default function SaleInvoice() {
     }
   }
 
-  function makeInvoiceNumber() {
-    // Always start from INV-0001 and increment
-    const prefix = "INV-";
-    let maxNum = 0;
-    if (sales && sales.length > 0) {
-      sales.forEach((s) => {
-        const numStr = String(s.invoiceNumber || s.id || "");
-        if (numStr.startsWith(prefix)) {
-          const n = parseInt(numStr.replace(prefix, ""), 10);
-          if (!isNaN(n) && n > maxNum) maxNum = n;
-        }
-      });
-    }
-    // If no sales, start from 1
-    const nextNum = (maxNum === 0 ? 1 : maxNum + 1).toString().padStart(4, "0");
-    return `${prefix}${nextNum}`;
-  }
+
 
   // Handler for creating a new sale invoice (not import)
   async function handleCreateInvoiceSubmit(payload: SalesPayload) {
-    const invoiceNumber = makeInvoiceNumber();
-    const invoiceDate = payload.docDate || new Date().toISOString();
-    let cust = customers.find(
-      (c) => String(c._id) === String(payload.customer)
+    const existingInvoiceNumbers = sales.map(
+      (s) => String(s.invoiceNumber || s.id || "")
     );
-    if (!cust && payload.customer) {
-      if (typeof payload.customer === "object" && "name" in payload.customer) {
-        const id =
-          "_id" in payload.customer && payload.customer._id
-            ? payload.customer._id
-            : String(payload.customer.name);
-        cust = {
-          _id: typeof id === "string" ? id : String(id),
-          name: payload.customer.name,
-        };
-      } else {
-        cust = {
-          _id: String(payload.customer),
-          name: String(payload.customer),
-        };
-      }
-    }
-    const products =
-      payload.items?.map((it) => {
-        const inv = inventory.find(
-          (p) =>
-            String(p._id) === String(it._id) ||
-            String(p.itemName) === String(it.itemName)
-        );
-        return {
-          _id: inv?._id,
-          itemName: inv?.itemName ?? it.itemName,
-          category: inv?.category ?? "",
-          // include supplier/brand if available on inventory item
-          supplier:
-            (inv as any)?.supplier ?? (inv as any)?.supplierName ?? undefined,
-          brand: inv?.brand ?? undefined,
-          salesRate: Number(inv?.salesRate ?? it.salesRate ?? 0),
-          color: it.color ?? inv?.color ?? "",
-          thickness: it.thickness ?? inv?.thickness ?? undefined,
-          openingStock: Number(inv?.openingStock ?? 0),
-          minimumStockLevel: Number(inv?.minimumStockLevel ?? 0),
-          quantity: Number(it.quantity ?? 0),
-          unit: it.unit ?? inv?.unit ?? undefined,
-          discount: Number(it.discount ?? 0),
-          discountAmount: Number(it.discountAmount ?? 0),
-          length: it.length ?? undefined,
-          metadata: { price: it.salesRate ?? undefined },
-        } as SaleItem;
-      }) ?? [];
-    const mappedProducts = products.map((item) => ({
-      ...item,
-      thickness:
-        typeof item.thickness === "string"
-          ? isNaN(Number(item.thickness))
-            ? undefined
-            : Number(item.thickness)
-          : item.thickness,
-      discount: item.discount ?? 0,
-      discountAmount: item.discountAmount ?? 0,
-      quantity: item.quantity ?? 0,
-      salesRate: item.salesRate ?? 0,
-      totalGrossAmount: item.totalGrossAmount ?? 0,
-      totalNetAmount: item.totalNetAmount ?? 0,
-    }));
-    const apiPayload: SaleRecordPayload = {
+    const invoiceNumber = generateNextDocumentNumber(
+      "INV",
+      existingInvoiceNumbers,
+      4
+    );
+
+    const apiPayload = buildSaleApiPayload(
+      payload,
       invoiceNumber,
-      invoiceDate,
-      items: mappedProducts,
-      subTotal: Math.floor(payload.totals?.subTotal ?? 0),
-      totalGrossAmount: Math.floor(payload.totals?.totalGrossAmount ?? 0),
-      totalNetAmount: Math.floor(payload.totals?.totalNetAmount ?? 0),
-      discount: 0,
-      totalDiscount: Math.floor(payload.totals?.totalDiscountAmount ?? 0),
-      customer: cust ?? undefined,
-      paymentMethod: undefined,
-      length: payload.items?.length ?? 0,
-      metadata: { source: "manual" },
-    };
+      inventory,
+      customers,
+      { source: "manual" }
+    );
+
     try {
       await createSale(apiPayload);
       showNotification({
@@ -257,90 +181,33 @@ export default function SaleInvoice() {
     }
   }
 
-  // Handler for importing quotation (existing logic)
+  // Handler for importing quotation
   async function handleQuotationImportSubmit(payload: SalesPayload) {
-    const invoiceNumber = makeInvoiceNumber();
-    const invoiceDate = payload.docDate || new Date().toISOString();
-    let cust = customers.find(
-      (c) => String(c._id) === String(payload.customer)
+    const existingInvoiceNumbers = sales.map(
+      (s) => String(s.invoiceNumber || s.id || "")
     );
-    if (!cust && payload.customer) {
-      if (typeof payload.customer === "object" && "name" in payload.customer) {
-        const id =
-          "_id" in payload.customer && payload.customer._id
-            ? payload.customer._id
-            : String(payload.customer.name);
-        cust = {
-          _id: typeof id === "string" ? id : String(id),
-          name: payload.customer.name,
-        };
-      } else {
-        cust = {
-          _id: String(payload.customer),
-          name: String(payload.customer),
-        };
-      }
-    }
-    const products =
-      payload.items?.map((it) => {
-        const inv = inventory.find(
-          (p) =>
-            String(p._id) === String(it._id) ||
-            String(p.itemName) === String(it.itemName)
-        );
-        return {
-          _id: inv?._id,
-          itemName: inv?.itemName ?? it.itemName,
-          category: inv?.category ?? "",
-          // include supplier/brand if available on inventory item
-          supplier:
-            (inv as any)?.supplier ?? (inv as any)?.supplierName ?? undefined,
-          brand: inv?.brand ?? undefined,
-          salesRate: Number(inv?.salesRate ?? it.salesRate ?? 0),
-          color: it.color ?? inv?.color ?? "",
-          thickness: it.thickness ?? inv?.thickness ?? undefined,
-          openingStock: Number(inv?.openingStock ?? 0),
-          minimumStockLevel: Number(inv?.minimumStockLevel ?? 0),
-          quantity: Number(it.quantity ?? 0),
-          unit: it.unit ?? inv?.unit ?? undefined,
-          discount: Number(it.discount ?? 0),
-          discountAmount: Number(it.discountAmount ?? 0),
-          length: it.length ?? undefined,
-          metadata: { price: it.salesRate ?? undefined },
-        } as SaleItem;
-      }) ?? [];
-    const mappedProducts = products.map((item) => ({
-      ...item,
-      thickness:
-        typeof item.thickness === "string"
-          ? isNaN(Number(item.thickness))
-            ? undefined
-            : Number(item.thickness)
-          : item.thickness,
-      discount: item.discount ?? 0,
-      discountAmount: item.discountAmount ?? 0,
-      quantity: item.quantity ?? 0,
-      salesRate: item.salesRate ?? 0,
-      totalGrossAmount: item.totalGrossAmount ?? 0,
-      totalNetAmount: item.totalNetAmount ?? 0,
-    }));
-    const apiPayload: SaleRecordPayload = {
+    const invoiceNumber = generateNextDocumentNumber(
+      "INV",
+      existingInvoiceNumbers,
+      4
+    );
+
+    const apiPayload = buildSaleApiPayload(
+      payload,
       invoiceNumber,
-      invoiceDate,
-      items: mappedProducts,
-      subTotal: payload.totals?.subTotal ?? 0,
-      totalGrossAmount: payload.totals?.totalGrossAmount ?? 0,
-      totalNetAmount: payload.totals?.totalNetAmount ?? 0,
-      discount: 0,
-      totalDiscount: payload.totals?.totalDiscountAmount ?? 0,
-      quotationDate: invoiceDate,
-      customer: cust ?? undefined,
-      paymentMethod: undefined,
-      length: payload.items?.length ?? 0,
-      metadata: { source: "quotation-import" },
+      inventory,
+      customers,
+      { source: "quotation-import" }
+    );
+
+    // Override quotationDate for quotation imports
+    const enrichedPayload = {
+      ...apiPayload,
+      quotationDate: apiPayload.invoiceDate,
     };
+
     try {
-      await createSale(apiPayload);
+      await createSale(enrichedPayload);
       showNotification({
         title: "Sale Invoice Imported",
         message: `Invoice ${invoiceNumber} imported from quotation`,
@@ -363,6 +230,8 @@ export default function SaleInvoice() {
         String(err);
       showNotification({ title: "Sale Persist Failed", message, color: "red" });
     }
+
+    // Update quotation status
     const now = new Date().toISOString();
     setQuotations((prev) =>
       prev.map((q) => {
@@ -444,7 +313,11 @@ export default function SaleInvoice() {
               }
               initial={
                 initialPayload ?? {
-                  docNo: makeInvoiceNumber(),
+                  docNo: generateNextDocumentNumber(
+                    "INV",
+                    sales.map((s) => String(s.invoiceNumber || s.id || "")),
+                    4
+                  ),
                   docDate: (() => {
                     let dateObj: Date;
                     if (sales && sales.length > 0) {
