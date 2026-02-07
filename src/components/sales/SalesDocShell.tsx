@@ -14,6 +14,7 @@ import {
   Stack,
   Group,
   NumberInput,
+  Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from '@mantine/hooks';
 import { formatCurrency } from "../../lib/format-utils";
@@ -371,12 +372,12 @@ export default function SalesDocShell({
 
         if (!rawLocal && initialEmpty && sd?.data) {
           const d = sd.data;
-          setDocNo(d.docNo ?? initial?.docNo ?? docNo);
-          setDocDate(d.docDate ?? initial?.docDate ?? docDate);
-          setCustomerId(d.customerId ?? "");
+          setDocNo(String(d.docNo ?? initial?.docNo ?? docNo));
+          setDocDate(String(d.docDate ?? initial?.docDate ?? docDate));
+          setCustomerId(String(d.customerId ?? ""));
           if (Array.isArray(d.items) && d.items.length > 0) setItems(d.items);
-          setRemarks(d.remarks ?? initial?.remarks ?? "");
-          setTerms(d.terms ?? initial?.terms ?? terms);
+          setRemarks(String(d.remarks ?? initial?.remarks ?? ""));
+          setTerms(String(d.terms ?? initial?.terms ?? terms));
           setServerDraftId(sd._id ?? null);
         } else if (sd && sd._id) {
           // just keep the ID for future updates
@@ -468,14 +469,16 @@ export default function SalesDocShell({
     lastSavedRef.current = null;
     setIsDirty(false);
     // remove server draft if present
-    if (serverDraftId) {
+    const draftId = serverDraftId;
+    if (draftId) {
+      // Clear the draft ID immediately to prevent race conditions
+      setServerDraftId(null);
       (async () => {
         try {
-          await deleteDraft(serverDraftId);
+          await deleteDraft(draftId);
         } catch {
-          // ignore
+          // ignore - draft might already be deleted
         }
-        setServerDraftId(null);
       })();
     }
   }
@@ -911,8 +914,8 @@ export default function SalesDocShell({
                 <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
                     <div>
                         <Select
-                            label="Select Customer"
-                            placeholder="Select or Search"
+                            label="Select Customer (type to search)"
+                            placeholder="Type customer name or select from list"
                             value={String(customerId)}
                             onChange={(v) => { setCustomerId(String(v ?? "")); }}
                             data={customers
@@ -925,7 +928,7 @@ export default function SalesDocShell({
                             searchable
                             nothingFoundMessage={
                                 <Button variant="subtle" size="xs" fullWidth onClick={openNewCustomer}>
-                                    + Add "{customerId}"
+                                    + Create New Customer
                                 </Button>
                             }
                         />
@@ -1116,7 +1119,21 @@ export default function SalesDocShell({
             <Group justify="space-between" align="center">
                  <Group gap="xl">
                      <div>
-                         <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Total</Text>
+                         <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Gross</Text>
+                         <Text size="md" fw={500}>{totals.totalGrossAmount.toFixed(2)}</Text>
+                     </div>
+                     <div>
+                         <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Discount</Text>
+                         <Text size="md" fw={500} c="orange">-{totals.totalDiscountAmount.toFixed(2)}</Text>
+                     </div>
+                     <div>
+                         <Tooltip 
+                             label="Formula: (Length × Qty × Rate) - Discount for each item"
+                             position="top"
+                             withArrow
+                         >
+                             <Text size="xs" c="dimmed" tt="uppercase" fw={700} style={{ cursor: 'help' }}>Net Total ⓘ</Text>
+                         </Tooltip>
                          <Text size="xl" fw={700}>{totals.totalNetAmount.toFixed(2)}</Text>
                      </div>
                      <div>
@@ -1144,8 +1161,18 @@ export default function SalesDocShell({
                  </Group>
 
                  <Group gap="xl">
-                    {/* Add Ledger Status placeholder if needed */}
-                 </Group>
+                     <div>
+                         <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Ledger Status</Text>
+                         <Group gap="xs">
+                             <Badge color="green" variant="light" size="sm">
+                                 Auto-Updated
+                             </Badge>
+                             <Text size="xs" c="dimmed">
+                                 Ledger entries created on save
+                             </Text>
+                         </Group>
+                     </div>
+                  </Group>
             </Group>
         </Card.Section>
       </Card>
