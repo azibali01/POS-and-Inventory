@@ -18,12 +18,12 @@ import {
   IconEye,
   IconTrash,
 } from "@tabler/icons-react";
+import { logger } from "../../../lib/logger";
 import { CustomerForm } from "../../../components/sales/CustomerForm";
 import { CustomerDetails } from "../../../components/sales/CustomerDetails";
 import { useDataContext } from "../../Context/DataContext";
 import type { Customer } from "../../Context/DataContext";
-
-import { deleteCustomer } from "../../../lib/api";
+import { useCustomer } from "../../../hooks/useCustomer";
 import { showNotification } from "@mantine/notifications";
 // local helpers
 function formatCurrency(n: number) {
@@ -43,7 +43,9 @@ export default function CustomersPage() {
     null
   );
   const [deleting, setDeleting] = useState(false);
-  const { customers, setCustomers, refreshFromBackend } = useDataContext();
+  const { customers, refreshFromBackend } = useDataContext();
+  const { deleteCustomerAsync } = useCustomer();
+  
   useEffect(() => {
     refreshFromBackend();
   }, []);
@@ -77,11 +79,8 @@ export default function CustomersPage() {
 
     setDeleting(true);
     try {
-      console.log("Deleting customer with MongoDB ID:", customerToDelete._id);
-      await deleteCustomer(customerToDelete._id);
-      setCustomers((prev) =>
-        prev.filter((x) => x._id !== customerToDelete._id)
-      );
+      logger.debug("Deleting customer with MongoDB ID:", customerToDelete._id);
+      await deleteCustomerAsync(customerToDelete._id);
       showNotification({
         title: "Success",
         message: "Customer deleted successfully",

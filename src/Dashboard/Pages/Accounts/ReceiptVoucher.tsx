@@ -18,6 +18,7 @@ import {
 import Table from "../../../lib/AppTable";
 import { ReceiptForm } from "../../../components/accounts/receipt-form";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
+import { logger } from "../../../lib/logger";
 import { Plus, Search, MoreVertical } from "lucide-react";
 import {
   Menu,
@@ -65,7 +66,7 @@ export default function ReceiptsPage() {
   // Load all receipts on mount and calculate next voucher number
   useEffect(() => {
     fetchAllReceiptVouchers().then((vouchers) => {
-      console.log("Raw vouchers from backend:", vouchers);
+      logger.debug("Raw vouchers from backend:", vouchers);
       // Map backend fields to frontend fields (use correct names)
       const mapped = (vouchers || []).map((v: any) => ({
         id:

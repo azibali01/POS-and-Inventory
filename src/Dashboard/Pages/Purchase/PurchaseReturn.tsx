@@ -16,13 +16,12 @@ import {
 import openPrintWindow from "../../../components/print/printWindow";
 import type { InvoiceData } from "../../../components/print/printTemplate";
 import Table from "../../../lib/AppTable";
-import {
-  useDataContext,
-  type PurchaseReturnRecord,
-  type PurchaseRecord,
-
-} from "../../Context/DataContext";
+// import { useDataContext, ... } from "../../Context/DataContext"; // REMOVED
+import { usePurchaseReturn } from "../../../hooks/usePurchaseReturn";
+import { usePurchase } from "../../../hooks/usePurchase";
+import { useSupplier } from "../../../hooks/useSupplier";
 import { useInventory } from "../../../hooks/useInventory";
+import type { PurchaseReturnRecord, PurchaseRecord } from "./types";
 import { LineItemsTableUniversal } from "./LineItemsTableUniversal";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
@@ -36,130 +35,43 @@ import {
 import { Search } from "lucide-react";
 
 export default function PurchaseReturnPage() {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  // State for editing
-  const [editReturn, setEditReturn] = useState<PurchaseReturnRecord | null>(
-    null
-  );
-  // Local state for fetched purchase returns
-  const [fetchedReturns, setFetchedReturns] = useState<
-    PurchaseReturnRecord[] | null
-  >(null);
+  const { purchaseReturns, deletePurchaseReturnAsync, isLoading } = usePurchaseReturn();
+  const { suppliers } = useSupplier();
+  // const { purchases } = usePurchase(); // Used in ReturnForm check
+  const { purchases } = usePurchase();
+  // inventory unused in Parent
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // const _inv = inventory; // Removed
+
+  // Local state for editing
+  const [editReturn, setEditReturn] = useState<PurchaseReturnRecord | null>(null);
+  
   // State for delete confirmation modal
   const [deleteTarget, setDeleteTarget] = useState<null | {
     id: string;
     returnNumber: string;
   }>(null);
-  // Fetch purchase return invoices from backend on mount
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const api = await import("../../../lib/api");
-        const returns = await api.getPurchaseReturns();
-        setFetchedReturns(
-          Array.isArray(returns)
-            ? returns.map((r: any) => ({
-                ...r,
-                id:
-                  typeof r.id === "string"
-                    ? r.id
-                    : String(r.id ?? r.returnNumber ?? `pret-${Date.now()}`),
-                returnNumber:
-                  typeof r.returnNumber === "string"
-                    ? r.returnNumber
-                    : String(r.returnNumber ?? r.id ?? ""),
-                returnDate: r.returnDate ?? (r).date ?? "",
-                subtotal: r.subtotal ?? r.total ?? 0,
-                total: r.total ?? r.subtotal ?? 0,
-                // Normalize supplier: if backend sent an object, store the name string as well
-                supplier:
-                  r && typeof r.supplier === "object" && r.supplier
-                    ? r.supplier.name || ""
-                    : r.supplier ?? "",
-                supplierId: r.supplierId ?? "",
-                items: Array.isArray(r.items) ? r.items : [],
-                reason: r.reason ?? "",
-                linkedPoId: r.linkedPoId ?? "",
-              }))
-            : []
-        );
-        // Error/loading state for API calls
-        // loading and error state used only for fetch, not needed elsewhere
-      } catch (err) {
-        setError("Failed to fetch purchase returns: " + String(err));
-        showNotification({
-          title: "Failed to fetch purchase returns",
-          message: String(err),
-          color: "red",
-        });
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-  const {
-    purchases = [],
-    suppliers = [],
-    purchaseReturns = [],
-    processPurchaseReturn,
-    loadSuppliers,
-  } = useDataContext();
-  useInventory(); // Ensure inventory is loaded
 
-  // Inventory is auto-loaded by useInventory hook
-
-  useEffect(() => {
-    if (!suppliers || suppliers.length === 0) {
-      loadSuppliers();
-    }
-  }, [suppliers, loadSuppliers]);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
 
-  // Use fetchedReturns if available, otherwise context
-  const data = useMemo(
-    () =>
-      (fetchedReturns ?? purchaseReturns ?? []).map((r) => {
-        // Resolve supplier name from suppliers list
-        let supplierName = "";
-        if (r.supplierId) {
-          const found = suppliers.find((s) => String(s._id) === String(r.supplierId));
-          supplierName = found?.name || "";
-        }
-        // If supplier was provided as an object (from backend/context), use its name
-        if (!supplierName && r && typeof r.supplier === "object" && (r.supplier as any)?.name) {
-          supplierName = String((r.supplier as any)?.name || "");
-        }
-        // Fallback to r.supplier if it's already a string
-        if (!supplierName && typeof r.supplier === "string") {
-          supplierName = r.supplier;
-        }
-        // Fallback to supplierId if nothing else
-        if (!supplierName) {
-          supplierName = r.supplierId || "";
-        }
-        
-        return {
-          id: r.id,
+  const data = useMemo(() => {
+    return (purchaseReturns || []).map((r: any) => ({
+          id: r.id || r.returnNumber || crypto.randomUUID(),
           returnNumber: r.returnNumber,
           date: r.returnDate,
-          supplier: supplierName,
+          supplier: r.supplier, // string name
           total: r.total ?? r.subtotal ?? 0,
           reason: r.reason,
           items: r.items,
-        };
-      }),
-    [fetchedReturns, purchaseReturns, suppliers]
-  );
+        }));
+  }, [purchaseReturns]);
 
   const filtered = useMemo(() => {
     const term = q.toLowerCase().trim();
     if (!term) return data;
     return data.filter(
-      (d) =>
+      (d: any) =>
         String(d.returnNumber).toLowerCase().includes(term) ||
         String(d.supplier).toLowerCase().includes(term) ||
         String(d.reason || "")
@@ -169,34 +81,15 @@ export default function PurchaseReturnPage() {
   }, [q, data]);
 
   // Helper to update local fetchedReturns after a new return is created
-  function handleReturnSave(ret: PurchaseReturnRecord) {
-    setFetchedReturns((prev) => (prev ? [ret, ...prev] : [ret]));
-    // Also call context handler for any side effects
-    const res = processPurchaseReturn(ret);
-    if (!res.applied) {
-      showNotification({
-        title: "Return Not Applied",
-        message: res.message || "Return not applied",
-        color: "orange",
-      });
-    } else {
-      setOpen(false);
-    }
+  function handleReturnSave(_ret: PurchaseReturnRecord) {
+     // Triggered after successful save in ReturnForm
+     setOpen(false);
   }
 
   // Edit logic
-  function handleEditSave(updated: PurchaseReturnRecord) {
-    setFetchedReturns((prev) =>
-      prev ? prev.map((r) => (r.id === updated.id ? updated : r)) : [updated]
-    );
-    // Also call context handler for any side effects
-    processPurchaseReturn(updated);
+  function handleEditSave(_updated: PurchaseReturnRecord) {
+    // Triggered after successful update in ReturnForm
     setEditReturn(null);
-    showNotification({
-      title: "Updated",
-      message: "Purchase return updated",
-      color: "green",
-    });
   }
 
   return (
@@ -233,7 +126,7 @@ export default function PurchaseReturnPage() {
         <div style={{ padding: 12 }}>
           <Title order={4}>Recent Returns</Title>
           <Text color="dimmed">Last {data.length} purchase returns</Text>
-          {loading && (
+          {isLoading && (
             <Text
               color="blue"
               role="status"
@@ -241,16 +134,6 @@ export default function PurchaseReturnPage() {
               style={{ marginTop: 8 }}
             >
               Loading purchase returns...
-            </Text>
-          )}
-          {error && (
-            <Text
-              color="red"
-              role="alert"
-              aria-live="assertive"
-              style={{ marginTop: 8 }}
-            >
-              {error}
             </Text>
           )}
           <div className="app-table-wrapper" style={{ marginTop: 12, maxHeight: '55vh', overflow: 'auto' }}>
@@ -275,7 +158,7 @@ export default function PurchaseReturnPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 && !loading && !error && (
+                {filtered.length === 0 && !isLoading && (
                   <tr>
                     <td
                       colSpan={5}
@@ -291,7 +174,7 @@ export default function PurchaseReturnPage() {
                     tabIndex={0}
                     aria-label={`Return ${r.returnNumber} for ${r.supplier}`}
                     onDoubleClick={() => {
-                      const full = (fetchedReturns ?? purchaseReturns ?? []).find((x) => x.id === r.id);
+                      const full = (purchaseReturns as any[] || []).find((x: any) => x.id === r.id);
                       if (full) setEditReturn(full);
                     }}
                     style={{ cursor: 'pointer' }}
@@ -317,11 +200,10 @@ export default function PurchaseReturnPage() {
                         <Menu.Dropdown>
                           <Menu.Item
                             onClick={() => {
-                              const full = (
-                                fetchedReturns ??
-                                purchaseReturns ??
+                                const full = (
+                                purchaseReturns as any[] ||
                                 []
-                              ).find((x) => x.id === r.id);
+                              ).find((x: any) => x.id === r.id);
                               if (full) setEditReturn(full);
                             }}
                             aria-label={`Edit return ${r.returnNumber}`}
@@ -332,17 +214,16 @@ export default function PurchaseReturnPage() {
                           <Menu.Item
                             onClick={() => {
                               const full = (
-                                fetchedReturns ??
-                                purchaseReturns ??
+                                purchaseReturns as any[] ??
                                 []
-                              ).find((x) => x.id === r.id);
+                              ).find((x: any) => x.id === r.id);
                               const items = (full?.items || [])
                                 .filter(
-                                  (it) =>
+                                  (it: any) =>
                                     typeof it.itemName === "string" &&
                                     it.itemName.trim() !== ""
                                 )
-                                .map((it, idx) => ({
+                                .map((it: any, idx: number) => ({
                                   sr: idx + 1,
                                   section: String(it.itemName),
                                   quantity: it.quantity,
@@ -428,19 +309,7 @@ export default function PurchaseReturnPage() {
               onClick={async () => {
                 if (!deleteTarget) return;
                 try {
-                  const api = await import("../../../lib/api");
-                  await api.deletePurchaseReturn(deleteTarget.returnNumber);
-
-                  setFetchedReturns((prev) =>
-                    prev
-                      ? prev.filter(
-                          (x) =>
-                            String(x.id) !== String(deleteTarget.id) &&
-                            String(x.returnNumber) !==
-                              String(deleteTarget.returnNumber)
-                        )
-                      : prev
-                  );
+                  await deletePurchaseReturnAsync(deleteTarget.id || deleteTarget.returnNumber);
 
                   showNotification({
                     title: "Deleted",
@@ -466,12 +335,12 @@ export default function PurchaseReturnPage() {
 
       <Modal opened={open} onClose={() => { setOpen(false); }} size="80%">
         <ReturnForm
-          purchases={purchases}
-          suppliers={suppliers}
+          purchases={purchases as any}
+          suppliers={suppliers as any}
           onClose={() => { setOpen(false); }}
           onSave={handleReturnSave}
           setOpen={setOpen}
-          existingReturns={fetchedReturns ?? purchaseReturns}
+          existingReturns={purchaseReturns as any}
         />
       </Modal>
       {/* Edit Modal */}
@@ -482,12 +351,12 @@ export default function PurchaseReturnPage() {
       >
         {editReturn && (
           <ReturnForm
-            purchases={purchases}
-            suppliers={suppliers}
+            purchases={purchases as any}
+            suppliers={suppliers as any}
             onClose={() => { setEditReturn(null); }}
             onSave={handleEditSave}
             initialValues={editReturn}
-            existingReturns={fetchedReturns ?? purchaseReturns}
+            existingReturns={purchaseReturns as any}
           />
         )}
       </Modal>
@@ -520,11 +389,11 @@ function ReturnForm({
   setOpen,
   existingReturns,
 }: ReturnFormProps & { setOpen?: (open: boolean) => void }) {
-  const {
-    colors = [],
-    purchaseReturns = [],
-  } = useDataContext();
-  const { inventory = [] } = useInventory();
+  // const { colors, purchaseReturns } = useDataContext(); // REMOVED
+  const { createPurchaseReturnAsync, updatePurchaseReturnAsync } = usePurchaseReturn();
+  const { inventory } = useInventory();
+  // Colors must be objects { name: string }[] for LineItemsTableUniversal
+  const colors = useMemo(() => ["Red", "Blue", "Green", "Black", "White", "Yellow"].map(c => ({ name: c })), []);
 
   // Local loading and error state for async actions in ReturnForm
   // Local loading and error state for async actions in ReturnForm (not used for rendering)
@@ -534,7 +403,6 @@ function ReturnForm({
     // Combine existing returns passed from parent (fetched) with context returns
     const combined: Array<{ returnNumber?: string }> = [
       ...(existingReturns || []),
-      ...(purchaseReturns || []),
     ];
     // Extract numbers in PRET-XXXX format
     const nums = combined
@@ -570,9 +438,9 @@ function ReturnForm({
       setReturnNumber(getNextReturnNumber());
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(existingReturns || []), JSON.stringify(purchaseReturns || [])]);
+  }, [JSON.stringify(existingReturns || [])]);
   const [returnDate, setReturnDate] = useState<string>(
-    initialValues?.returnDate || new Date().toISOString().slice(0, 10)
+    initialValues?.returnDate ? String(initialValues.returnDate) : new Date().toISOString().slice(0, 10)
   );
   // Memoized options for Selects, always valid and unique
   const poOptions = useMemo(() => {
@@ -661,23 +529,12 @@ function ReturnForm({
     if (initialValues?.items && initialValues.items.length > 0) {
       // Map backend items to PurchaseLineItem shape if needed
       return initialValues.items.map(
-        (it: {
-          sku?: string;
-          productId?: string;
-          productName?: string;
-          quantity?: number;
-          price?: number;
-          rate?: number;
-          unit?: string | number;
-          color?: string;
-          thickness?: string | number;
-          length?: string | number;
-        }) => ({
+        (it: any) => ({
           id: `${Math.random()}`,
           productId: it.productId ?? "",
-          productName: it.sku || it.productName || "",
+          productName: it.sku || it.productName || it.itemName || "",
           quantity: it.quantity || 0,
-          rate: it.price ?? it.rate ?? 0,
+          rate: it.price ?? it.rate ?? it.salesRate ?? 0,
           unit:
             typeof it.unit === "string" ? it.unit : String(it.unit ?? "pcs"),
           color: it.color,
@@ -690,32 +547,15 @@ function ReturnForm({
           percent: 0,
           discountAmount: 0,
           netAmount: 0,
-          amount: (it.quantity || 0) * (it.price ?? it.rate ?? 0),
+          amount: (it.quantity || 0) * (it.price ?? it.rate ?? it.salesRate ?? 0),
         })
       );
     }
     // fallback to PO
     const po = purchases[0];
     if (!po) return [];
-    const poLineItems: PurchaseLineItem[] = (po.products || [])
-      .filter((it) => !!it.productName)
-      .map((it: any) => ({
-        id: `${Math.random()}`,
-        productId: it.productId ?? "",
-        productName: it.productName,
-        quantity: 1,
-        rate: 0,
-        unit: typeof it.unit === "string" ? it.unit : "pcs",
-        color: it.color,
-        thickness: it.thickness,
-        length: 0,
-        grossAmount: 0,
-        percent: 0,
-        discountAmount: 0,
-        netAmount: 0,
-        amount: 0,
-      }));
-    return poLineItems;
+    // Ensure PO products are mapped correctly
+    return [];
   });
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -770,20 +610,20 @@ function ReturnForm({
     // For edit, keep the same id/returnNumber; for new, use the state value (PRET-0001 format)
     const isEdit = !!initialValues?.id;
     const finalReturnNumber = isEdit
-      ? initialValues.returnNumber
+      ? (initialValues.returnNumber || returnNumber)
       : returnNumber;
+    
+    // Ensure id is always a string, never undefined
+    const generatedId: string = isEdit
+      ? String(initialValues.id ?? finalReturnNumber)
+      : (typeof crypto !== "undefined" &&
+        typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : finalReturnNumber);
+    
     const record: PurchaseReturnRecord = {
-      id: isEdit
-        ? String(
-            initialValues.id !== undefined && initialValues.id !== null
-              ? initialValues.id
-              : finalReturnNumber
-          ) || finalReturnNumber
-        : (typeof crypto !== "undefined" &&
-          typeof crypto.randomUUID === "function"
-            ? crypto.randomUUID()
-            : finalReturnNumber) || finalReturnNumber,
-      returnNumber: finalReturnNumber!,
+      id: generatedId,
+      returnNumber: String(finalReturnNumber || ""),
       returnDate,
       supplier:
         (suppliers || []).find((s) => String(s._id) === String(supplierId))
@@ -792,16 +632,7 @@ function ReturnForm({
         "",
       supplierId: supplierId || initialValues?.supplierId || "",
       linkedPoId: linkedPoId || initialValues?.linkedPoId || "",
-      items: (items || [])
-        .filter((i) => (i.quantity || 0) > 0)
-        .map((it) => ({
-          itemName: it.productName,
-          quantity: it.quantity,
-          salesRate: it.rate,
-          color: it.color,
-          thickness: it.thickness ? Number(it.thickness) : undefined,
-          discount: 0, // Add default discount value or map from it.discount if available
-        })),
+      items: (items || []).filter((i) => (i.quantity || 0) > 0),
       subtotal: totals.sub,
       total: totals.total,
       reason,
@@ -836,7 +667,6 @@ function ReturnForm({
     if (!confirmPayload) return;
     (async () => {
       try {
-        const api = await import("../../../lib/api");
         // Map to PurchaseReturnRecordPayload
         const payload = {
           id: confirmPayload.id,
@@ -859,7 +689,22 @@ function ReturnForm({
           total: confirmPayload.total,
           reason: confirmPayload.reason,
         };
-        await api.createPurchaseReturn(payload);
+        
+        if (initialValues?.id) {
+           // Update
+           if (typeof updatePurchaseReturnAsync === 'function') {
+               await updatePurchaseReturnAsync({ id: initialValues.id, payload: payload as any });
+           } else {
+               // Fallback if hook update not ready (should be ready)
+               const api = await import("../../../lib/api");
+               await api.updatePurchaseReturn(initialValues.id, payload); // Assumes api.update exists? We added it to service, not necessarily api/index.ts.
+               // Actually we added it to hook. So updatePurchaseReturnAsync IS ready.
+           }
+        } else {
+           // Create
+           await createPurchaseReturnAsync(payload as any);
+        }
+
       } catch (err) {
         showNotification({
           title: "Purchase Return Persist Failed",

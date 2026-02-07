@@ -11,6 +11,7 @@ import { showNotification } from "@mantine/notifications";
 import { useDataContext } from "../../Dashboard/Context/DataContext";
 import type { Customer } from "../../Dashboard/Context/DataContext";
 import { createCustomer, updateCustomer } from "../../lib/api";
+import { logger } from "../../lib/logger";
 
 export function CustomerForm({
   customer,
@@ -77,7 +78,7 @@ export function CustomerForm({
       } else {
         // Create new customer
         const newCustomer = await createCustomer(customerData);
-        console.log("Created customer response:", newCustomer);
+        logger.debug("Created customer response:", newCustomer);
 
         // Ensure we have a valid MongoDB ID (string)
         const customerId =
