@@ -15,10 +15,11 @@ import type { InvoiceData } from "../../../components/print/printTemplate";
 import Table from "../../../lib/AppTable";
 import { showNotification } from "@mantine/notifications";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
-import { deletePurchaseByNumber } from "../../../lib/api";
 // type import replaced by helper import below
 import { PurchaseOrderForm as GeneratedPOForm } from "./PurchaseOrderForm.generated";
-import { useDataContext } from "../../Context/DataContext";
+// import { useDataContext } from "../../Context/DataContext"; // REMOVED
+import { usePurchase } from "../../../hooks/usePurchase";
+import { useSupplier } from "../../../hooks/useSupplier";
 
 import { IconEdit, IconPlus, IconPrinter, IconTrash } from "@tabler/icons-react";
 import { Search } from "lucide-react";
@@ -27,7 +28,6 @@ import {
   normalizePurchaseSupplier,
   mapPurchaseOrderItems,
   buildPurchaseOrderPayload,
-  buildLocalPurchaseOrder,
   type PurchaseLineItem,
 } from "./purchase-order-helpers";
 import { useInventory } from "../../../hooks/useInventory";
@@ -47,21 +47,21 @@ type PO = {
 };
 
 export default function PurchaseOrdersPage() {
-  const {
-    purchases,
-  suppliers,
-    loadSuppliers,
-    loadPurchases,
-  } = useDataContext();
+  // const {
+  //   purchases,
+  //   suppliers,
+  //   loadSuppliers,
+  //   loadPurchases,
+  // } = useDataContext(); // REMOVED
+
+  const { purchases, createPurchaseAsync, updatePurchaseAsync, deletePurchaseAsync } = usePurchase();
+  const { suppliers } = useSupplier();
+  
   useInventory(); // Ensure inventory is loaded
 
   // Inventory is auto-loaded by useInventory hook
 
-  useEffect(() => {
-    if (!suppliers || suppliers.length === 0) {
-      loadSuppliers();
-    }
-  }, [suppliers, loadSuppliers]);
+  // Manual loading useEffects REMOVED
 
   const [data, setData] = useState<PO[]>([]);
   const [open, setOpen] = useState(false);
@@ -98,7 +98,7 @@ export default function PurchaseOrdersPage() {
         const supplier = normalizePurchaseSupplier(
           p.supplier, 
           (p as any).supplierId, 
-          suppliers || []
+          (suppliers || []) as any
         );
         
         logger.debug("[PO] Resolved supplier for", p.poNumber, ":", supplier);
@@ -115,7 +115,7 @@ export default function PurchaseOrdersPage() {
         const products = mapPurchaseOrderItems((p.products || []) as PurchaseLineItem[]);
 
         return {
-          id: p.id || p.poNumber || crypto.randomUUID(),
+          id: String(p.id) || p.poNumber || crypto.randomUUID(),
           poNumber: p.poNumber || "(No PO#)",
           poDate: p.poDate,
           supplier,
@@ -125,18 +125,13 @@ export default function PurchaseOrdersPage() {
           status: p.status || "",
           expectedDeliveryDate,
           remarks: p.remarks,
-          createdAt: p.createdAt,
+          createdAt: p.createdAt ? new Date(p.createdAt) : undefined,
         };
       })
     );
   }, [purchases, suppliers]);
 
-  // On mount, load purchases if empty
-  useEffect(() => {
-    if (!purchases || purchases.length === 0) {
-      if (loadPurchases) loadPurchases();
-    }
-  }, [purchases, loadPurchases]);
+  // On mount load purchases REMOVED
 
   async function handleCreate(payload: {
     poNumber: string;
@@ -153,7 +148,7 @@ export default function PurchaseOrdersPage() {
       const supplier = normalizePurchaseSupplier(
         undefined, 
         payload.supplierId, 
-        suppliers || []
+        (suppliers || []) as any
       );
       
       logger.debug("[PO] Saving with supplier:", supplier);
@@ -164,30 +159,16 @@ export default function PurchaseOrdersPage() {
       
       if (editPO) {
         // Update existing PO
-        const updatedPO = await import("../../../lib/api").then((api) =>
-          api.updatePurchaseByNumber(editPO.poNumber, purchasePayload)
-        );
+        // const updatedPO = await import("../../../lib/api").then((api) =>
+        //   api.updatePurchaseByNumber(editPO.poNumber, purchasePayload)
+        // );
         
-        logger.debug("[PO] Update response:", updatedPO);
+        await updatePurchaseAsync({
+          id: editPO.id || editPO.poNumber, 
+          payload: purchasePayload
+        });
         
-        // Update local state immediately
-        setData((prev) =>
-          prev.map((po) => {
-            // Match by poNumber or id
-            const isMatch = po.poNumber === editPO.poNumber || 
-                           po.id === editPO.id || 
-                           String(po.poNumber) === String(payload.poNumber);
-            
-            if (isMatch) {
-              // Build updated local object
-              return {
-                ...po,
-                ...buildLocalPurchaseOrder(payload, supplier, po.id, po.status)
-              };
-            }
-            return po;
-          })
-        );
+        // Local state update handled by React Query invalidation -> useEffect
         
         showNotification({
           title: "Updated",
@@ -196,15 +177,13 @@ export default function PurchaseOrdersPage() {
         });
       } else {
         // Create new PO
-        await import("../../../lib/api").then((api) =>
-          api.createPurchase(purchasePayload)
-        );
+        // await import("../../../lib/api").then((api) =>
+        //   api.createPurchase(purchasePayload)
+        // );
         
-        // Add to local state immediately
-        // Use helper to build new local PO object
-        const newPO = buildLocalPurchaseOrder(payload, supplier, payload.poNumber) as PO;
+        await createPurchaseAsync(purchasePayload);
         
-        setData((prev) => [...prev, newPO]);
+        // Local state update handled by React Query invalidation -> useEffect
         
         showNotification({
           title: "Created",
@@ -215,12 +194,7 @@ export default function PurchaseOrdersPage() {
       
       setOpen(false);
       setEditPO(null);
-      // Reload in background to sync with server
-      if (loadPurchases) {
-        loadPurchases().catch((err) => {
-          logger.error("[PO] Failed to reload purchases:", err);
-        });
-      }
+      // Reload handled by React Query
     } catch (err) {
       logger.error("[PO] Save error:", err);
       showNotification({
@@ -409,16 +383,15 @@ export default function PurchaseOrdersPage() {
               setDeleteLoading(true);
               logger.debug("[PO] Deleting:", deletePO.poNumber);
               try {
-                const result = await deletePurchaseByNumber(deletePO.poNumber);
-                logger.debug("[PO] Delete response:", result);
+                // const result = await deletePurchaseByNumber(deletePO.poNumber);
+                // We use ID if available, else poNumber? 
+                // The hooks use ID. If deletePurchaseByNumber used poNumber, we should check if we have ID.
+                // data mapping (line 118) ensures id is present (or generated? "id: p.id || p.poNumber || crypto...").
+                // If it's a real backend record, it should have an ID.
                 
-                // Remove from local state
-                setData((prev) =>
-                  prev.filter((po) => 
-                    po.poNumber !== deletePO.poNumber && 
-                    po.id !== deletePO.id
-                  )
-                );
+                await deletePurchaseAsync(deletePO.id || deletePO.poNumber);
+                
+                // Remove from local state handled by React Query -> useEffect
                 
                 showNotification({
                   title: "Deleted",
@@ -427,12 +400,7 @@ export default function PurchaseOrdersPage() {
                 });
                 setDeletePO(null);
                 
-                // Reload in background
-                if (loadPurchases) {
-                  loadPurchases().catch((err) => {
-                    logger.error("[PO] Failed to reload after delete:", err);
-                  });
-                }
+                // Reload handled by React Query
               } catch (err) {
                 logger.error("[PO] Delete error:", err);
                 let msg = "Failed to delete purchase order.";

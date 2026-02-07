@@ -106,7 +106,7 @@ export default function ProductMaster() {
     null
   );
 
-  // console.log("inventory", inventory);
+
   const filtered = useMemo(() => {
     const term = (debouncedSearch || "").toLowerCase();
     const arr = (inventory || []).filter((p) => {

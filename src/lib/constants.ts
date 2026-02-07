@@ -101,6 +101,10 @@ export const APP_CONSTANTS = {
 } as const;
 
 // Export individual constants for convenience
+export const API_TIMEOUT = APP_CONSTANTS.API.TIMEOUT;
+export const MAX_ITEMS_LIMIT = 10000; // Maximum items to fetch in a single request
+export const LOW_STOCK_THRESHOLD = 15; // Threshold for low stock warnings
+
 export const {
   STORAGE_KEYS,
   DATE_FORMATS,

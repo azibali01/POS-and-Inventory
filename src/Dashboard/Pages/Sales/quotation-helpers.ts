@@ -117,7 +117,8 @@ export function buildQuotationPayload(
     quotationNumber,
     products,
     quotationDate: payload.docDate ?? new Date().toISOString(),
-    customer: customer ? [customer] : [],
+    // Backend expects single customer object, not array
+    customer: customer ?? {} as any,
     remarks: payload.remarks ?? "",
     subTotal: Math.floor(payload.totals?.subTotal ?? gross),
     totalGrossAmount: Math.floor(
@@ -160,7 +161,8 @@ export function buildTempQuotationRow(
     quotationNumber,
     products,
     quotationDate: payload.docDate ?? new Date().toISOString(),
-    customer: customer ? [customer] : [],
+    // Backend expects single customer object, not array
+    customer: customer ?? {} as any,
     remarks: payload.remarks ?? "",
     subTotal: Math.floor(payload.totals?.subTotal ?? gross),
     totalGrossAmount: Math.floor(
