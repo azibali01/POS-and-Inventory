@@ -110,6 +110,16 @@ export default function SalesDocShell({
       : "Prices valid for 15 days.\nPayment terms: Due on receipt."
   );
 
+  // Brand State
+  const [globalBrand, setGlobalBrand] = useState<string>("Haq Interior");
+  const brandOptions = [
+    "Haq Interior",
+    "Haq Aluminium",
+    "Seven Star",
+    "Al-Fazal",
+    "Local",
+  ];
+
   const [receivedAmount, setReceivedAmount] = useState<number>(
     initial?.receivedAmount ?? 0
   );
@@ -130,8 +140,14 @@ export default function SalesDocShell({
       totalGrossAmount: 0,
       totalNetAmount: 0,
       discountAmount: 0,
+      brand: "Haq Interior",
     },
   ]);
+
+  // Update items when global brand changes
+  useEffect(() => {
+    setItems(items.map(i => ({ ...i, brand: i.brand || globalBrand })));
+  }, [globalBrand]);
 
   // Autosave / draft support
   const DRAFT_NAMESPACE = "sales-draft";
@@ -856,6 +872,18 @@ export default function SalesDocShell({
                 <Select data={["Cash", "Card"]} defaultValue="Cash" />
               </div>
             )}
+             <div>
+                <Text style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
+                  Brand
+                </Text>
+                <Select
+                  data={brandOptions}
+                  value={globalBrand}
+                  onChange={(v) => setGlobalBrand(v || "Haq Interior")}
+                  searchable
+                  allowDeselect={false}
+                />
+            </div>
           </div>
 
           <div
@@ -1018,6 +1046,7 @@ export default function SalesDocShell({
                       totalGrossAmount: 0,
                       totalNetAmount: 0,
                       discountAmount: 0,
+                      brand: globalBrand,
                     },
                   ]); }
                 }
@@ -1077,48 +1106,46 @@ export default function SalesDocShell({
                      </Group>
                 </Stack>
 
-                {/* Right Side: Totals */}
-                <Stack gap="xs">
-                    <Group justify="space-between">
-                        <Text size="sm">Subtotal</Text>
-                        <Text size="sm">{totals.totalGrossAmount.toFixed(2)}</Text>
-                    </Group>
-                     <Group justify="space-between">
-                        <Text size="sm">Discount</Text>
-                        <Text size="sm" c="red">-{totals.totalDiscountAmount.toFixed(2)}</Text>
-                    </Group>
-                    <div style={{ borderTop: '1px dashed #eee', margin: '4px 0' }} />
-                    <Group justify="space-between">
-                        <Text fw={700} size="lg">Net Total</Text>
-                        <Text fw={700} size="lg">{totals.totalNetAmount.toFixed(2)}</Text>
-                    </Group>
-                     
-                     <div style={{ borderTop: '1px solid #eee', margin: '8px 0' }} />
-                     
-                     {/* Payment Section */}
-                     <Group justify="space-between" align="center">
-                         <Text fw={500}>Received Amount</Text>
-                         <NumberInput 
-                            value={receivedAmount}
-                            onChange={(v) => setReceivedAmount(Number(v))}
-                            min={0}
-                            decimalScale={2}
-                            fixedDecimalScale
-                            thousandSeparator
-                            prefix="Rs. "
-                            styles={{ input: { textAlign: 'right', fontWeight: 600 } }}
-                            style={{ width: 150 }}
-                         />
-                     </Group>
-                     <Group justify="space-between" align="center" mt={4}>
-                         <Text fw={500} c={totals.pendingAmount > 0 ? "red" : "green"}>
-                            {totals.pendingAmount >= 0 ? "Pending Amount" : "Change Return"}
-                         </Text>
-                         <Text fw={700} size="lg" c={totals.pendingAmount > 0 ? "red" : "green"}>
+                {/* Right Side: Totals - horizontal layout now handled below */}
+                {/* We can remove this entire right side stack and rely on the new bottom bar */}
+            </Group>
+        </Card.Section>
+        
+        {/* New Horizontal Bottom Bar */}
+         <Card.Section withBorder p="sm" style={{ backgroundColor: "#f8f9fa" }}>
+            <Group justify="space-between" align="center">
+                 <Group gap="xl">
+                     <div>
+                         <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Total</Text>
+                         <Text size="xl" fw={700}>{totals.totalNetAmount.toFixed(2)}</Text>
+                     </div>
+                     <div>
+                         <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Received</Text>
+                          <NumberInput 
+                             value={receivedAmount}
+                             onChange={(v) => setReceivedAmount(Number(v))}
+                             min={0}
+                             decimalScale={2}
+                             fixedDecimalScale
+                             thousandSeparator
+                             prefix="Rs. "
+                             styles={{ input: { fontWeight: 600, height: 32 } }}
+                             style={{ width: 140 }}
+                             size="sm"
+                          />
+                     </div>
+                     <div>
+                         <Text size="xs" c="dimmed" tt="uppercase" fw={700}>Pending</Text>
+                         <Text size="xl" fw={700} c={totals.pendingAmount > 0.01 ? "red" : "green"}>
                              {Math.abs(totals.pendingAmount).toFixed(2)}
+                             {totals.pendingAmount > 0.01 ? " Dr" : ""}
                          </Text>
-                     </Group>
-                </Stack>
+                     </div>
+                 </Group>
+
+                 <Group gap="xl">
+                    {/* Add Ledger Status placeholder if needed */}
+                 </Group>
             </Group>
         </Card.Section>
       </Card>

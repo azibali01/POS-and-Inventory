@@ -22,7 +22,9 @@ interface EnvConfig {
  * Get environment variable with fallback
  */
 function getEnvVar(key: string, defaultValue: string = ""): string {
-  return (import.meta.env[key] as string | undefined) ?? defaultValue;
+  // Use a map for known keys if dynamic access fails, or just use import.meta.env directly in buildEnvConfig
+  const val = import.meta.env[key];
+  return (val as string | undefined) ?? defaultValue;
 }
 
 /**
@@ -54,10 +56,7 @@ function buildEnvConfig(): EnvConfig {
 
   return {
     // API Configuration
-    API_URL: getEnvVar(
-      "VITE_API_URL",
-      isDev ? API_URL_LOCAL : API_URL_PRODUCTION
-    ),
+    API_URL: import.meta.env.VITE_API_URL ?? (isDev ? API_URL_LOCAL : API_URL_PRODUCTION),
 
     // Environment
     NODE_ENV: import.meta.env.MODE as "development" | "production" | "test",

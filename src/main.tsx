@@ -30,12 +30,12 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <ErrorBoundary>
-      <ThemeProvider>
+    <ThemeProvider>
+      <ErrorBoundary>
         <AuthProvider>
-          {/* OLD DataProvider - for components not yet migrated */}
-          <DataProvider>
-            <QueryClientProvider client={queryClient}>
+          <QueryClientProvider client={queryClient}>
+            {/* OLD DataProvider - for components not yet migrated */}
+            <DataProvider>
               {/* NEW domain-specific providers - for migrated components */}
               <InventoryProvider>
                 <SalesProvider>
@@ -48,10 +48,10 @@ createRoot(rootElement).render(
                   </PurchaseProvider>
                 </SalesProvider>
               </InventoryProvider>
-            </QueryClientProvider>
-          </DataProvider>
+            </DataProvider>
+          </QueryClientProvider>
         </AuthProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </ThemeProvider>
   </StrictMode>
 );

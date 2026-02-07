@@ -12,6 +12,36 @@ import * as api from "../../lib/api";
 import { useAuth } from "../../Auth/Context/AuthContext";
 import { validateArrayResponse } from "../../lib/validate-api";
 import { logger } from "../../lib/logger";
+import {
+  useCustomer,
+  useSupplier,
+  // usePurchase,
+  // Hooks below will be uncommented as modules are refactored:
+  // useExpense,
+  // useColor,
+  // useCategory,
+  // useGRN,
+  // usePurchaseReturn,
+  //usePurchaseInvoice,
+  // useReceiptVoucher,
+  // usePaymentVoucher,
+} from "../../hooks";
+import {
+  toCustomers,
+  toCustomer,
+  toSuppliers,
+  // Type mappers below will be uncommented as modules are refactored:
+  // toSupplier,
+  // toPurchaseRecords,
+  // toExpenses,
+  // toColors,
+  // toCategories,
+  // toGRNRecords,
+  // toPurchaseReturnRecords,
+  // toPurchaseInvoiceRecords,
+  // toReceiptVouchers,
+  // toPaymentVouchers,
+} from "../../utils/typeMappers";
 
 // Import types from centralized module
 import type {
@@ -341,50 +371,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // ===== CUSTOMERS LOADER (fetch from backend) =====
+  // ===== CUSTOMERS LOADER (Using hook) =====
   const loadCustomers = async () => {
-    if (loaderLoadedRef.current["customers"]) {
-      return customers;
-    }
-    return runLoader("customers", api.getCustomers, (v) => {
-      // Normalize and map backend payload to Customer[]
-      const raw = normalizeResponse(v);
-      const mapped = raw.map((c) => {
-        const o = c as {
-          _id?: string;
-          id?: string;
-          name?: string;
-          phone?: string;
-          address?: string;
-          city?: string;
-          openingAmount?: number;
-          opening_amount?: number;
-          creditLimit?: number;
-          credit_limit?: number;
-          paymentType?: string;
-          createdAt?: string;
-          created_at?: string;
-        };
-        let paymentType: "Credit" | "Debit" | undefined = undefined;
-        if (o.paymentType === "credit" || o.paymentType === "Credit")
-          paymentType = "Credit";
-        else if (o.paymentType === "debit" || o.paymentType === "Debit")
-          paymentType = "Debit";
-        return {
-          _id: o._id ?? o.id ?? "",
-          name: o.name ?? "",
-          phone: o.phone ?? "",
-          address: o.address ?? "",
-          city: o.city ?? "",
-          openingAmount: o.openingAmount ?? o.opening_amount ?? 0,
-          creditLimit: o.creditLimit ?? o.credit_limit ?? 0,
-          paymentType,
-          createdAt: o.createdAt ?? o.created_at ?? undefined,
-        };
-      });
-      setCustomers(mapped);
-      return mapped;
-    }) as Promise<Customer[]>;
+    await customerHook.refetch();
+    loaderLoadedRef.current["customers"] = true;
+    return toCustomers(customerHook.customers);
   };
   // Auto-load customers on mount
   useEffect(() => {
@@ -395,40 +386,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     if (isAuthenticated) loadSales();
   }, [isAuthenticated]);
-  // ===== SUPPLIERS STATE =====
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [suppliersLoading, setSuppliersLoading] = useState(false);
-  const [suppliersError, setSuppliersError] = useState<string | null>(null);
-
-  // ===== SUPPLIERS LOADER (fetch from backend) =====
-  const loadSuppliers = async () => {
-    if (loaderLoadedRef.current["suppliers"]) {
-      return suppliers;
-    }
-    setSuppliersLoading(true);
-    setSuppliersError(null);
-    try {
-      const data = await api.getSuppliers();
-      setSuppliers(data || []);
-      loaderLoadedRef.current["suppliers"] = true;
-      return data || [];
-    } catch (err: unknown) {
-      setSuppliersError((err as Error).message || "Failed to load suppliers");
-      showNotification({
-        title: "Load Suppliers Failed",
-        message: (err as Error).message || "Failed to load suppliers",
-        color: "red",
-      });
-      return [];
-    } finally {
-      setSuppliersLoading(false);
-    }
+  // ===== SUPPLIERS STATE (Using useSupplier hook) =====
+  const supplierHook = useSupplier();
+  const suppliers = React.useMemo(
+    () => toSuppliers(supplierHook.suppliers),
+    [supplierHook.suppliers]
+  );
+  const suppliersLoading = supplierHook.isLoading;
+  const suppliersError = supplierHook.error?.message || null;
+  const setSuppliers = () => {
+    console.warn(
+      "setSuppliers called on DataContext - state managed by React Query"
+    );
   };
 
-  // Auto-load suppliers on mount
-  useEffect(() => {
-    if (isAuthenticated) loadSuppliers();
-  }, [isAuthenticated]);
+  // ===== SUPPLIERS LOADER (Using hook) =====
+  const loadSuppliers = async () => {
+    await supplierHook.refetch();
+    loaderLoadedRef.current["suppliers"] = true;
+    return toSuppliers(supplierHook.suppliers);
+  };
 
   // Auto-load inventory on mount
   useEffect(() => {
@@ -442,10 +419,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
   const [categories, setCategories] = useState<string[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
-  // ===== CUSTOMERS STATE =====
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customersLoading, setCustomersLoading] = useState(false);
-  const [customersError, setCustomersError] = useState<string | null>(null);
+  // ===== CUSTOMERS STATE (Using useCustomer hook) =====
+  const customerHook = useCustomer();
+  // Convert CustomerPayload[] to Customer[] using type mapper
+  const customers = React.useMemo(
+    () => toCustomers(customerHook.customers),
+    [customerHook.customers]
+  );
+  const customersLoading = customerHook.isLoading;
+  const customersError = customerHook.error?.message || null;
+  const setCustomers = () => {
+    console.warn(
+      "setCustomers called on DataContext - state managed by React Query"
+    );
+  };
   // ===== SALES STATE =====
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [salesLoading, setSalesLoading] = useState(false);
@@ -815,127 +802,34 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({
       setInventoryLoading(false);
     }
   }, []);
-  // ===== CUSTOMERS CRUD FUNCTIONS =====
-  const createCustomer = useCallback(async (payload: CustomerInput) => {
-    setCustomersLoading(true);
-    try {
-      // Map paymentType to lowercase if present
-      const mappedPayload = {
-        ...payload,
-        paymentType: payload.paymentType
-          ? payload.paymentType.toLowerCase() === "credit"
-            ? "credit"
-            : payload.paymentType.toLowerCase() === "debit"
-            ? "debit"
-            : undefined
-          : undefined,
-      } as api.CustomerPayload;
-      const created = await api.createCustomer(mappedPayload);
-      const customer: Customer = {
-        ...created,
-        _id: created._id ? String(created._id) : created.id ? String(created.id) : "",
-      };
-      setCustomers((prev) => [customer, ...prev]);
-      showNotification({
-        title: "Customer Created",
-        message: `${payload.name || "Customer"} has been added`,
-        color: "green",
-      });
-      return customer;
-    } catch (err: unknown) {
-      logger.error("Create customer failed:", err);
-      setCustomersError((err as Error).message || "Failed to create customer");
-      showNotification({
-        title: "Create Failed",
-        message: (err as Error).message || "Failed to create customer",
-        color: "red",
-      });
-      throw err;
-    } finally {
-      setCustomersLoading(false);
-    }
-  }, []);
+  // ===== CUSTOMERS CRUD FUNCTIONS (Adapted from useCustomer hook) =====
+  const createCustomer = useCallback(
+    async (payload: CustomerInput) => {
+      const result = await customerHook.createCustomerAsync(
+        payload as api.CustomerPayload
+      );
+      return toCustomer(result);
+    },
+    [customerHook.createCustomerAsync]
+  );
 
   const updateCustomer = useCallback(
     async (id: string | number, payload: Partial<CustomerInput>) => {
-      setCustomersLoading(true);
-      try {
-        // Map paymentType to lowercase if present
-        const mappedPayload = {
-          ...payload,
-          paymentType: payload.paymentType
-            ? payload.paymentType.toLowerCase() === "credit"
-              ? "credit"
-              : payload.paymentType.toLowerCase() === "debit"
-              ? "debit"
-              : undefined
-            : undefined,
-        } as Partial<api.CustomerPayload>;
-        const updated = await api.updateCustomer(String(id), mappedPayload);
-        const customer: Customer = {
-          ...updated,
-          _id: updated._id ? String(updated._id) : updated.id ? String(updated.id) : String(id),
-        };
-        setCustomers((prev) =>
-          prev.map((c) => (String(c._id) === String(id) ? customer : c))
-        );
-        showNotification({
-          title: "Customer Updated",
-          message: "Customer has been updated successfully",
-          color: "blue",
-        });
-        return customer;
-      } catch (err: unknown) {
-        logger.error("Update customer failed:", err);
-        setCustomersError(
-          (err as Error).message || "Failed to update customer"
-        );
-        showNotification({
-          title: "Update Failed",
-          message: (err as Error).message || "Failed to update customer",
-          color: "red",
-        });
-        throw err;
-      } finally {
-        setCustomersLoading(false);
-      }
+      const result = await customerHook.updateCustomerAsync({
+        id,
+        data: payload as Partial<api.CustomerPayload>,
+      });
+      return toCustomer(result);
     },
-    []
+    [customerHook.updateCustomerAsync]
   );
 
-  const deleteCustomer = useCallback(async (id: string | number) => {
-    setCustomersLoading(true);
-    try {
-      await api.deleteCustomer(String(id));
-      setCustomers((prev) => prev.filter((c) => String(c._id) !== String(id)));
-      showNotification({
-        title: "Customer Deleted",
-        message: "Customer has been removed",
-        color: "orange",
-      });
-    } catch (err: unknown) {
-      logger.error("Delete customer failed:", err);
-      let message = "Failed to delete customer";
-      if (
-        err &&
-        typeof err === "object" &&
-        "message" in err &&
-        typeof (err as { message?: unknown }).message === "string"
-      ) {
-        message =
-          (err as { message?: string }).message || "Failed to delete customer";
-      }
-      setCustomersError(message);
-      showNotification({
-        title: "Delete Failed",
-        message,
-        color: "red",
-      });
-      throw err;
-    } finally {
-      setCustomersLoading(false);
-    }
-  }, []);
+  const deleteCustomer = useCallback(
+    async (id: string | number) => {
+      await customerHook.deleteCustomerAsync(id);
+    },
+    [customerHook.deleteCustomerAsync]
+  );
 
   // ===== SALES CRUD FUNCTIONS =====
   const createSale = useCallback(

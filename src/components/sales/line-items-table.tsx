@@ -133,7 +133,6 @@ export function LineItemsTable({
 
           <Table.Th style={{ width: 120 }}>Qty</Table.Th>
           <Table.Th style={{ width: 120 }}>Rate</Table.Th>
-          <Table.Th style={{ width: 120 }}>Gross</Table.Th>
           <Table.Th style={{ width: 120 }}>%</Table.Th>
           <Table.Th style={{ width: 120 }}>Discount</Table.Th>
           <Table.Th style={{ width: 120 }}>Net</Table.Th>
@@ -351,8 +350,6 @@ export function LineItemsTable({
                   hideControls
                 />
               </Table.Td>
-
-              <Table.Td>{gross.toFixed(2)}</Table.Td>
 
               <Table.Td>
                 <NumberInput
