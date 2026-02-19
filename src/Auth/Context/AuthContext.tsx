@@ -14,6 +14,7 @@ interface AuthContextType {
   login: (user: User, token: string) => void;
   logout: () => void;
 }
+//test
 
 const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
 
