@@ -7,6 +7,7 @@
 export { useSales } from "./useSales";
 export { useQuotation } from "./useQuotation";
 export { useCustomer } from "./useCustomer";
+export { useCustomers } from "./useCustomers";
 
 // Inventory & Products
 export { useInventory } from "./useInventory";
@@ -15,6 +16,7 @@ export { useCategory } from "./useCategory";
 
 // Suppliers & Purchases
 export { useSupplier } from "./useSupplier";
+export { useSuppliers } from "./useSuppliers";
 export { usePurchase } from "./usePurchase";
 export { usePurchaseInvoice } from "./usePurchaseInvoice";
 export { usePurchaseReturn } from "./usePurchaseReturn";
@@ -24,6 +26,7 @@ export { useGRN } from "./useGRN";
 export { useExpense } from "./useExpense";
 export { useReceiptVoucher } from "./useReceiptVoucher";
 export { usePaymentVoucher } from "./usePaymentVoucher";
+export { useShift } from "./useShift";
 
 // Utility Hooks
 export { useDataLoader } from "./useDataLoader";

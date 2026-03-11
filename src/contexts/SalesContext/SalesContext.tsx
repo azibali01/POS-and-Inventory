@@ -2,7 +2,11 @@
 import React, { createContext } from "react";
 import { useInventory } from "../InventoryContext/InventoryContext";
 import type { SalesContextType } from "./types";
-import type { SaleRecordPayload } from "../../api";
+import type {
+  CustomerPayload,
+  InventoryItemPayload,
+  SaleRecordPayload,
+} from "../../api";
 import {
   toSaleRecords,
   toQuotationRecords,
@@ -18,6 +22,25 @@ import { useQuotation } from "../../hooks/useQuotation";
 import { useCustomer } from "../../hooks/useCustomer";
 
 const SalesContext = createContext<SalesContextType | undefined>(undefined);
+
+function normalizeCustomer(
+  customer: SaleRecordPayload["customer"] | CustomerPayload[] | undefined,
+): CustomerPayload | undefined {
+  if (Array.isArray(customer)) {
+    return customer[0];
+  }
+  return customer ?? undefined;
+}
+
+function getSoldItems(payload: SaleRecordPayload): InventoryItemPayload[] {
+  if (Array.isArray(payload.items)) {
+    return payload.items;
+  }
+  if (Array.isArray(payload.products)) {
+    return payload.products;
+  }
+  return [];
+}
 
 /**
  * Sales Context Provider - Refactored to use custom hooks
@@ -47,7 +70,10 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
   // Build the context value by mapping hook methods to expected interface
   const value: SalesContextType = {
     // Sales (convert from SaleRecordPayload[] to SaleRecord[])
-    sales: React.useMemo(() => toSaleRecords(salesHook.sales), [salesHook.sales]),
+    sales: React.useMemo(
+      () => toSaleRecords(salesHook.sales),
+      [salesHook.sales],
+    ),
     salesLoading: salesHook.isLoading,
     salesError: salesHook.error?.message || null,
     setSales: () => {
@@ -65,52 +91,35 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
           typeof payload.quotationDate === "string"
             ? payload.quotationDate
             : payload.quotationDate instanceof Date
-            ? payload.quotationDate.toISOString()
-            : undefined,
-        customer:
-          Array.isArray((payload as any).customer) && (payload as any).customer.length > 0
-            ? (payload as any).customer[0]
-            : typeof (payload as any).customer === "object" && (payload as any).customer !== null
-            ? (payload as any).customer
-            : undefined,
-      } as SaleRecordPayload;
+              ? payload.quotationDate.toISOString()
+              : undefined,
+        customer: normalizeCustomer(payload.customer),
+      };
 
       // Use async mutation
       const result = await salesHook.createSaleAsync(apiPayload);
-      
+
       // Update inventory quantities locally to reflect the sale
       try {
-        const soldItems = (
-          (Array.isArray((payload as any).items) ? (payload as any).items : undefined) ??
-          (Array.isArray((payload as any).products) ? (payload as any).products : undefined) ??
-          []
-        ) as Record<string, unknown>[];
+        const soldItems = getSoldItems(payload);
 
         if (soldItems.length > 0) {
           setInventory((prev) =>
             prev.map((inv) => {
-              const match = soldItems.find((it) => {
-                const item = it as Record<string, unknown>;
-                const key = String(
-                  (item._id as string | number) ||
-                    (item.id as string | number) ||
-                    (item.sku as string | number) ||
-                    (item.productId as string | number) ||
-                    (item.itemName as string) ||
-                    ""
-                );
+              const match = soldItems.find((item) => {
+                const key = String(item._id ?? item.sku ?? item.itemName ?? "");
                 return (
                   key &&
                   (String(inv._id) === key ||
                     String(inv.itemName) === key ||
-                    inv.itemName === String(item.productName))
+                    inv.itemName === item.itemName)
                 );
               });
               if (!match) return inv;
-              const qty = Number(match.quantity || 0);
+              const qty = Number(match.quantity ?? 0);
               if (!qty) return inv;
               const current = Number(
-                inv.openingStock ?? inv.stock ?? inv.quantity ?? 0
+                inv.openingStock ?? inv.stock ?? inv.quantity ?? 0,
               );
               const nextQty = current - qty;
               return {
@@ -118,7 +127,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
                 openingStock: nextQty,
                 stock: nextQty,
               } as typeof inv;
-            })
+            }),
           );
         }
       } catch (err) {
@@ -129,7 +138,10 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       return toSaleRecord(result);
     },
     updateSale: async (id, payload) => {
-      const result = await salesHook.updateSaleAsync({ invoiceNumber: String(id), data: payload });
+      const result = await salesHook.updateSaleAsync({
+        invoiceNumber: String(id),
+        data: payload,
+      });
       return toSaleRecord(result);
     },
     deleteSale: async (id) => {
@@ -139,7 +151,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     // Quotations (convert from QuotationRecordPayload[] to QuotationRecord[])
     quotations: React.useMemo(
       () => toQuotationRecords(quotationHook.quotations),
-      [quotationHook.quotations]
+      [quotationHook.quotations],
     ),
     quotationsLoading: quotationHook.isLoading,
     quotationsError: quotationHook.error?.message || null,
@@ -166,7 +178,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     // Customers (convert from CustomerPayload[] to Customer[])
     customers: React.useMemo(
       () => toCustomers(customerHook.customers),
-      [customerHook.customers]
+      [customerHook.customers],
     ),
     customersLoading: customerHook.isLoading,
     customersError: customerHook.error?.message || null,
@@ -178,11 +190,14 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       return toCustomers(customerHook.customers);
     },
     createCustomer: async (payload) => {
-      const result = await customerHook.createCustomerAsync(payload as any);
+      const result = await customerHook.createCustomerAsync(payload);
       return toCustomer(result);
     },
     updateCustomer: async (id, payload) => {
-      const result = await customerHook.updateCustomerAsync({ id, data: payload as any });
+      const result = await customerHook.updateCustomerAsync({
+        id,
+        data: payload,
+      });
       return toCustomer(result);
     },
     deleteCustomer: customerHook.deleteCustomerAsync,

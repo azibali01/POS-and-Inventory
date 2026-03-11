@@ -7,10 +7,11 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import React, { createContext, useState, useCallback, useRef } from "react";
 import { showNotification } from "@mantine/notifications";
-import * as api from "../../lib/api";
+import * as api from "../../api";
 import { ensureArray } from "../../lib/api-response-utils";
 import { logger } from "../../lib/logger";
 import type {
+  InventoryItemPayload,
   InventoryItem,
   Category,
   Color,
@@ -18,7 +19,7 @@ import type {
 } from "./types";
 
 const InventoryContext = createContext<InventoryContextType | undefined>(
-  undefined
+  undefined,
 );
 
 /**
@@ -176,48 +177,42 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ===== INVENTORY CRUD =====
-  const createInventory = useCallback(
-    async (payload: import("../../lib/api").InventoryItemPayload) => {
-      setInventoryLoading(true);
-      try {
-        const created = await api.createInventory(payload);
-        const item = { ...created } as InventoryItem;
-        setInventory((prev) => [item, ...prev]);
-        showNotification({
-          title: "Product Created",
-          message: `${item.itemName} has been created`,
-          color: "green",
-        });
-        return item;
-      } catch (err: unknown) {
-        logger.error("Create inventory failed:", err);
-        setInventoryError(
-          (err as Error).message || "Failed to create inventory item"
-        );
-        showNotification({
-          title: "Create Failed",
-          message: (err as Error).message || "Failed to create inventory item",
-          color: "red",
-        });
-        throw err;
-      } finally {
-        setInventoryLoading(false);
-      }
-    },
-    []
-  );
+  const createInventory = useCallback(async (payload: InventoryItemPayload) => {
+    setInventoryLoading(true);
+    try {
+      const created = await api.createInventory(payload);
+      const item = { ...created } as InventoryItem;
+      setInventory((prev) => [item, ...prev]);
+      showNotification({
+        title: "Product Created",
+        message: `${item.itemName} has been created`,
+        color: "green",
+      });
+      return item;
+    } catch (err: unknown) {
+      logger.error("Create inventory failed:", err);
+      setInventoryError(
+        (err as Error).message || "Failed to create inventory item",
+      );
+      showNotification({
+        title: "Create Failed",
+        message: (err as Error).message || "Failed to create inventory item",
+        color: "red",
+      });
+      throw err;
+    } finally {
+      setInventoryLoading(false);
+    }
+  }, []);
 
   const updateInventory = useCallback(
-    async (
-      id: string,
-      payload: Partial<import("../../lib/api").InventoryItemPayload>
-    ) => {
+    async (id: string, payload: Partial<InventoryItemPayload>) => {
       setInventoryLoading(true);
       try {
         const updated = await api.updateInventory(id, payload);
         const item = { ...updated } as InventoryItem;
         setInventory((prev) =>
-          prev.map((i) => (String(i._id) === String(id) ? item : i))
+          prev.map((i) => (String(i._id) === String(id) ? item : i)),
         );
         showNotification({
           title: "Product Updated",
@@ -228,7 +223,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
       } catch (err: unknown) {
         logger.error("Update inventory failed:", err);
         setInventoryError(
-          (err as Error).message || "Failed to update inventory item"
+          (err as Error).message || "Failed to update inventory item",
         );
         showNotification({
           title: "Update Failed",
@@ -240,7 +235,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         setInventoryLoading(false);
       }
     },
-    []
+    [],
   );
 
   const deleteInventory = useCallback(async (id: string) => {
@@ -256,7 +251,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
     } catch (err: unknown) {
       logger.error("Delete inventory failed:", err);
       setInventoryError(
-        (err as Error).message || "Failed to delete inventory item"
+        (err as Error).message || "Failed to delete inventory item",
       );
       showNotification({
         title: "Delete Failed",
@@ -288,7 +283,9 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         return category;
       } catch (err: unknown) {
         logger.error("Create category failed:", err);
-        setCategoriesError((err as Error).message || "Failed to create category");
+        setCategoriesError(
+          (err as Error).message || "Failed to create category",
+        );
         showNotification({
           title: "Create Failed",
           message: (err as Error).message || "Failed to create category",
@@ -299,7 +296,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         setCategoriesLoading(false);
       }
     },
-    []
+    [],
   );
 
   const updateCategory = useCallback(
@@ -312,7 +309,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
           id: updated.id ?? updated._id ?? id,
         } as Category;
         setCategories((prev) =>
-          prev.map((c) => (String(c.id) === String(id) ? category : c))
+          prev.map((c) => (String(c.id) === String(id) ? category : c)),
         );
         showNotification({
           title: "Category Updated",
@@ -322,7 +319,9 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         return category;
       } catch (err: unknown) {
         logger.error("Update category failed:", err);
-        setCategoriesError((err as Error).message || "Failed to update category");
+        setCategoriesError(
+          (err as Error).message || "Failed to update category",
+        );
         showNotification({
           title: "Update Failed",
           message: (err as Error).message || "Failed to update category",
@@ -333,7 +332,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         setCategoriesLoading(false);
       }
     },
-    []
+    [],
   );
 
   const deleteCategory = useCallback(async (id: string | number) => {
@@ -390,7 +389,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         setColorsLoading(false);
       }
     },
-    []
+    [],
   );
 
   const updateColor = useCallback(
@@ -403,7 +402,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
           _id: updated._id ?? id,
         } as Color;
         setColors((prev) =>
-          prev.map((c) => (String(c._id) === String(id) ? color : c))
+          prev.map((c) => (String(c._id) === String(id) ? color : c)),
         );
         showNotification({
           title: "Color Updated",
@@ -424,7 +423,7 @@ export function InventoryProvider({ children }: { children: React.ReactNode }) {
         setColorsLoading(false);
       }
     },
-    []
+    [],
   );
 
   const deleteColor = useCallback(async (id: string) => {

@@ -11,6 +11,9 @@ import {
   Text,
   Menu,
   ActionIcon,
+  Group,
+  Select,
+  Pagination,
 } from "@mantine/core";
 import {
   IconEdit,
@@ -20,12 +23,16 @@ import {
 } from "@tabler/icons-react";
 import type { Supplier } from "../../../components/purchase/SupplierForm";
 // import { useDataContext } from "../../Context/DataContext"; // REMOVED
-import { usePurchaseInvoice } from "../../../hooks/usePurchaseInvoice";
+import {
+  usePurchaseInvoice,
+  usePurchaseInvoiceList,
+} from "../../../hooks/usePurchaseInvoice";
 import { usePurchase } from "../../../hooks/usePurchase";
 import { useSupplier } from "../../../hooks/useSupplier";
 import { useInventory } from "../../../hooks/useInventory";
 import { formatDate, formatCurrency } from "../../../lib/format-utils";
 import openPrintWindow from "../../../components/print/printWindow";
+import { useDebounce } from "../../../hooks/useDebounce";
 // Helper to format invoice data for printing
 
 function getInvoicePrintData(inv: PurchaseInvoiceTableRow) {
@@ -38,7 +45,7 @@ function getInvoicePrintData(inv: PurchaseInvoiceTableRow) {
     customer: inv.supplier?.name || "",
     items: (inv.products || []).map((it, idx) => ({
       sr: idx + 1,
-      section: `${it.productName}${it.thickness || it.color ? ` (Thickness: ${it.thickness ?? '-'}, Color: ${it.color ?? '-'})` : ''}`,
+      section: `${it.productName}${it.thickness || it.color ? ` (Thickness: ${it.thickness ?? "-"}, Color: ${it.color ?? "-"})` : ""}`,
       quantity: it.quantity,
       rate: Number(it.rate ?? 0),
       amount: Number(it.amount ?? (it.quantity || 0) * (it.rate || 0)),
@@ -49,8 +56,6 @@ function getInvoicePrintData(inv: PurchaseInvoiceTableRow) {
     },
   };
 }
-import { getPurchaseInvoices } from "../../../lib/api";
-
 import type { PurchaseLineItem } from "./types";
 
 // Define the payload type for handleCreate
@@ -92,7 +97,11 @@ export default function PurchaseInvoicesPage() {
   // Place useEffect after all hooks, before return
 
   // const { suppliers, purchases } = useDataContext(); // REMOVED
-  const { purchaseInvoices, createPurchaseInvoiceAsync, isLoading: loading } = usePurchaseInvoice();
+  const {
+    purchaseInvoices,
+    createPurchaseInvoiceAsync,
+    deletePurchaseInvoiceAsync,
+  } = usePurchaseInvoice();
   const { purchases } = usePurchase();
   const { suppliers } = useSupplier();
   const { inventory, loadInventory } = useInventory();
@@ -124,8 +133,24 @@ export default function PurchaseInvoicesPage() {
   }
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState("10");
+  const debouncedSearch = useDebounce(q, 500);
+  const {
+    purchaseInvoices: pagedPurchaseInvoices,
+    pagination,
+    isLoading: listLoading,
+  } = usePurchaseInvoiceList({
+    page: currentPage,
+    limit: Number(pageSize),
+    search: debouncedSearch || undefined,
+  });
   const [editInvoice, setEditInvoice] =
     useState<PurchaseInvoiceTableRow | null>(null);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
 
   // Type guard for supplierId
   function hasSupplierId(obj: unknown): obj is { supplierId: string } {
@@ -149,7 +174,7 @@ export default function PurchaseInvoicesPage() {
         typeof (invSupplier as { _id?: unknown })._id === "string"
       ) {
         supplier = safeSuppliers.find(
-          (s: any) => s._id === (invSupplier as { _id: string })._id
+          (s: any) => s._id === (invSupplier as { _id: string })._id,
         );
       } else if (inv && hasSupplierId(inv)) {
         supplier = safeSuppliers.find((s: any) => s._id === inv.supplierId);
@@ -164,52 +189,51 @@ export default function PurchaseInvoicesPage() {
       }
       return supplier;
     },
-    [suppliers]
+    [suppliers],
   );
 
   // Load purchase invoices via React Query and map to local state
   React.useEffect(() => {
-    if (!purchaseInvoices) return;
-    
-    // Map purchaseInvoices to PurchaseInvoiceTableRow
-    const mappedData = purchaseInvoices.map((inv: any) => {
-        // Resolve supplier
-        const supplier = resolveSupplier(inv.supplier, inv);
-        
-        // Hydrate productName
-        const products = (inv.products || []).map((item: any) => {
-          if (item.productName) return item;
-          let found = undefined;
-          if (item.id && inventory) {
-            found = inventory.find((p) => p._id === item.id);
-          }
-          return {
-            ...item,
-            productName: found?.itemName || item.productName || "",
-          };
-        });
+    if (!pagedPurchaseInvoices) return;
 
+    const mappedData = pagedPurchaseInvoices.map((inv: any) => {
+      // Resolve supplier
+      const supplier = resolveSupplier(inv.supplier, inv);
+
+      // Hydrate productName
+      const products = (inv.products || []).map((item: any) => {
+        if (item.productName) return item;
+        let found = undefined;
+        if (item.id && inventory) {
+          found = inventory.find((p) => p._id === item.id);
+        }
         return {
-          id: inv.id || inv.purchaseInvoiceNumber || crypto.randomUUID(),
-          purchaseInvoiceNumber: inv.purchaseInvoiceNumber,
-          invoiceDate: inv.invoiceDate,
-          expectedDelivery: inv.expectedDelivery,
-          supplier,
-          products,
-          subTotal: inv.subTotal ?? 0,
-          total: inv.total ?? 0,
-          amount: inv.amount ?? inv.total ?? 0,
-          status: inv.status,
-          remarks: inv.remarks,
-          createdAt: inv.createdAt,
+          ...item,
+          productName: found?.itemName || item.productName || "",
         };
+      });
+
+      return {
+        id: inv.id || inv.purchaseInvoiceNumber || crypto.randomUUID(),
+        purchaseInvoiceNumber: inv.purchaseInvoiceNumber,
+        invoiceDate: inv.invoiceDate,
+        expectedDelivery: inv.expectedDelivery,
+        supplier,
+        products,
+        subTotal: inv.subTotal ?? 0,
+        total: inv.total ?? 0,
+        amount: inv.amount ?? inv.total ?? 0,
+        status: inv.status,
+        remarks: inv.remarks,
+        createdAt: inv.createdAt,
+      };
     });
 
     setData(mappedData);
-  }, [purchaseInvoices, suppliers, inventory, resolveSupplier]);
+  }, [pagedPurchaseInvoices, suppliers, inventory, resolveSupplier]);
 
   async function handleCreate(payload: PurchaseInvoiceFormPayload) {
-    const products = (payload.products || []);
+    const products = payload.products || [];
     const subTotal =
       payload.subTotal ?? products.reduce((s, it) => s + (it.amount || 0), 0);
     const total = payload.total ?? subTotal;
@@ -238,36 +262,16 @@ export default function PurchaseInvoicesPage() {
     // Optimistically increment inventory  locally for each purchased item is now handled by backend
     // Refresh inventory after creating purchase invoice so stock reflects received quantities
     try {
-        await loadInventory();
+      await loadInventory();
     } catch (err) {
       // non-fatal; inventory reload failed
-      logger.warn("Failed to reload inventory after creating purchase invoice:", err);
+      logger.warn(
+        "Failed to reload inventory after creating purchase invoice:",
+        err,
+      );
     }
     setOpen(false);
     setEditInvoice(null);
-    // Refresh the list after creating a purchase invoice
-    const invoices = await getPurchaseInvoices();
-    setData(
-      (invoices || []).map(
-        (inv: PurchaseInvoiceTableRow & { supplierId?: string }) => {
-          const supplier = resolveSupplier(inv.supplier, inv);
-          return {
-            id: inv.id || inv.purchaseInvoiceNumber || crypto.randomUUID(),
-            purchaseInvoiceNumber: inv.purchaseInvoiceNumber,
-            invoiceDate: inv.invoiceDate,
-            expectedDelivery: inv.expectedDelivery,
-            supplier,
-            products: inv.products,
-            subTotal: inv.subTotal ?? 0,
-            total: inv.total ?? 0,
-            amount: inv.amount ?? inv.total ?? 0,
-            status: inv.status,
-            remarks: inv.remarks,
-            createdAt: inv.createdAt,
-          };
-        }
-      )
-    );
   }
 
   // function handleCreateSync(payload: Partial<PurchaseInvoiceTableRow>) {
@@ -289,14 +293,14 @@ export default function PurchaseInvoicesPage() {
         editInvoice.expectedDelivery instanceof Date
           ? editInvoice.expectedDelivery
           : editInvoice.expectedDelivery
-          ? new Date(editInvoice.expectedDelivery)
-          : undefined,
+            ? new Date(editInvoice.expectedDelivery)
+            : undefined,
       invoiceDate:
         editInvoice.invoiceDate instanceof Date
           ? editInvoice.invoiceDate
           : editInvoice.invoiceDate
-          ? new Date(editInvoice.invoiceDate)
-          : undefined,
+            ? new Date(editInvoice.invoiceDate)
+            : undefined,
     };
   }, [editInvoice, resolveSupplier]);
   const defaultInvoiceNumber = editInvoice
@@ -332,18 +336,22 @@ export default function PurchaseInvoicesPage() {
       {/* Import from PO Modal */}
       <Modal
         opened={importOpen}
-        onClose={() => { setImportOpen(false); }}
+        onClose={() => {
+          setImportOpen(false);
+        }}
         title="Import from Purchase Order"
         size="80%"
       >
-    <div style={{ padding: 12 }}>
+        <div style={{ padding: 12 }}>
           <h3>Purchase Orders</h3>
           <div style={{ marginBottom: 12 }}>
             <input
               type="text"
               placeholder="Search by PO Number..."
               value={importPOSearch || ""}
-              onChange={(e) => { setImportPOSearch(e.target.value); }}
+              onChange={(e) => {
+                setImportPOSearch(e.target.value);
+              }}
               style={{
                 padding: 6,
                 width: 260,
@@ -357,17 +365,16 @@ export default function PurchaseInvoicesPage() {
               tabIndex={0}
             />
           </div>
-          {(purchases || [])
-            .filter((po) => {
-              const term = importPOSearch.trim().toLowerCase();
-              if (!term) return true;
-              return (
-                String(po.poNumber).toLowerCase().includes(term) ||
-                String(po.supplier?.name || "")
-                  .toLowerCase()
-                  .includes(term)
-              );
-            }).length === 0 && <div>No purchase orders found</div>}
+          {(purchases || []).filter((po) => {
+            const term = importPOSearch.trim().toLowerCase();
+            if (!term) return true;
+            return (
+              String(po.poNumber).toLowerCase().includes(term) ||
+              String(po.supplier?.name || "")
+                .toLowerCase()
+                .includes(term)
+            );
+          }).length === 0 && <div>No purchase orders found</div>}
           <div style={{ display: "grid", gap: 8 }}>
             {(purchases || [])
               .filter((po) => {
@@ -381,18 +388,73 @@ export default function PurchaseInvoicesPage() {
                 );
               })
               .map((po, idx) => (
+                <div
+                  key={po.poNumber ?? `po-${idx}`}
+                  style={{
+                    padding: 12,
+                    border: "1px solid #1976d2",
+                    borderRadius: 6,
+                    background: "#fff",
+                  }}
+                  tabIndex={0}
+                  aria-label={`Purchase Order ${po.poNumber}`}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setInitialPayload({
+                        purchaseInvoiceNumber: getNextInvoiceNumber(),
+                        invoiceDate: new Date().toISOString(),
+                        supplierId: po.supplier?._id,
+                        products: (po.products || []).map((item) => ({
+                          ...item,
+                          productId: item.id ?? "",
+                          unit: "pcs",
+                          grossAmount: item.amount ?? 0,
+                          netAmount: item.amount ?? 0,
+                        })),
+                        subTotal: po.subTotal ?? 0,
+                        total: po.total ?? 0,
+                        remarks: po.remarks ?? "",
+                      });
+                      setImportOpen(false);
+                      setOpen(true);
+                    }
+                  }}
+                >
                   <div
-                    key={po.poNumber ?? `po-${idx}`}
+                    style={{ display: "flex", justifyContent: "space-between" }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700 }}>{po.poNumber}</div>
+                      <div style={{ color: "#333" }}>
+                        Date:{" "}
+                        {po.poDate
+                          ? new Date(po.poDate).toLocaleDateString()
+                          : ""}
+                      </div>
+                      <div style={{ color: "#333" }}>
+                        Supplier: {po.supplier?.name || ""}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 12, color: "#1976d2" }}>
+                        {po.products?.length || 0} items
+                      </div>
+                      <div style={{ fontWeight: 700 }}>
+                        {formatCurrency(po.total ?? 0)}
+                      </div>
+                    </div>
+                  </div>
+                  {/* ...items table, remarks, and import button as in previous logic... */}
+                  <div
                     style={{
-                      padding: 12,
-                      border: "1px solid #1976d2",
-                      borderRadius: 6,
-                      background: "#fff",
+                      marginTop: 8,
+                      display: "flex",
+                      justifyContent: "flex-end",
                     }}
-                    tabIndex={0}
-                    aria-label={`Purchase Order ${po.poNumber}`}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+                  >
+                    <Button
+                      size="xs"
+                      onClick={() => {
                         setInitialPayload({
                           purchaseInvoiceNumber: getNextInvoiceNumber(),
                           invoiceDate: new Date().toISOString(),
@@ -410,69 +472,17 @@ export default function PurchaseInvoicesPage() {
                         });
                         setImportOpen(false);
                         setOpen(true);
-                      }
-                    }}
-                  >
-                    <div
-                      style={{ display: "flex", justifyContent: "space-between" }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 700 }}>{po.poNumber}</div>
-                        <div style={{ color: "#333" }}>
-                          Date: {po.poDate ? new Date(po.poDate).toLocaleDateString() : ""}
-                        </div>
-                        <div style={{ color: "#333" }}>
-                          Supplier: {po.supplier?.name || ""}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 12, color: "#1976d2" }}>
-                          {po.products?.length || 0} items
-                        </div>
-                        <div style={{ fontWeight: 700 }}>
-                          {formatCurrency(po.total ?? 0)}
-                        </div>
-                      </div>
-                    </div>
-                    {/* ...items table, remarks, and import button as in previous logic... */}
-                    <div
-                      style={{
-                        marginTop: 8,
-                        display: "flex",
-                        justifyContent: "flex-end",
                       }}
+                      aria-label={`Import Purchase Order ${po.poNumber}`}
+                      style={{ backgroundColor: "#1976d2", color: "#fff" }}
                     >
-                      <Button
-                        size="xs"
-                        onClick={() => {
-                          setInitialPayload({
-                            purchaseInvoiceNumber: getNextInvoiceNumber(),
-                            invoiceDate: new Date().toISOString(),
-                            supplierId: po.supplier?._id,
-                            products: (po.products || []).map((item) => ({
-                              ...item,
-                              productId: item.id ?? "",
-                              unit: "pcs",
-                              grossAmount: item.amount ?? 0,
-                              netAmount: item.amount ?? 0,
-                            })),
-                            subTotal: po.subTotal ?? 0,
-                            total: po.total ?? 0,
-                            remarks: po.remarks ?? "",
-                          });
-                          setImportOpen(false);
-                          setOpen(true);
-                        }}
-                        aria-label={`Import Purchase Order ${po.poNumber}`}
-                        style={{ backgroundColor: '#1976d2', color: '#fff' }}
-                      >
-                        Import
-                      </Button>
-                    </div>
+                      Import
+                    </Button>
                   </div>
-                ))}
-            </div>
-  {/* End Modal Content */}
+                </div>
+              ))}
+          </div>
+          {/* End Modal Content */}
         </div>
       </Modal>
 
@@ -495,13 +505,13 @@ export default function PurchaseInvoicesPage() {
                 initialPayload.invoiceDate instanceof Date
                   ? initialPayload.invoiceDate
                   : initialPayload.invoiceDate
-                  ? new Date(initialPayload.invoiceDate)
-                  : undefined,
+                    ? new Date(initialPayload.invoiceDate)
+                    : undefined,
               expectedDelivery: !initialPayload.expectedDelivery
                 ? undefined
                 : initialPayload.expectedDelivery instanceof Date
-                ? initialPayload.expectedDelivery
-                : new Date(initialPayload.expectedDelivery),
+                  ? initialPayload.expectedDelivery
+                  : new Date(initialPayload.expectedDelivery),
             }}
             defaultInvoiceNumber={initialPayload.purchaseInvoiceNumber}
           />
@@ -514,43 +524,65 @@ export default function PurchaseInvoicesPage() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
           }}
         >
           <Title order={2}>Purchase Invoices</Title>
-          <div style={{ display: "flex", gap: 8 }}>
+          <Group gap="sm">
             <Button
-              onClick={() => { setImportOpen(true); }}
+              onClick={() => {
+                setImportOpen(true);
+              }}
               variant="filled"
               size="sm"
             >
               Import from Purchase Order
             </Button>
             <TextInput
-              placeholder="Search invoices..."
+              placeholder="Search invoices, suppliers, items..."
               value={q}
-              onChange={(e) => { setQ(e.currentTarget.value); }}
+              onChange={(e) => {
+                setQ(e.currentTarget.value);
+              }}
               style={{ width: 260 }}
             />
+            <Select
+              value={pageSize}
+              onChange={(value) => {
+                setPageSize(value || "10");
+                setCurrentPage(1);
+              }}
+              data={["10", "25", "50"]}
+              w={96}
+            />
             <Button
-              onClick={() => { setOpen(true); }}
+              onClick={() => {
+                setOpen(true);
+              }}
               leftSection={<IconPlus size={16} />}
             >
               Create Invoice
             </Button>
-          </div>
+          </Group>
         </div>
         <Card>
           <div style={{ padding: 12 }}>
             <Title order={4}>Recent Purchase Invoices</Title>
-            <Text color="dimmed">Last {data.length} purchase invoices</Text>
-            <div className="app-table-wrapper" style={{ marginTop: 12, maxHeight: '60vh', overflow: 'auto' }}>
+            <Text color="dimmed">
+              Showing {data.length} of {pagination.total} purchase invoices
+            </Text>
+            <div
+              className="app-table-wrapper"
+              style={{ marginTop: 12, maxHeight: "60vh", overflow: "auto" }}
+            >
               <Table
                 withRowBorders
                 withColumnBorders
                 highlightOnHover
                 withTableBorder
               >
-                {loading && (
+                {listLoading && (
                   <tbody>
                     <tr>
                       <td
@@ -572,89 +604,95 @@ export default function PurchaseInvoicesPage() {
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {data
-                    .filter((inv) => {
-                      const term = q.trim().toLowerCase();
-                      if (!term) return true;
-                      return (
-                        String(inv.purchaseInvoiceNumber)
-                          .toLowerCase()
-                          .includes(term) ||
-                        String(inv.supplier?.name || "")
-                          .toLowerCase()
-                          .includes(term)
-                      );
-                    })
-                    .map((inv) => (
-                      <Table.Tr
-                        key={inv.id}
-                        tabIndex={0}
-                        aria-label={`Invoice ${inv.purchaseInvoiceNumber} for ${inv.supplier?.name || ''}`}
-                        onDoubleClick={() => {
-                          setEditInvoice(inv);
-                          setOpen(true);
-                        }}
-                        style={{ cursor: 'pointer' }}
-                      > 
-                        <Table.Td style={{ fontFamily: "monospace" }}>
-                          {inv.purchaseInvoiceNumber}
-                        </Table.Td>
-                        <Table.Td>{formatDate(inv.invoiceDate)}</Table.Td>
-                        <Table.Td>{inv.supplier?.name || ""}</Table.Td>
-                        <Table.Td style={{ textAlign: "right" }}>
-                          {formatCurrency(inv.total)}
-                        </Table.Td>
-                        <Table.Td style={{ textAlign: "right" }}>
-                          {/* Action menu */}
-                          <Menu position="bottom-end" withArrow width={200}>
-                            <Menu.Target>
-                              <ActionIcon variant="subtle" color="gray" aria-label={`Actions for invoice ${inv.purchaseInvoiceNumber}`} tabIndex={0}>
-                                <span style={{ fontWeight: 600, fontSize: 18 }}>
-                                  ⋮
-                                </span>
-                              </ActionIcon>
-                            </Menu.Target>
-                            <Menu.Dropdown>
-                              <Menu.Item
-                                onClick={() => {
-                                  setEditInvoice(inv);
-                                  setOpen(true);
-                                }}
-                                leftSection={<IconEdit size={14} />}
-                              >
-                                Edit
-                              </Menu.Item>
-                              <Menu.Item
-                                onClick={() => {
-                                  const d = getInvoicePrintData(inv);
-                                  openPrintWindow(d);
-                                }}
-                                leftSection={<IconPrinter size={14} />}
-                              >
-                                Print
-                              </Menu.Item>
-                              <Menu.Item
-                                color="red"
-                                onClick={() => { setDeleteInvoice(inv); }}
-                                leftSection={<IconTrash size={14} />}
-                              >
-                                Delete
-                              </Menu.Item>
-                            </Menu.Dropdown>
-                          </Menu>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
+                  {data.map((inv) => (
+                    <Table.Tr
+                      key={inv.id}
+                      tabIndex={0}
+                      aria-label={`Invoice ${inv.purchaseInvoiceNumber} for ${inv.supplier?.name || ""}`}
+                      onDoubleClick={() => {
+                        setEditInvoice(inv);
+                        setOpen(true);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <Table.Td style={{ fontFamily: "monospace" }}>
+                        {inv.purchaseInvoiceNumber}
+                      </Table.Td>
+                      <Table.Td>{formatDate(inv.invoiceDate)}</Table.Td>
+                      <Table.Td>{inv.supplier?.name || ""}</Table.Td>
+                      <Table.Td style={{ textAlign: "right" }}>
+                        {formatCurrency(inv.total)}
+                      </Table.Td>
+                      <Table.Td style={{ textAlign: "right" }}>
+                        {/* Action menu */}
+                        <Menu position="bottom-end" withArrow width={200}>
+                          <Menu.Target>
+                            <ActionIcon
+                              variant="subtle"
+                              color="gray"
+                              aria-label={`Actions for invoice ${inv.purchaseInvoiceNumber}`}
+                              tabIndex={0}
+                            >
+                              <span style={{ fontWeight: 600, fontSize: 18 }}>
+                                ⋮
+                              </span>
+                            </ActionIcon>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            <Menu.Item
+                              onClick={() => {
+                                setEditInvoice(inv);
+                                setOpen(true);
+                              }}
+                              leftSection={<IconEdit size={14} />}
+                            >
+                              Edit
+                            </Menu.Item>
+                            <Menu.Item
+                              onClick={() => {
+                                const d = getInvoicePrintData(inv);
+                                openPrintWindow(d);
+                              }}
+                              leftSection={<IconPrinter size={14} />}
+                            >
+                              Print
+                            </Menu.Item>
+                            <Menu.Item
+                              color="red"
+                              onClick={() => {
+                                setDeleteInvoice(inv);
+                              }}
+                              leftSection={<IconTrash size={14} />}
+                            >
+                              Delete
+                            </Menu.Item>
+                          </Menu.Dropdown>
+                        </Menu>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
                 </Table.Tbody>
               </Table>
             </div>
+            {pagination.lastPage > 1 && (
+              <Group justify="center" mt="md">
+                <Pagination
+                  value={currentPage}
+                  onChange={setCurrentPage}
+                  total={pagination.lastPage}
+                  withEdges
+                />
+              </Group>
+            )}
           </div>
         </Card>
       </div>
       {/* Confirm Delete Modal (should only render once, outside the table and menu) */}
       <Modal
         opened={!!deleteInvoice}
-        onClose={() => { setDeleteInvoice(null); }}
+        onClose={() => {
+          setDeleteInvoice(null);
+        }}
         title="Confirm Delete"
         centered
         withCloseButton
@@ -673,9 +711,15 @@ export default function PurchaseInvoicesPage() {
         >
           <Button
             variant="default"
-            onClick={() => { setDeleteInvoice(null); }}
+            onClick={() => {
+              setDeleteInvoice(null);
+            }}
             disabled={deleteLoading}
-            style={{ color: '#222', backgroundColor: '#f3f3f3', border: '1px solid #ccc' }}
+            style={{
+              color: "#222",
+              backgroundColor: "#f3f3f3",
+              border: "1px solid #ccc",
+            }}
             aria-label="Cancel Delete Invoice"
           >
             Cancel
@@ -688,61 +732,12 @@ export default function PurchaseInvoicesPage() {
               setDeleteLoading(true);
               try {
                 if (!deleteInvoice) return;
-                await import("../../../lib/api").then(async (api) => {
-                  await api.deletePurchaseInvoiceByNumber(
-                    deleteInvoice.purchaseInvoiceNumber
-                  );
-                });
+                await deletePurchaseInvoiceAsync(
+                  deleteInvoice.purchaseInvoiceNumber,
+                );
                 setDeleteInvoice(null);
-                // Refresh the list after deleting a purchase invoice
-                getPurchaseInvoices().then((invoices) => {
-                  setData(
-                    (invoices || []).map((inv: PurchaseInvoiceTableRow) => {
-                      let supplier: Supplier | undefined = undefined;
-                      if (
-                        inv.supplier &&
-                        typeof inv.supplier === "object" &&
-                        "_id" in inv.supplier &&
-                        typeof (inv.supplier as { _id?: unknown })._id ===
-                          "string"
-                      ) {
-                        const safeSuppliers = (suppliers || []) as any;
-                        supplier = safeSuppliers.find(
-                          (s: any) => s._id === (inv.supplier as { _id: string })._id
-                        );
-                      }
-                      if (
-                        !supplier &&
-                        inv.supplier &&
-                        typeof inv.supplier === "object" &&
-                        "name" in inv.supplier
-                      ) {
-                        supplier = inv.supplier;
-                      }
-                      return {
-                        id:
-                          inv.id ||
-                          inv.purchaseInvoiceNumber ||
-                          crypto.randomUUID(),
-                        purchaseInvoiceNumber: inv.purchaseInvoiceNumber,
-                        invoiceDate: inv.invoiceDate,
-                        expectedDelivery: inv.expectedDelivery,
-                        supplier,
-                        products: inv.products || [],
-                        subTotal: inv.subTotal ?? 0,
-                        total: inv.total ?? 0,
-                        amount: inv.amount ?? inv.total ?? 0,
-                        status: inv.status,
-                        remarks: inv.remarks,
-                        createdAt: inv.createdAt,
-                      };
-                    })
-                  );
-                });
-                // showNotification({ title: "Deleted", message: `Purchase Invoice ${deleteInvoice.purchaseInvoiceNumber} deleted`, color: "red" });
-              } catch {
-                // let msg = "Failed to delete purchase invoice.";
-                // showNotification({ title: "Error", message: msg, color: "red" });
+              } catch (error) {
+                logger.error("Failed to delete purchase invoice:", error);
               } finally {
                 setDeleteLoading(false);
               }

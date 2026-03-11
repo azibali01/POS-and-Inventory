@@ -2,11 +2,14 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import React, { createContext, useState, useCallback, useRef } from "react";
 import { showNotification } from "@mantine/notifications";
-import * as api from "../../lib/api";
+import * as api from "../../api";
 import { ensureArray } from "../../lib/api-response-utils";
 import { logger } from "../../lib/logger";
 import type { Supplier } from "../../components/purchase/SupplierForm";
 import type {
+  GRNRecordPayload,
+  PurchaseRecordPayload,
+  PurchaseReturnRecordPayload,
   PurchaseRecord,
   PurchaseInvoiceRecord,
   GRNRecord,
@@ -16,7 +19,7 @@ import type {
 import { useInventory } from "../InventoryContext/InventoryContext";
 
 const PurchaseContext = createContext<PurchaseContextType | undefined>(
-  undefined
+  undefined,
 );
 
 /**
@@ -99,9 +102,7 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
       })
       .catch((error: unknown) => {
         const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to load purchases";
+          error instanceof Error ? error.message : "Failed to load purchases";
         setPurchasesError(message);
         setPurchasesLoading(false);
         logger.error("Failed to load purchases:", error);
@@ -138,7 +139,7 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
       .then((data) => {
         const validated = ensureArray<PurchaseInvoiceRecord>(
           data,
-          "purchaseInvoices"
+          "purchaseInvoices",
         );
         setPurchaseInvoices(validated);
         setPurchaseInvoicesLoading(false);
@@ -227,7 +228,7 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
       .then((data) => {
         const validated = ensureArray<PurchaseReturnRecord>(
           data,
-          "purchaseReturns"
+          "purchaseReturns",
         );
         setPurchaseReturns(validated);
         setPurchaseReturnsLoading(false);
@@ -307,38 +308,37 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
   }, [suppliers]);
 
   // ===== PURCHASE CRUD =====
-  const createPurchase = useCallback(
-    async (payload: import("../../lib/api").PurchaseRecordPayload) => {
-      setPurchasesLoading(true);
-      try {
-        const created = await api.createPurchase(payload);
-        const purchase = {
-          ...created,
-          id: String((created as any).id ?? (created as any)._id ?? payload.poNumber),
-        } as PurchaseRecord;
-        
-        setPurchases((prev) => [purchase, ...prev]);
-        showNotification({
-          title: "Purchase Created",
-          message: "Purchase order has been created successfully",
-          color: "green",
-        });
-        return purchase;
-      } catch (err: unknown) {
-        logger.error("Create purchase failed:", err);
-        setPurchasesError((err as Error).message || "Failed to create purchase");
-        showNotification({
-          title: "Create Failed",
-          message: (err as Error).message || "Failed to create purchase",
-          color: "red",
-        });
-        throw err;
-      } finally {
-        setPurchasesLoading(false);
-      }
-    },
-    []
-  );
+  const createPurchase = useCallback(async (payload: PurchaseRecordPayload) => {
+    setPurchasesLoading(true);
+    try {
+      const created = await api.createPurchase(payload);
+      const purchase = {
+        ...created,
+        id: String(
+          (created as any).id ?? (created as any)._id ?? payload.poNumber,
+        ),
+      } as PurchaseRecord;
+
+      setPurchases((prev) => [purchase, ...prev]);
+      showNotification({
+        title: "Purchase Created",
+        message: "Purchase order has been created successfully",
+        color: "green",
+      });
+      return purchase;
+    } catch (err: unknown) {
+      logger.error("Create purchase failed:", err);
+      setPurchasesError((err as Error).message || "Failed to create purchase");
+      showNotification({
+        title: "Create Failed",
+        message: (err as Error).message || "Failed to create purchase",
+        color: "red",
+      });
+      throw err;
+    } finally {
+      setPurchasesLoading(false);
+    }
+  }, []);
 
   // ... (keeping other functions intact, just targeting the block with error if possible, but replace_file_content works on chunks)
   // I will target the specific chunks to avoid overwriting too much.
@@ -350,18 +350,15 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
 
   // Wait, I can't do comments in ReplacementContent easily if I'm not careful.
   // I will use multiple replace_file_content calls or one big one?
-  // The syntax error is at line 316. 
+  // The syntax error is at line 316.
   // Unused gItemId at 415.
   // rItem casting at 542.
   // originalInvoiceNumber at 576.
-  
+
   // I will use multi_replace_file_content.
 
   const updatePurchase = useCallback(
-    async (
-      id: string | number,
-      payload: Partial<import("../../lib/api").PurchaseRecordPayload>
-    ) => {
+    async (id: string | number, payload: Partial<PurchaseRecordPayload>) => {
       setPurchasesLoading(true);
       try {
         const updated = await api.updatePurchaseByNumber(String(id), payload);
@@ -370,7 +367,7 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
           id: updated.id ?? id,
         } as PurchaseRecord;
         setPurchases((prev) =>
-          prev.map((p) => (String(p.id) === String(id) ? purchase : p))
+          prev.map((p) => (String(p.id) === String(id) ? purchase : p)),
         );
         showNotification({
           title: "Purchase Updated",
@@ -380,7 +377,9 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
         return purchase;
       } catch (err: unknown) {
         logger.error("Update purchase failed:", err);
-        setPurchasesError((err as Error).message || "Failed to update purchase");
+        setPurchasesError(
+          (err as Error).message || "Failed to update purchase",
+        );
         showNotification({
           title: "Update Failed",
           message: (err as Error).message || "Failed to update purchase",
@@ -391,7 +390,7 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
         setPurchasesLoading(false);
       }
     },
-    []
+    [],
   );
 
   const deletePurchase = useCallback(async (id: string | number) => {
@@ -425,17 +424,15 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
       logger.log("Applying GRN to Inventory:", grn);
       setInventory((prev) =>
         prev.map((item) => {
-          const receivedItem = grn.items.find(
-            (gItem) => {
-              const itemId = item._id || "";
-              return String(gItem.sku) === itemId;
-            }
-          );
+          const receivedItem = grn.items.find((gItem) => {
+            const itemId = item._id || "";
+            return String(gItem.sku) === itemId;
+          });
 
           if (receivedItem) {
             const receivedQty = Number(receivedItem.quantity || 0);
             if (receivedQty > 0) {
-              const oldStock = 
+              const oldStock =
                 item.openingStock ?? item.stock ?? item.quantity ?? 0;
               const newStock = Number(oldStock) + receivedQty;
               return {
@@ -448,36 +445,36 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
             }
           }
           return item;
-        })
+        }),
       );
     },
-    [setInventory]
+    [setInventory],
   );
 
   const updatePurchaseFromGrn = useCallback(
     (grn: GRNRecord) => {
       // Use linkedPoId as primary link
       if (!grn.linkedPoId && !grn.grnNumber) return; // fallback
-      
+
       setPurchases((prev) =>
         prev.map((po) => {
           // Check if this PO is the one linked
           // Assuming po.id matches linkedPoId OR po.poNumber matches?
           // GRN likely links by ID or PO Number.
           if (
-             (grn.linkedPoId && String(po.id) === String(grn.linkedPoId)) ||
-             (grn.linkedPoId && String(po.poNumber) === String(grn.linkedPoId)) 
+            (grn.linkedPoId && String(po.id) === String(grn.linkedPoId)) ||
+            (grn.linkedPoId && String(po.poNumber) === String(grn.linkedPoId))
           ) {
             // Update received quantities in PO
             // PurchaseRecord has 'products', GRN has 'items'
-            const updatedProducts =po.products.map((poItem) => {
+            const updatedProducts = po.products.map((poItem) => {
               const grnItem = grn.items.find(
                 (g) =>
-                   // Try to match by SKU/ID or Name if available.
-                   // PO Item has: id, productName. GRN Item has: sku.
-                   // Assuming sku === id or we need name.
-                   String(g.sku) === String(poItem.id) ||
-                   String(g.sku) === String(poItem.inventoryId)
+                  // Try to match by SKU/ID or Name if available.
+                  // PO Item has: id, productName. GRN Item has: sku.
+                  // Assuming sku === id or we need name.
+                  String(g.sku) === String(poItem.id) ||
+                  String(g.sku) === String(poItem.inventoryId),
               );
               if (grnItem) {
                 return {
@@ -495,14 +492,14 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
             };
           }
           return po;
-        })
+        }),
       );
     },
-    [setPurchases]
+    [setPurchases],
   );
 
   const createGrn = useCallback(
-    async (payload: import("../../lib/api").GRNRecordPayload) => {
+    async (payload: GRNRecordPayload) => {
       setGrnsLoading(true);
       try {
         const created = await api.createGRN(payload);
@@ -534,7 +531,7 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
         setGrnsLoading(false);
       }
     },
-    [applyGrnToInventory, updatePurchaseFromGrn]
+    [applyGrnToInventory, updatePurchaseFromGrn],
   );
 
   // ===== PURCHASE RETURN LOGIC =====
@@ -548,7 +545,7 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
           const returnItem = ret.items.find((rItem) => {
             const rItemAny = rItem as any;
             const key = String(
-              rItemAny.id ?? rItemAny.productId ?? rItemAny.productName ?? ""
+              rItemAny.id ?? rItemAny.productId ?? rItemAny.productName ?? "",
             );
             return (
               key &&
@@ -562,7 +559,7 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
             const returnQty = Number((returnItem as any).returnQty ?? 0);
             if (returnQty > 0) {
               const currentStock = Number(
-                item.stock ?? item.openingStock ?? item.quantity ?? 0
+                item.stock ?? item.openingStock ?? item.quantity ?? 0,
               );
               // Ensure we don't go below zero
               const newStock = Math.max(0, currentStock - returnQty);
@@ -575,21 +572,18 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
             }
           }
           return item;
-        })
+        }),
       );
     },
-    [setInventory]
+    [setInventory],
   );
 
-  const updatePurchaseFromReturn = useCallback(
-    (_ret: PurchaseReturnRecord) => {
-      // Placeholder logic
-    },
-    []
-  );
+  const updatePurchaseFromReturn = useCallback((_ret: PurchaseReturnRecord) => {
+    // Placeholder logic
+  }, []);
 
   const createPurchaseReturn = useCallback(
-    async (payload: import("../../lib/api").PurchaseReturnRecordPayload) => {
+    async (payload: PurchaseReturnRecordPayload) => {
       setPurchaseReturnsLoading(true);
       try {
         const created = await api.createPurchaseReturn(payload);
@@ -608,7 +602,7 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
       } catch (err: unknown) {
         logger.error("Create Purchase Return failed:", err);
         setPurchaseReturnsError(
-          (err as Error).message || "Failed to create purchase return"
+          (err as Error).message || "Failed to create purchase return",
         );
         showNotification({
           title: "Create Failed",
@@ -620,19 +614,19 @@ export function PurchaseProvider({ children }: { children: React.ReactNode }) {
         setPurchaseReturnsLoading(false);
       }
     },
-    [applyPurchaseReturnToInventory]
+    [applyPurchaseReturnToInventory],
   );
 
   const processPurchaseReturn = useCallback(
     (_ret: PurchaseReturnRecord) => {
       try {
         // Placeholder for return processing
-      return { applied: true, message: "Processed" };
+        return { applied: true, message: "Processed" };
       } catch (e) {
         return { applied: false, message: (e as Error).message };
       }
     },
-    [applyPurchaseReturnToInventory]
+    [applyPurchaseReturnToInventory],
   );
 
   const value: PurchaseContextType = {

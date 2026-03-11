@@ -5,7 +5,6 @@ import {
   Card,
   Group,
   Modal,
-
   Select,
   TextInput,
   Button,
@@ -18,10 +17,13 @@ import {
 import { IconPrinter } from "@tabler/icons-react";
 import Table from "../../../lib/AppTable";
 import { useDataContext } from "../../Context/DataContext";
+import { useCustomers, useSuppliers } from "../../../hooks";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
 import { Search, RefreshCw } from "lucide-react";
 import { generateJournalLedgerHTML } from "../../../components/print/journalLedgerTemplate";
-import SalesDocShell, { type SalesPayload } from "../../../components/sales/SalesDocShell";
+import SalesDocShell, {
+  type SalesPayload,
+} from "../../../components/sales/SalesDocShell";
 import { useNavigate } from "react-router-dom";
 import { useInventory } from "../../../hooks/useInventory";
 
@@ -56,20 +58,18 @@ type LedgerEntry = {
 export default function JournalLedger() {
   const {
     sales = [],
-  
+
     purchaseInvoices = [],
-    customers = [],
-    suppliers = [],
     receiptVouchers = [],
     paymentVouchers = [],
     loadSales,
     loadPurchases,
     loadPurchaseInvoices,
-    loadCustomers,
-    loadSuppliers,
     loadReceiptVouchers,
     loadPaymentVouchers,
   } = useDataContext();
+  const { customers = [], refetch: refetchCustomers } = useCustomers();
+  const { suppliers = [], refetch: refetchSuppliers } = useSuppliers();
   const { inventory = [] } = useInventory();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -81,7 +81,9 @@ export default function JournalLedger() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<string>("25");
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [viewerKind, setViewerKind] = useState<"sale" | "purchase" | "receipt" | "payment" | null>(null);
+  const [viewerKind, setViewerKind] = useState<
+    "sale" | "purchase" | "receipt" | "payment" | null
+  >(null);
   const [viewerData, setViewerData] = useState<any>(null);
   const navigate = useNavigate();
 
@@ -89,9 +91,10 @@ export default function JournalLedger() {
   useEffect(() => {
     if (typeof loadSales === "function") loadSales().catch(() => {});
     if (typeof loadPurchases === "function") loadPurchases().catch(() => {});
-    if (typeof loadPurchaseInvoices === "function") loadPurchaseInvoices().catch(() => {});
-    if (typeof loadCustomers === "function") loadCustomers().catch(() => {});
-    if (typeof loadSuppliers === "function") loadSuppliers().catch(() => {});
+    if (typeof loadPurchaseInvoices === "function")
+      loadPurchaseInvoices().catch(() => {});
+    refetchCustomers().catch(() => {});
+    refetchSuppliers().catch(() => {});
     if (typeof loadReceiptVouchers === "function")
       loadReceiptVouchers().catch(() => {});
     if (typeof loadPaymentVouchers === "function")
@@ -143,10 +146,14 @@ export default function JournalLedger() {
 
       const supplier = purchase.supplier;
       const supplierId = (supplier && (supplier._id ?? supplier.id)) || "";
-      const supplierName = (supplier && supplier.name) || purchase.supplierName || "Unknown Supplier";
+      const supplierName =
+        (supplier && supplier.name) ||
+        purchase.supplierName ||
+        "Unknown Supplier";
 
       // Calculate total: prefer `total`, then `totalNetAmount`, then `subTotal`
-      let purchaseTotal = purchase.total ?? purchase.totalNetAmount ?? purchase.subTotal ?? 0;
+      let purchaseTotal =
+        purchase.total ?? purchase.totalNetAmount ?? purchase.subTotal ?? 0;
 
       // If still 0, try to calculate from products array
       if (
@@ -155,7 +162,10 @@ export default function JournalLedger() {
         Array.isArray(purchase.products)
       ) {
         purchaseTotal = purchase.products.reduce((sum, product) => {
-          const calc = product.quantity && product.rate ? product.quantity * product.rate : 0;
+          const calc =
+            product.quantity && product.rate
+              ? product.quantity * product.rate
+              : 0;
           const amount = product.amount != null ? product.amount : calc;
           return sum + (amount || 0);
         }, 0);
@@ -240,13 +250,13 @@ export default function JournalLedger() {
       filtered = filtered.filter(
         (entry) =>
           entry.documentType.includes("Sale") ||
-          entry.documentType === "Receipt"
+          entry.documentType === "Receipt",
       );
     } else if (activeTab === "suppliers") {
       filtered = filtered.filter(
         (entry) =>
           entry.documentType.includes("Purchase") ||
-          entry.documentType === "Payment"
+          entry.documentType === "Payment",
       );
     }
 
@@ -270,8 +280,12 @@ export default function JournalLedger() {
       filtered = filtered.filter((entry) => {
         // match by explicit id when possible, otherwise compare normalized names
         const byId =
-          entry.customerOrSupplierId && String(entry.customerOrSupplierId) === entityId;
-        const entryName = (entry.customerOrSupplier || "").toString().trim().toLowerCase();
+          entry.customerOrSupplierId &&
+          String(entry.customerOrSupplierId) === entityId;
+        const entryName = (entry.customerOrSupplier || "")
+          .toString()
+          .trim()
+          .toLowerCase();
         const targetName = (entityName || "").toString().trim().toLowerCase();
         const byName = entryName && entryName === targetName;
         return byId || byName;
@@ -281,7 +295,7 @@ export default function JournalLedger() {
     // Filter by document types
     if (selectedDocTypes.length > 0) {
       filtered = filtered.filter((entry) =>
-        selectedDocTypes.includes(entry.documentType)
+        selectedDocTypes.includes(entry.documentType),
       );
     }
 
@@ -310,7 +324,7 @@ export default function JournalLedger() {
         (entry) =>
           entry.documentNumber.toLowerCase().includes(term) ||
           entry.particulars.toLowerCase().includes(term) ||
-          entry.customerOrSupplier.toLowerCase().includes(term)
+          entry.customerOrSupplier.toLowerCase().includes(term),
       );
     }
 
@@ -386,7 +400,7 @@ export default function JournalLedger() {
 
   // Pagination logic
   const totalPages = Math.ceil(
-    entriesWithBalance.length / parseInt(itemsPerPage)
+    entriesWithBalance.length / parseInt(itemsPerPage),
   );
   const paginatedEntries = useMemo(() => {
     const startIndex = (currentPage - 1) * parseInt(itemsPerPage);
@@ -418,11 +432,11 @@ export default function JournalLedger() {
   const totals = useMemo(() => {
     const totalDebit = entriesWithBalance.reduce(
       (sum, entry) => sum + entry.debit,
-      0
+      0,
     );
     const totalCredit = entriesWithBalance.reduce(
       (sum, entry) => sum + entry.credit,
-      0
+      0,
     );
     const closingBalance =
       entriesWithBalance.length > 0
@@ -454,9 +468,11 @@ export default function JournalLedger() {
     if (!selectedEntity || entriesWithBalance.length === 0) return;
 
     // Get entity name
-    const entityType = selectedEntity.startsWith("customer-") ? "Customer" : "Supplier";
+    const entityType = selectedEntity.startsWith("customer-")
+      ? "Customer"
+      : "Supplier";
     const entityId = selectedEntity.replace(/^(customer-|supplier-)/, "");
-    
+
     let entityName = "Unknown";
     if (entityType === "Customer") {
       const customer = customers.find((c) => c._id === entityId);
@@ -511,8 +527,8 @@ export default function JournalLedger() {
               !selectedEntity
                 ? "Please select a customer or supplier to print"
                 : entriesWithBalance.length === 0
-                ? "No entries to print"
-                : "Print Journal Ledger"
+                  ? "No entries to print"
+                  : "Print Journal Ledger"
             }
           >
             Print
@@ -523,8 +539,8 @@ export default function JournalLedger() {
             onClick={() => {
               if (typeof loadSales === "function") loadSales();
               if (typeof loadPurchases === "function") loadPurchases();
-              if (typeof loadCustomers === "function") loadCustomers();
-              if (typeof loadSuppliers === "function") loadSuppliers();
+              refetchCustomers();
+              refetchSuppliers();
             }}
           >
             Refresh
@@ -615,17 +631,17 @@ export default function JournalLedger() {
                       : "supplier";
                     const entityId = selectedEntity.replace(
                       /^(customer-|supplier-)/,
-                      ""
+                      "",
                     );
 
                     if (entityType === "customer") {
                       const customer = customers.find(
-                        (c) => c._id === entityId
+                        (c) => c._id === entityId,
                       );
                       return customer?.name || "";
                     } else {
                       const supplier = suppliers.find(
-                        (s) => s._id === entityId
+                        (s) => s._id === entityId,
                       );
                       return supplier?.name || "";
                     }
@@ -698,7 +714,10 @@ export default function JournalLedger() {
       </Card>
 
       <Card>
-        <div className="app-table-wrapper" style={{ maxHeight: '60vh', overflow: 'auto' }}>
+        <div
+          className="app-table-wrapper"
+          style={{ maxHeight: "60vh", overflow: "auto" }}
+        >
           <Table
             highlightOnHover
             withRowBorders
@@ -725,18 +744,18 @@ export default function JournalLedger() {
                   <Table.Td colSpan={5}>
                     <Text fw={600}>Opening Balance</Text>
                   </Table.Td>
-                    <Table.Td style={{ textAlign: "right" }}>
-                      {openingBalance > 0
-                        ? formatCurrency(openingBalance)
-                        : "-"}
-                    </Table.Td>
-                    <Table.Td style={{ textAlign: "right" }}>
-                      {openingBalance < 0 ? formatCurrency(Math.abs(openingBalance)) : "-"}
-                    </Table.Td>
-                    <Table.Td style={{ textAlign: "right", fontWeight: 600 }}>
-                      {formatCurrency(Math.abs(openingBalance))} {" "}
-                      {openingBalance >= 0 ? "DR" : "CR"}
-                    </Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
+                    {openingBalance > 0 ? formatCurrency(openingBalance) : "-"}
+                  </Table.Td>
+                  <Table.Td style={{ textAlign: "right" }}>
+                    {openingBalance < 0
+                      ? formatCurrency(Math.abs(openingBalance))
+                      : "-"}
+                  </Table.Td>
+                  <Table.Td style={{ textAlign: "right", fontWeight: 600 }}>
+                    {formatCurrency(Math.abs(openingBalance))}{" "}
+                    {openingBalance >= 0 ? "DR" : "CR"}
+                  </Table.Td>
                 </Table.Tr>
               )}
               {paginatedEntries.map((entry) => (
@@ -746,7 +765,11 @@ export default function JournalLedger() {
                     // Open a lightweight viewer/editor depending on document type
                     if (entry.documentType === "Sale Invoice") {
                       const saleId = String(entry.id).replace(/^sale-/, "");
-                      const sale = sales.find((s: any) => String(s.id || s._id) === saleId || String(s.invoiceNumber) === entry.documentNumber);
+                      const sale = sales.find(
+                        (s: any) =>
+                          String(s.id || s._id) === saleId ||
+                          String(s.invoiceNumber) === entry.documentNumber,
+                      );
                       if (sale) {
                         setViewerKind("sale");
                         setViewerData(sale);
@@ -755,11 +778,16 @@ export default function JournalLedger() {
                       }
                     }
                     if (entry.documentType === "Purchase Invoice") {
-                      const purchaseId = String(entry.id).replace(/^purchase-invoice-/, "");
+                      const purchaseId = String(entry.id).replace(
+                        /^purchase-invoice-/,
+                        "",
+                      );
                       const purchase = purchaseInvoices.find((p: any) => {
                         const pid = String(p._id ?? p.id ?? "");
                         const docNo = String(p.purchaseInvoiceNumber ?? "");
-                        return pid === purchaseId || docNo === entry.documentNumber;
+                        return (
+                          pid === purchaseId || docNo === entry.documentNumber
+                        );
                       });
                       if (purchase) {
                         setViewerKind("purchase");
@@ -771,7 +799,11 @@ export default function JournalLedger() {
                     // receipts / payments: show details
                     if (entry.documentType === "Receipt") {
                       const rid = String(entry.id).replace(/^receipt-/, "");
-                      const r = receiptVouchers.find((x: any) => String(x.id || x._id) === rid || String(x.voucherNumber) === entry.documentNumber);
+                      const r = receiptVouchers.find(
+                        (x: any) =>
+                          String(x.id || x._id) === rid ||
+                          String(x.voucherNumber) === entry.documentNumber,
+                      );
                       if (r) {
                         setViewerKind("receipt");
                         setViewerData(r);
@@ -781,7 +813,11 @@ export default function JournalLedger() {
                     }
                     if (entry.documentType === "Payment") {
                       const pid = String(entry.id).replace(/^payment-/, "");
-                      const p = paymentVouchers.find((x: any) => String(x.id ?? "") === pid || String(x.voucherNumber) === entry.documentNumber);
+                      const p = paymentVouchers.find(
+                        (x: any) =>
+                          String(x.id ?? "") === pid ||
+                          String(x.voucherNumber) === entry.documentNumber,
+                      );
                       if (p) {
                         setViewerKind("payment");
                         setViewerData(p);
@@ -790,8 +826,10 @@ export default function JournalLedger() {
                       }
                     }
                     // fallback: navigate to a list view where user can find the record
-                    if (entry.documentType.includes("Sale")) navigate("/sales/invoices");
-                    if (entry.documentType.includes("Purchase")) navigate("/purchase/invoices");
+                    if (entry.documentType.includes("Sale"))
+                      navigate("/sales/invoices");
+                    if (entry.documentType.includes("Purchase"))
+                      navigate("/purchase/invoices");
                   }}
                 >
                   <Table.Td>{formatDate(entry.date)}</Table.Td>
@@ -801,10 +839,10 @@ export default function JournalLedger() {
                         entry.documentType === "Sale Invoice"
                           ? "blue"
                           : entry.documentType === "Purchase Invoice"
-                          ? "orange"
-                          : entry.documentType === "Receipt"
-                          ? "green"
-                          : "red"
+                            ? "orange"
+                            : entry.documentType === "Receipt"
+                              ? "green"
+                              : "red"
                       }
                       size="sm"
                     >
@@ -879,47 +917,68 @@ export default function JournalLedger() {
             </Table.Tbody>
           </Table>
         </div>
-          <Modal opened={viewerOpen} onClose={() => { setViewerOpen(false); }} size="90%">
-            {viewerKind === "sale" && viewerData ? (
-              <div style={{ height: '80vh' }}>
-                <SalesDocShell
-                  mode={"Invoice"}
-                  initial={{
-                    docNo: viewerData.invoiceNumber ?? viewerData.id ?? String(viewerData._id ?? ""),
-                    docDate: viewerData.invoiceDate ?? viewerData.date ?? new Date().toISOString().slice(0,10),
+        <Modal
+          opened={viewerOpen}
+          onClose={() => {
+            setViewerOpen(false);
+          }}
+          size="90%"
+        >
+          {viewerKind === "sale" && viewerData ? (
+            <div style={{ height: "80vh" }}>
+              <SalesDocShell
+                mode={"Invoice"}
+                initial={
+                  {
+                    docNo:
+                      viewerData.invoiceNumber ??
+                      viewerData.id ??
+                      String(viewerData._id ?? ""),
+                    docDate:
+                      viewerData.invoiceDate ??
+                      viewerData.date ??
+                      new Date().toISOString().slice(0, 10),
                     items: (viewerData.items ?? viewerData.products) || [],
-                    customer: viewerData.customer ?? viewerData.customerName ?? viewerData.customerId,
+                    customer:
+                      viewerData.customer ??
+                      viewerData.customerName ??
+                      viewerData.customerId,
                     totals: {
                       total: viewerData.total ?? viewerData.totalNetAmount ?? 0,
-                      amount: viewerData.total ?? viewerData.totalNetAmount ?? 0,
+                      amount:
+                        viewerData.total ?? viewerData.totalNetAmount ?? 0,
                       totalGrossAmount: viewerData.totalGrossAmount ?? 0,
                       totalDiscountAmount: viewerData.totalDiscountAmount ?? 0,
-                      totalNetAmount: viewerData.totalNetAmount ?? viewerData.total ?? 0,
+                      totalNetAmount:
+                        viewerData.totalNetAmount ?? viewerData.total ?? 0,
                       subTotal: viewerData.subTotal ?? 0,
                     },
                     remarks: viewerData.remarks ?? viewerData.note ?? "",
                     terms: viewerData.terms ?? "",
-                  } as Partial<SalesPayload>}
-                  customers={customers}
-                  products={inventory || []}
-                  submitting={false}
-                  setSubmitting={() => {}}
-                  saveDisabled={true}
-                />
-              </div>
-            ) : (
-              <div>
-                <Stack gap="xs">
-                  <div>
-                    <Text fw={700}>Type: {viewerKind}</Text>
-                  </div>
-                  <div>
-                    <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(viewerData, null, 2)}</pre>
-                  </div>
-                </Stack>
-              </div>
-            )}
-          </Modal>
+                  } as Partial<SalesPayload>
+                }
+                customers={customers}
+                products={inventory || []}
+                submitting={false}
+                setSubmitting={() => {}}
+                saveDisabled={true}
+              />
+            </div>
+          ) : (
+            <div>
+              <Stack gap="xs">
+                <div>
+                  <Text fw={700}>Type: {viewerKind}</Text>
+                </div>
+                <div>
+                  <pre style={{ whiteSpace: "pre-wrap" }}>
+                    {JSON.stringify(viewerData, null, 2)}
+                  </pre>
+                </div>
+              </Stack>
+            </div>
+          )}
+        </Modal>
 
         {totalPages > 1 && (
           <Group justify="center" mt="md">

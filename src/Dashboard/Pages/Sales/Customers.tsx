@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -6,7 +6,6 @@ import {
   Group,
   Input,
   Modal,
-
   Text,
   Title,
 } from "@mantine/core";
@@ -21,9 +20,8 @@ import {
 import { logger } from "../../../lib/logger";
 import { CustomerForm } from "../../../components/sales/CustomerForm";
 import { CustomerDetails } from "../../../components/sales/CustomerDetails";
-import { useDataContext } from "../../Context/DataContext";
-import type { Customer } from "../../Context/DataContext";
-import { useCustomer } from "../../../hooks/useCustomer";
+import type { Customer } from "../../../types";
+import { useCustomers } from "../../../hooks/useCustomers";
 import { showNotification } from "@mantine/notifications";
 // local helpers
 function formatCurrency(n: number) {
@@ -40,20 +38,17 @@ export default function CustomersPage() {
   const [openView, setOpenView] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(
-    null
+    null,
   );
   const [deleting, setDeleting] = useState(false);
-  const { customers, refreshFromBackend } = useDataContext();
-  const { deleteCustomerAsync } = useCustomer();
-  
-  useEffect(() => {
-    refreshFromBackend();
-  }, []);
+  const { customers = [], deleteCustomerAsync } = useCustomers();
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return customers.filter((c) =>
-      [c.name, c.city, c.phone].some((v) => (v || "").toLowerCase().includes(q))
+      [c.name, c.city, c.phone].some((v) =>
+        (v || "").toLowerCase().includes(q),
+      ),
     );
   }, [customers, search]);
 
@@ -109,7 +104,11 @@ export default function CustomersPage() {
             <Text c="dimmed">Manage customer directory and balances</Text>
           </div>
           <div>
-            <Button onClick={() => { setOpenAdd(true); }}>
+            <Button
+              onClick={() => {
+                setOpenAdd(true);
+              }}
+            >
               <IconPlus size={16} style={{ marginRight: 8 }} />
               Add Customer
             </Button>
@@ -132,7 +131,9 @@ export default function CustomersPage() {
                 <Input
                   placeholder="Search customers..."
                   value={search}
-                  onChange={(e) => { setSearch(e.currentTarget.value); }}
+                  onChange={(e) => {
+                    setSearch(e.currentTarget.value);
+                  }}
                 />
               </Group>
             </div>
@@ -140,9 +141,12 @@ export default function CustomersPage() {
         </Card.Section>
 
         <Card.Section>
-          <div className="app-table-wrapper" style={{ maxHeight: '60vh', overflow: 'auto' }}>
-            <Table withColumnBorders withRowBorders withTableBorder >
-              <Table.Thead style={{backgroundColor: "#F1F3F5"}}>
+          <div
+            className="app-table-wrapper"
+            style={{ maxHeight: "60vh", overflow: "auto" }}
+          >
+            <Table withColumnBorders withRowBorders withTableBorder>
+              <Table.Thead style={{ backgroundColor: "#F1F3F5" }}>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
                   <Table.Th>City</Table.Th>
@@ -153,7 +157,14 @@ export default function CustomersPage() {
               </Table.Thead>
               <Table.Tbody>
                 {filtered.map((c: Customer, index) => (
-                  <Table.Tr key={c._id || `customer-fallback-${index}`} onDoubleClick={() => { setSelected(c); setOpenView(true); }} style={{ cursor: 'pointer' }}>
+                  <Table.Tr
+                    key={c._id || `customer-fallback-${index}`}
+                    onDoubleClick={() => {
+                      setSelected(c);
+                      setOpenView(true);
+                    }}
+                    style={{ cursor: "pointer" }}
+                  >
                     <Table.Td style={{ fontWeight: 600 }}>{c.name}</Table.Td>
                     <Table.Td style={{ color: "#666" }}>{c.city}</Table.Td>
                     <Table.Td>{c.phone}</Table.Td>
@@ -210,24 +221,48 @@ export default function CustomersPage() {
         </Card.Section>
       </Card>
 
-      <Modal opened={openView} onClose={() => { setOpenView(false); }} size="lg">
+      <Modal
+        opened={openView}
+        onClose={() => {
+          setOpenView(false);
+        }}
+        size="lg"
+      >
         <Box p="md">{selected && <CustomerDetails customer={selected} />}</Box>
       </Modal>
 
-      <Modal opened={openEdit} onClose={() => { setOpenEdit(false); }} size="lg">
+      <Modal
+        opened={openEdit}
+        onClose={() => {
+          setOpenEdit(false);
+        }}
+        size="lg"
+      >
         <Box p="md">
           {selected && (
             <CustomerForm
               customer={selected}
-              onClose={() => { setOpenEdit(false); }}
+              onClose={() => {
+                setOpenEdit(false);
+              }}
             />
           )}
         </Box>
       </Modal>
 
-      <Modal opened={openAdd} onClose={() => { setOpenAdd(false); }} size="lg">
+      <Modal
+        opened={openAdd}
+        onClose={() => {
+          setOpenAdd(false);
+        }}
+        size="lg"
+      >
         <Box p="md">
-          <CustomerForm onClose={() => { setOpenAdd(false); }} />
+          <CustomerForm
+            onClose={() => {
+              setOpenAdd(false);
+            }}
+          />
         </Box>
       </Modal>
 

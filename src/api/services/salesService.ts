@@ -1,4 +1,10 @@
-import { axiosClient, unwrapPaginated, type PaginatedResponse } from "../client/axiosClient";
+import {
+  axiosClient,
+  unwrapPaginated,
+  toPaginatedResponse,
+  type ListQueryParams,
+  type PaginatedResponse,
+} from "../client/axiosClient";
 import { ENDPOINTS } from "../client/apiConfig";
 import { logger } from "@/lib/logger";
 
@@ -10,7 +16,7 @@ export interface InventoryItemPayload {
   itemName?: string;
   description?: string;
   category?: string;
-  thickness?: number;
+  thickness?: number | string;
   costPrice?: number;
   salesRate?: number;
   discountAmount?: number;
@@ -56,6 +62,7 @@ export interface SaleRecordPayload {
   totalGrossAmount?: number;
   discount?: number;
   totalDiscount?: number;
+  totalDiscountAmount?: number;
   totalNetAmount?: number;
   quotationDate?: string;
   customer?: CustomerPayload | null;
@@ -63,12 +70,13 @@ export interface SaleRecordPayload {
   paymentMethod?: PaymentMethod;
   length?: number;
   remarks?: string;
-  metadata?: Record<string, unknown>;
   date?: string;
   amount?: number;
   status?: string;
   convertedInvoiceId?: string;
   convertedAt?: string;
+  receivedAmount?: number;
+  pendingAmount?: number;
 }
 
 export interface QuotationRecordPayload {
@@ -97,14 +105,22 @@ export interface QuotationRecordPayload {
  * Handles all sales invoice-related API calls
  */
 export const salesService = {
+  async list(params: ListQueryParams = {}) {
+    const { data } = await axiosClient.get<
+      SaleRecordPayload[] | PaginatedResponse<SaleRecordPayload>
+    >(ENDPOINTS.SALES, {
+      params,
+    });
+
+    return toPaginatedResponse(data, params.page ?? 1);
+  },
+
   /**
    * Get all sales invoices
    */
   async getAll() {
-    const { data } = await axiosClient.get<
-      SaleRecordPayload[] | PaginatedResponse<SaleRecordPayload>
-    >(ENDPOINTS.SALES);
-    return unwrapPaginated(data);
+    const response = await salesService.list({ page: 1, limit: 10000 });
+    return unwrapPaginated(response);
   },
 
   /**
@@ -113,7 +129,7 @@ export const salesService = {
   async getByInvoiceNumber(invoiceNumber: string) {
     try {
       const { data } = await axiosClient.get(
-        `${ENDPOINTS.SALES}/${encodeURIComponent(invoiceNumber)}`
+        `${ENDPOINTS.SALES}/${encodeURIComponent(invoiceNumber)}`,
       );
       return data;
     } catch (err: unknown) {
@@ -123,11 +139,13 @@ export const salesService = {
         // Fallback: fetch all and find
         const { data } = await axiosClient.get<
           SaleRecordPayload[] | PaginatedResponse<SaleRecordPayload>
-        >(ENDPOINTS.SALES);
+        >(ENDPOINTS.SALES, {
+          params: { limit: 10000 },
+        });
         const allSales = unwrapPaginated(data);
         return (allSales || []).find(
           (s: SaleRecordPayload) =>
-            String(s.invoiceNumber) === String(invoiceNumber)
+            String(s.invoiceNumber) === String(invoiceNumber),
         );
       }
       throw error;
@@ -142,7 +160,7 @@ export const salesService = {
     try {
       const { data } = await axiosClient.post<SaleRecordPayload>(
         ENDPOINTS.SALES,
-        payload
+        payload,
       );
       logger.log("salesService.create response data:", data);
       return data;
@@ -157,12 +175,12 @@ export const salesService = {
    */
   async updateByInvoiceNumber(
     invoiceNumber: string,
-    patch: Partial<SaleRecordPayload>
+    patch: Partial<SaleRecordPayload>,
   ) {
     try {
       const { data } = await axiosClient.put(
         `${ENDPOINTS.SALES}/${encodeURIComponent(invoiceNumber)}`,
-        patch
+        patch,
       );
       return data;
     } catch (err: unknown) {
@@ -173,7 +191,9 @@ export const salesService = {
       // Fallback: fetch and update by ID
       const sale = await salesService.getByInvoiceNumber(invoiceNumber);
       if (!sale) throw new Error(`Sale not found: ${invoiceNumber}`);
-      const id = (sale as { _id?: string; id?: string })._id ?? (sale as { id?: string }).id;
+      const id =
+        (sale as { _id?: string; id?: string })._id ??
+        (sale as { id?: string }).id;
       if (!id) throw new Error(`Sale has no valid ID: ${invoiceNumber}`);
       return salesService.updateById(id, patch);
     }
@@ -183,7 +203,10 @@ export const salesService = {
    * Update sale by ID (fallback)
    */
   async updateById(id: string | number, patch: Partial<SaleRecordPayload>) {
-    const { data } = await axiosClient.put(`${ENDPOINTS.SALES}/${String(id)}`, patch);
+    const { data } = await axiosClient.put(
+      `${ENDPOINTS.SALES}/${String(id)}`,
+      patch,
+    );
     return data;
   },
 
@@ -193,7 +216,7 @@ export const salesService = {
   async deleteByInvoiceNumber(invoiceNumber: string) {
     try {
       const { data } = await axiosClient.delete(
-        `${ENDPOINTS.SALES}/${encodeURIComponent(invoiceNumber)}`
+        `${ENDPOINTS.SALES}/${encodeURIComponent(invoiceNumber)}`,
       );
       return data;
     } catch (err: unknown) {
@@ -204,7 +227,9 @@ export const salesService = {
       // Fallback: fetch and delete by ID
       const sale = await salesService.getByInvoiceNumber(invoiceNumber);
       if (!sale) throw new Error(`Sale not found: ${invoiceNumber}`);
-      const id = (sale as { _id?: string; id?: string })._id ?? (sale as { id?: string }).id;
+      const id =
+        (sale as { _id?: string; id?: string })._id ??
+        (sale as { id?: string }).id;
       if (!id) throw new Error(`Sale has no valid ID: ${invoiceNumber}`);
       return salesService.deleteById(id);
     }
@@ -214,7 +239,9 @@ export const salesService = {
    * Delete sale by ID (fallback)
    */
   async deleteById(id: string | number) {
-    const { data } = await axiosClient.delete(`${ENDPOINTS.SALES}/${String(id)}`);
+    const { data } = await axiosClient.delete(
+      `${ENDPOINTS.SALES}/${String(id)}`,
+    );
     return data;
   },
 };
@@ -237,7 +264,7 @@ export const saleReturnService = {
   async getByInvoiceNumber(invoiceNumber: string) {
     try {
       const { data } = await axiosClient.get(
-        `${ENDPOINTS.SALE_RETURNS}/${encodeURIComponent(invoiceNumber)}`
+        `${ENDPOINTS.SALE_RETURNS}/${encodeURIComponent(invoiceNumber)}`,
       );
       return data;
     } catch (err: unknown) {
@@ -248,7 +275,7 @@ export const saleReturnService = {
         const { data } = await axiosClient.get(ENDPOINTS.SALE_RETURNS);
         return (data || []).find(
           (r: { invoiceNumber?: string }) =>
-            String(r.invoiceNumber) === String(invoiceNumber)
+            String(r.invoiceNumber) === String(invoiceNumber),
         );
       }
       throw error;
@@ -269,7 +296,7 @@ export const saleReturnService = {
   async updateByInvoiceNumber(invoiceNumber: string, patch: unknown) {
     const { data } = await axiosClient.put(
       `${ENDPOINTS.SALE_RETURNS}/${encodeURIComponent(invoiceNumber)}`,
-      patch
+      patch,
     );
     return data;
   },
@@ -278,8 +305,8 @@ export const saleReturnService = {
    * Delete sale return by invoice number
    */
   async deleteByInvoiceNumber(invoiceNumber: string) {
-    const { data} = await axiosClient.delete(
-      `${ENDPOINTS.SALE_RETURNS}/${encodeURIComponent(invoiceNumber)}`
+    const { data } = await axiosClient.delete(
+      `${ENDPOINTS.SALE_RETURNS}/${encodeURIComponent(invoiceNumber)}`,
     );
     return data;
   },

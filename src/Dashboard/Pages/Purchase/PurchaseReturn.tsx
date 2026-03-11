@@ -21,8 +21,12 @@ import { usePurchaseReturn } from "../../../hooks/usePurchaseReturn";
 import { usePurchase } from "../../../hooks/usePurchase";
 import { useSupplier } from "../../../hooks/useSupplier";
 import { useInventory } from "../../../hooks/useInventory";
+import { axiosClient, updatePurchaseReturn } from "../../../api";
 import type { PurchaseReturnRecord, PurchaseRecord } from "./types";
-import { LineItemsTableUniversal } from "./LineItemsTableUniversal";
+import {
+  LineItemsTableUniversal,
+  createEmptyPurchaseLineItem,
+} from "./LineItemsTableUniversal";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
 import {
@@ -33,9 +37,71 @@ import {
   IconTrash,
 } from "@tabler/icons-react";
 import { Search } from "lucide-react";
+import {
+  findSelectedProduct,
+  findSelectedVariant,
+  getVariantStock,
+  hasIncompleteVariantSelection,
+  toProductId,
+} from "../../../lib/variant-line-item-utils";
+
+function mapPurchaseReturnItem(
+  item: Record<string, any>,
+  inventory: any[],
+): PurchaseLineItem {
+  const itemId =
+    item.productId ?? item.inventoryId ?? item._id ?? item.id ?? "";
+  const itemName = item.productName ?? item.itemName ?? item.name ?? "";
+  const matchedProduct = findSelectedProduct(inventory as any, {
+    productId: itemId,
+    productName: itemName,
+    itemName,
+  });
+  const thickness = String(item.thickness ?? "");
+  const color = String(item.color ?? "");
+  const variant = findSelectedVariant(
+    matchedProduct,
+    thickness,
+    color,
+    item.sku,
+  );
+  const rate = Number(
+    item.price ?? item.rate ?? item.salesRate ?? variant?.salesRate ?? 0,
+  );
+  const quantity = Number(item.quantity ?? 0);
+  const length = item.length ?? "";
+  const subtotal = quantity * rate * (length === "" ? 1 : Number(length || 0));
+
+  return {
+    ...createEmptyPurchaseLineItem(),
+    id: `${Math.random()}`,
+    productId: matchedProduct?._id
+      ? String(matchedProduct._id)
+      : toProductId(itemId),
+    sku: String(item.sku ?? variant?.sku ?? ""),
+    productName: String(itemName),
+    itemName: String(itemName),
+    quantity,
+    rate,
+    salesRate: rate,
+    unit:
+      typeof item.unit === "string"
+        ? item.unit
+        : String(matchedProduct?.unit ?? "pcs"),
+    color,
+    thickness,
+    length: typeof item.length === "number" ? String(item.length) : item.length,
+    grossAmount: subtotal,
+    netAmount: subtotal,
+    amount: subtotal,
+    subtotal,
+    availableStock: Number(item.availableStock ?? getVariantStock(variant)),
+  };
+}
 
 export default function PurchaseReturnPage() {
-  const { purchaseReturns, deletePurchaseReturnAsync, isLoading } = usePurchaseReturn();
+  const { purchaseReturns, deletePurchaseReturnAsync, isLoading } =
+    usePurchaseReturn();
   const { suppliers } = useSupplier();
   // const { purchases } = usePurchase(); // Used in ReturnForm check
   const { purchases } = usePurchase();
@@ -44,8 +110,10 @@ export default function PurchaseReturnPage() {
   // const _inv = inventory; // Removed
 
   // Local state for editing
-  const [editReturn, setEditReturn] = useState<PurchaseReturnRecord | null>(null);
-  
+  const [editReturn, setEditReturn] = useState<PurchaseReturnRecord | null>(
+    null,
+  );
+
   // State for delete confirmation modal
   const [deleteTarget, setDeleteTarget] = useState<null | {
     id: string;
@@ -57,14 +125,14 @@ export default function PurchaseReturnPage() {
 
   const data = useMemo(() => {
     return (purchaseReturns || []).map((r: any) => ({
-          id: r.id || r.returnNumber || crypto.randomUUID(),
-          returnNumber: r.returnNumber,
-          date: r.returnDate,
-          supplier: r.supplier, // string name
-          total: r.total ?? r.subtotal ?? 0,
-          reason: r.reason,
-          items: r.items,
-        }));
+      id: r.id || r.returnNumber || crypto.randomUUID(),
+      returnNumber: r.returnNumber,
+      date: r.returnDate,
+      supplier: r.supplier, // string name
+      total: r.total ?? r.subtotal ?? 0,
+      reason: r.reason,
+      items: r.items,
+    }));
   }, [purchaseReturns]);
 
   const filtered = useMemo(() => {
@@ -76,14 +144,14 @@ export default function PurchaseReturnPage() {
         String(d.supplier).toLowerCase().includes(term) ||
         String(d.reason || "")
           .toLowerCase()
-          .includes(term)
+          .includes(term),
     );
   }, [q, data]);
 
   // Helper to update local fetchedReturns after a new return is created
   function handleReturnSave(_ret: PurchaseReturnRecord) {
-     // Triggered after successful save in ReturnForm
-     setOpen(false);
+    // Triggered after successful save in ReturnForm
+    setOpen(false);
   }
 
   // Edit logic
@@ -110,12 +178,16 @@ export default function PurchaseReturnPage() {
           <TextInput
             placeholder="Search returns..."
             value={q}
-            onChange={(e) => { setQ(e.currentTarget.value); }}
+            onChange={(e) => {
+              setQ(e.currentTarget.value);
+            }}
             style={{ width: 300 }}
             leftSection={<Search size={16} />}
           />
           <Button
-            onClick={() => { setOpen(true); }}
+            onClick={() => {
+              setOpen(true);
+            }}
             leftSection={<IconPlus size={16} />}
           >
             New Return
@@ -136,7 +208,10 @@ export default function PurchaseReturnPage() {
               Loading purchase returns...
             </Text>
           )}
-          <div className="app-table-wrapper" style={{ marginTop: 12, maxHeight: '55vh', overflow: 'auto' }}>
+          <div
+            className="app-table-wrapper"
+            style={{ marginTop: 12, maxHeight: "55vh", overflow: "auto" }}
+          >
             <Table
               withColumnBorders
               withRowBorders
@@ -174,10 +249,12 @@ export default function PurchaseReturnPage() {
                     tabIndex={0}
                     aria-label={`Return ${r.returnNumber} for ${r.supplier}`}
                     onDoubleClick={() => {
-                      const full = (purchaseReturns as any[] || []).find((x: any) => x.id === r.id);
+                      const full = ((purchaseReturns as any[]) || []).find(
+                        (x: any) => x.id === r.id,
+                      );
                       if (full) setEditReturn(full);
                     }}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: "pointer" }}
                   >
                     <td style={{ fontFamily: "monospace" }}>
                       {r.returnNumber}
@@ -200,9 +277,8 @@ export default function PurchaseReturnPage() {
                         <Menu.Dropdown>
                           <Menu.Item
                             onClick={() => {
-                                const full = (
-                                purchaseReturns as any[] ||
-                                []
+                              const full = (
+                                (purchaseReturns as any[]) || []
                               ).find((x: any) => x.id === r.id);
                               if (full) setEditReturn(full);
                             }}
@@ -214,14 +290,13 @@ export default function PurchaseReturnPage() {
                           <Menu.Item
                             onClick={() => {
                               const full = (
-                                purchaseReturns as any[] ??
-                                []
+                                (purchaseReturns as any[]) ?? []
                               ).find((x: any) => x.id === r.id);
                               const items = (full?.items || [])
                                 .filter(
                                   (it: any) =>
                                     typeof it.itemName === "string" &&
-                                    it.itemName.trim() !== ""
+                                    it.itemName.trim() !== "",
                                 )
                                 .map((it: any, idx: number) => ({
                                   sr: idx + 1,
@@ -281,7 +356,9 @@ export default function PurchaseReturnPage() {
       {/* ===== Shared Delete Confirmation Modal (moved outside map) ===== */}
       <Modal
         opened={!!deleteTarget}
-        onClose={() => { setDeleteTarget(null); }}
+        onClose={() => {
+          setDeleteTarget(null);
+        }}
         size="sm"
         title="Confirm Delete"
         overlayProps={{ opacity: 0, blur: 0 }}
@@ -301,7 +378,12 @@ export default function PurchaseReturnPage() {
               marginTop: 16,
             }}
           >
-            <Button variant="outline" onClick={() => { setDeleteTarget(null); }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteTarget(null);
+              }}
+            >
               Cancel
             </Button>
             <Button
@@ -309,7 +391,9 @@ export default function PurchaseReturnPage() {
               onClick={async () => {
                 if (!deleteTarget) return;
                 try {
-                  await deletePurchaseReturnAsync(deleteTarget.id || deleteTarget.returnNumber);
+                  await deletePurchaseReturnAsync(
+                    deleteTarget.id || deleteTarget.returnNumber,
+                  );
 
                   showNotification({
                     title: "Deleted",
@@ -333,11 +417,19 @@ export default function PurchaseReturnPage() {
         </div>
       </Modal>
 
-      <Modal opened={open} onClose={() => { setOpen(false); }} size="80%">
+      <Modal
+        opened={open}
+        onClose={() => {
+          setOpen(false);
+        }}
+        size="80%"
+      >
         <ReturnForm
           purchases={purchases as any}
           suppliers={suppliers as any}
-          onClose={() => { setOpen(false); }}
+          onClose={() => {
+            setOpen(false);
+          }}
           onSave={handleReturnSave}
           setOpen={setOpen}
           existingReturns={purchaseReturns as any}
@@ -346,14 +438,18 @@ export default function PurchaseReturnPage() {
       {/* Edit Modal */}
       <Modal
         opened={!!editReturn}
-        onClose={() => { setEditReturn(null); }}
+        onClose={() => {
+          setEditReturn(null);
+        }}
         size="80%"
       >
         {editReturn && (
           <ReturnForm
             purchases={purchases as any}
             suppliers={suppliers as any}
-            onClose={() => { setEditReturn(null); }}
+            onClose={() => {
+              setEditReturn(null);
+            }}
             onSave={handleEditSave}
             initialValues={editReturn}
             existingReturns={purchaseReturns as any}
@@ -390,10 +486,17 @@ function ReturnForm({
   existingReturns,
 }: ReturnFormProps & { setOpen?: (open: boolean) => void }) {
   // const { colors, purchaseReturns } = useDataContext(); // REMOVED
-  const { createPurchaseReturnAsync, updatePurchaseReturnAsync } = usePurchaseReturn();
+  const { createPurchaseReturnAsync, updatePurchaseReturnAsync } =
+    usePurchaseReturn();
   const { inventory } = useInventory();
   // Colors must be objects { name: string }[] for LineItemsTableUniversal
-  const colors = useMemo(() => ["Red", "Blue", "Green", "Black", "White", "Yellow"].map(c => ({ name: c })), []);
+  const colors = useMemo(
+    () =>
+      ["Red", "Blue", "Green", "Black", "White", "Yellow"].map((c) => ({
+        name: c,
+      })),
+    [],
+  );
 
   // Local loading and error state for async actions in ReturnForm
   // Local loading and error state for async actions in ReturnForm (not used for rendering)
@@ -418,7 +521,7 @@ function ReturnForm({
 
   // Always use the next available return number for new returns
   const [returnNumber, setReturnNumber] = useState(
-    initialValues?.returnNumber || getNextReturnNumber()
+    initialValues?.returnNumber || getNextReturnNumber(),
   );
 
   // Recalculate the next return number when existing returns or context returns change
@@ -426,8 +529,7 @@ function ReturnForm({
     if (initialValues) return;
     (async () => {
       try {
-        const apiModule = await import("../../../lib/api");
-        const resp = await apiModule.api.get("/purchase-returns/next-number");
+        const resp = await axiosClient.get("/purchase-returns/next-number");
         if (resp && resp.data) {
           setReturnNumber(String(resp.data));
           return;
@@ -440,7 +542,9 @@ function ReturnForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(existingReturns || [])]);
   const [returnDate, setReturnDate] = useState<string>(
-    initialValues?.returnDate ? String(initialValues.returnDate) : new Date().toISOString().slice(0, 10)
+    initialValues?.returnDate
+      ? String(initialValues.returnDate)
+      : new Date().toISOString().slice(0, 10),
   );
   // Memoized options for Selects, always valid and unique
   const poOptions = useMemo(() => {
@@ -478,7 +582,7 @@ function ReturnForm({
           (typeof s._id === "string" || typeof s._id === "number") &&
           s._id !== undefined &&
           s._id !== null &&
-          String(s._id).trim() !== ""
+          String(s._id).trim() !== "",
       )
       .map((s) => {
         const idStr = String(s._id);
@@ -493,10 +597,12 @@ function ReturnForm({
   }, [suppliers]);
 
   const [linkedPoId, setLinkedPoId] = useState<string>(
-    initialValues?.linkedPoId ? String(initialValues.linkedPoId) : ""
+    initialValues?.linkedPoId ? String(initialValues.linkedPoId) : "",
   );
   const [supplierId, setSupplierId] = useState<string>(
-    initialValues?.supplierId ? String(initialValues.supplierId) : (supplierOptions[0]?.value || "")
+    initialValues?.supplierId
+      ? String(initialValues.supplierId)
+      : supplierOptions[0]?.value || "",
   );
 
   // Keep Select value in sync with available options
@@ -519,7 +625,12 @@ function ReturnForm({
       setSupplierId("");
     }
     // If editing, ensure supplierId is set from initialValues
-    if (initialValues?.supplierId && supplierOptions.some(opt => opt.value === String(initialValues.supplierId))) {
+    if (
+      initialValues?.supplierId &&
+      supplierOptions.some(
+        (opt) => opt.value === String(initialValues.supplierId),
+      )
+    ) {
       setSupplierId(String(initialValues.supplierId));
     }
     // eslint-disable-next-line
@@ -527,28 +638,8 @@ function ReturnForm({
   const [reason, setReason] = useState<string>(initialValues?.reason || "");
   const [items, setItems] = useState<PurchaseLineItem[]>(() => {
     if (initialValues?.items && initialValues.items.length > 0) {
-      // Map backend items to PurchaseLineItem shape if needed
-      return initialValues.items.map(
-        (it: any) => ({
-          id: `${Math.random()}`,
-          productId: it.productId ?? "",
-          productName: it.sku || it.productName || it.itemName || "",
-          quantity: it.quantity || 0,
-          rate: it.price ?? it.rate ?? it.salesRate ?? 0,
-          unit:
-            typeof it.unit === "string" ? it.unit : String(it.unit ?? "pcs"),
-          color: it.color,
-          thickness:
-            typeof it.thickness === "number"
-              ? String(it.thickness)
-              : it.thickness,
-          length: typeof it.length === "number" ? String(it.length) : it.length,
-          grossAmount: 0,
-          percent: 0,
-          discountAmount: 0,
-          netAmount: 0,
-          amount: (it.quantity || 0) * (it.price ?? it.rate ?? it.salesRate ?? 0),
-        })
+      return initialValues.items.map((it: any) =>
+        mapPurchaseReturnItem(it, inventory as any),
       );
     }
     // fallback to PO
@@ -579,27 +670,19 @@ function ReturnForm({
     const poLineItems: PurchaseLineItem[] = (po.products || [])
       .filter((it) => !!it.productName)
       .map((it: any) => ({
-        id: `${Math.random()}`,
-        productId: it.productId ?? "",
-        productName: it.productName,
+        ...mapPurchaseReturnItem(it, inventory as any),
         quantity: 0,
-        rate: it.rate ?? 0,
-        unit: it.unit ?? "",
-        color: it.color,
-        thickness: it.thickness,
-        length: it.length,
-        grossAmount: 0,
-        percent: 0,
-        discountAmount: 0,
-        netAmount: 0,
         amount: 0,
+        subtotal: 0,
+        grossAmount: 0,
+        netAmount: 0,
       }));
     setItems(poLineItems);
-  }, [linkedPoId, purchases]);
+  }, [linkedPoId, purchases, inventory]);
 
   const totals = useMemo(() => {
     const sub = Math.floor(
-      items.reduce((s, i) => s + Math.floor(i.amount || 0), 0)
+      items.reduce((s, i) => s + Math.floor(i.amount || 0), 0),
     );
     // If you want to support discounts, add a discount property to PurchaseLineItem and use it here
     const total = sub; // No discountAmount property exists
@@ -607,20 +690,31 @@ function ReturnForm({
   }, [items]);
 
   function handleSave() {
+    const invalidRowIndex = items.findIndex((item) =>
+      hasIncompleteVariantSelection(item),
+    );
+    if (invalidRowIndex >= 0) {
+      showNotification({
+        title: "Incomplete line item",
+        message: `Row ${invalidRowIndex + 1} is missing thickness or color for the selected product.`,
+        color: "red",
+      });
+      return;
+    }
+
     // For edit, keep the same id/returnNumber; for new, use the state value (PRET-0001 format)
     const isEdit = !!initialValues?.id;
     const finalReturnNumber = isEdit
-      ? (initialValues.returnNumber || returnNumber)
+      ? initialValues.returnNumber || returnNumber
       : returnNumber;
-    
+
     // Ensure id is always a string, never undefined
     const generatedId: string = isEdit
       ? String(initialValues.id ?? finalReturnNumber)
-      : (typeof crypto !== "undefined" &&
-        typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : finalReturnNumber);
-    
+      : typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : finalReturnNumber;
+
     const record: PurchaseReturnRecord = {
       id: generatedId,
       returnNumber: String(finalReturnNumber || ""),
@@ -676,35 +770,36 @@ function ReturnForm({
           supplierId: confirmPayload.supplierId,
           linkedPoId: confirmPayload.linkedPoId,
           items: (confirmPayload.items || []).map((it: any) => ({
-            itemName: it.productName ?? it.itemName ?? "",
+            inventoryId: it.productId ?? undefined,
+            sku: it.sku ?? undefined,
             quantity: it.quantity ?? 0,
-            salesRate: it.rate ?? it.salesRate ?? 0,
-            color: it.color,
-            thickness:
-              typeof it.thickness === "string"
-                ? Number(it.thickness)
-                : it.thickness,
+            unitPrice: it.rate ?? it.salesRate ?? 0,
+            metadata: {
+              itemName: it.productName ?? it.itemName ?? "",
+              color: it.color,
+              thickness: it.thickness,
+              length: it.length,
+            },
           })),
           subtotal: confirmPayload.subtotal,
           total: confirmPayload.total,
           reason: confirmPayload.reason,
         };
-        
-        if (initialValues?.id) {
-           // Update
-           if (typeof updatePurchaseReturnAsync === 'function') {
-               await updatePurchaseReturnAsync({ id: initialValues.id, payload: payload as any });
-           } else {
-               // Fallback if hook update not ready (should be ready)
-               const api = await import("../../../lib/api");
-               await api.updatePurchaseReturn(initialValues.id, payload); // Assumes api.update exists? We added it to service, not necessarily api/index.ts.
-               // Actually we added it to hook. So updatePurchaseReturnAsync IS ready.
-           }
-        } else {
-           // Create
-           await createPurchaseReturnAsync(payload as any);
-        }
 
+        if (initialValues?.id) {
+          // Update
+          if (typeof updatePurchaseReturnAsync === "function") {
+            await updatePurchaseReturnAsync({
+              id: initialValues.id,
+              payload: payload as any,
+            });
+          } else {
+            await updatePurchaseReturn(initialValues.id, payload);
+          }
+        } else {
+          // Create
+          await createPurchaseReturnAsync(payload as any);
+        }
       } catch (err) {
         showNotification({
           title: "Purchase Return Persist Failed",
@@ -745,7 +840,9 @@ function ReturnForm({
             id="returnDate"
             type="date"
             value={returnDate}
-            onChange={(e) => { setReturnDate(e.currentTarget.value); }}
+            onChange={(e) => {
+              setReturnDate(e.currentTarget.value);
+            }}
             aria-label="Return Date"
           />
         </div>
@@ -799,7 +896,9 @@ function ReturnForm({
           <Textarea
             id="reason"
             value={reason}
-            onChange={(e) => { setReason(e.currentTarget.value); }}
+            onChange={(e) => {
+              setReason(e.currentTarget.value);
+            }}
             minRows={3}
             aria-label="Return Reason"
           />
@@ -842,7 +941,9 @@ function ReturnForm({
       </div>
       <Modal
         opened={confirmOpen}
-        onClose={() => { setConfirmOpen(false); }}
+        onClose={() => {
+          setConfirmOpen(false);
+        }}
         size="sm"
       >
         <div style={{ padding: 12 }}>
@@ -859,7 +960,12 @@ function ReturnForm({
               marginTop: 12,
             }}
           >
-            <Button variant="outline" onClick={() => { setConfirmOpen(false); }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConfirmOpen(false);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleConfirmSave}>Confirm</Button>

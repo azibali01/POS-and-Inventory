@@ -15,8 +15,9 @@ import {
 import Table from "../../../lib/AppTable";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
-import { useDataContext } from "../../Context/DataContext";
+import { useColor } from "../../../hooks/useColor";
 import { useInventory } from "../../../hooks/useInventory";
+import { useSupplier } from "../../../hooks/useSupplier";
 import { Trash2 } from "lucide-react";
 import { Group } from "@mantine/core";
 import type { Supplier as BaseSupplier } from "../../../components/purchase/SupplierForm";
@@ -25,7 +26,7 @@ type Supplier = BaseSupplier & {
   Credit?: number;
   Debit?: number;
 };
-import type { InventoryItem } from "../../Context/DataContext";
+import type { InventoryItem } from "../../../types/product";
 
 export type POFormPayload = {
   poNumber: string;
@@ -56,13 +57,13 @@ export function PurchaseOrderForm({
         : new Date(initialValues.poDate as string | Date)
             .toISOString()
             .slice(0, 10)
-      : new Date().toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10),
   );
   const [expectedDelivery, setExpectedDelivery] = useState<string>(() => {
     if (!initialValues?.expectedDelivery) return "";
     const ed = initialValues.expectedDelivery as unknown;
     if (typeof ed === "string") {
-      return (ed).slice(0, 10);
+      return ed.slice(0, 10);
     }
     if (ed instanceof Date) {
       return ed.toISOString().slice(0, 10);
@@ -70,7 +71,8 @@ export function PurchaseOrderForm({
     // fallback for other representations
     return String(ed).slice(0, 10);
   });
-  const { colors = [], suppliers = [] } = useDataContext();
+  const { colors = [] } = useColor();
+  const { suppliers = [] } = useSupplier();
   const { inventory = [] } = useInventory();
   // Support both supplierId and supplier object for edit modal prefill
   function isSupplierObject(obj: unknown): obj is { _id: string } {
@@ -95,7 +97,7 @@ export function PurchaseOrderForm({
     return getSupplierIdFromInitialValues(initialValues) || "";
   });
   const [remarks, setRemarks] = useState(
-    initialValues?.remarks ?? "Monthly stock replenishment"
+    initialValues?.remarks ?? "Monthly stock replenishment",
   );
   const [status] = useState("Draft");
   const [products, setProducts] = useState<PurchaseLineItem[]>(
@@ -135,7 +137,7 @@ export function PurchaseOrderForm({
             length: 0,
             amount: 0,
           },
-        ]
+        ],
   );
   const subTotal = useMemo(() => {
     return products.reduce((s, i) => {
@@ -148,7 +150,7 @@ export function PurchaseOrderForm({
   const total = subTotal;
 
   const selectedSupplier = suppliers.find(
-    (s: Supplier) => String(s._id) === String(supplierId)
+    (s: Supplier) => String(s._id) === String(supplierId),
   );
 
   function handleSubmit(e: React.FormEvent) {
@@ -229,9 +231,9 @@ export function PurchaseOrderForm({
                 id="poDate"
                 type="date"
                 value={poDate}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  { setPoDate(e.target.value); }
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setPoDate(e.target.value);
+                }}
               />
             </div>
             <div>
@@ -240,9 +242,9 @@ export function PurchaseOrderForm({
                 id="expDate"
                 type="date"
                 value={expectedDelivery}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  { setExpectedDelivery(e.target.value); }
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setExpectedDelivery(e.target.value);
+                }}
               />
             </div>
           </div>
@@ -258,7 +260,9 @@ export function PurchaseOrderForm({
                   label: `${s.name} — ${s.city}`,
                 }))}
                 value={supplierId || ""}
-                onChange={(v) => { setSupplierId(v || ""); }}
+                onChange={(v) => {
+                  setSupplierId(v || "");
+                }}
                 placeholder={
                   suppliers.length === 0
                     ? "No suppliers found"
@@ -367,8 +371,8 @@ export function PurchaseOrderForm({
               <Button
                 variant="subtle"
                 size="sm"
-                onClick={() =>
-                  { setProducts((prev) => [
+                onClick={() => {
+                  setProducts((prev) => [
                     ...prev,
                     {
                       id: crypto.randomUUID(),
@@ -387,13 +391,16 @@ export function PurchaseOrderForm({
                       length: 0,
                       amount: 0,
                     },
-                  ]); }
-                }
+                  ]);
+                }}
               >
                 + Add Row
               </Button>
             </Group>
-            <div className="app-table-wrapper" style={{ maxHeight: '50vh', overflow: 'auto' }}>
+            <div
+              className="app-table-wrapper"
+              style={{ maxHeight: "50vh", overflow: "auto" }}
+            >
               <Table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <Table.Thead>
                   <Table.Tr>
@@ -461,17 +468,19 @@ export function PurchaseOrderForm({
                             value={
                               it.productName &&
                               inventory.some(
-                                (p) => p.itemName === it.productName
+                                (p) => p.itemName === it.productName,
                               )
-                                ? String(inventory.find(
-                                    (p) => p.itemName === it.productName
-                                  )?._id || "")
+                                ? String(
+                                    inventory.find(
+                                      (p) => p.itemName === it.productName,
+                                    )?._id || "",
+                                  )
                                 : ""
                             }
                             onChange={(val) => {
                               const prod = inventory.find(
                                 (p: InventoryItem) =>
-                                  String(p._id) === String(val)
+                                  String(p._id) === String(val),
                               );
                               setProducts((prev) =>
                                 prev.map((row) =>
@@ -485,8 +494,8 @@ export function PurchaseOrderForm({
                                           ? String(prod.thickness)
                                           : "",
                                       }
-                                    : row
-                                )
+                                    : row,
+                                ),
                               );
                             }}
                             placeholder="Select product"
@@ -500,62 +509,65 @@ export function PurchaseOrderForm({
                               label: c.name,
                             }))}
                             value={it.color || ""}
-                            onChange={(v) =>
-                              { setProducts((prev) =>
+                            onChange={(v) => {
+                              setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? { ...row, color: v || "" }
-                                    : row
-                                )
-                              ); }
-                            }
+                                    : row,
+                                ),
+                              );
+                            }}
                           />
                         </Table.Td>
                         <Table.Td style={{ padding: 8 }}>
                           <TextInput
                             value={it.thickness || ""}
-                            onChange={(e) =>
-                              { setProducts((prev) =>
+                            onChange={(e) => {
+                              setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
-                                    ? { ...row, thickness: e.target.value || "" }
-                                    : row
-                                )
-                              ); }
-                            }
+                                    ? {
+                                        ...row,
+                                        thickness: e.target.value || "",
+                                      }
+                                    : row,
+                                ),
+                              );
+                            }}
                             placeholder="Thickness"
                           />
                         </Table.Td>
                         <Table.Td style={{ padding: 8 }}>
                           <TextInput
                             value={String(it.length || "")}
-                            onChange={(e) =>
-                              { setProducts((prev) =>
+                            onChange={(e) => {
+                              setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? { ...row, length: e.target.value || "" }
-                                    : row
-                                )
-                              ); }
-                            }
+                                    : row,
+                                ),
+                              );
+                            }}
                             placeholder="Length"
                           />
                         </Table.Td>
                         <Table.Td style={{ padding: 8, textAlign: "right" }}>
                           <NumberInput
                             value={it.quantity === 0 ? "" : it.quantity}
-                            onChange={(v) =>
-                              { setProducts((prev) =>
+                            onChange={(v) => {
+                              setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? {
                                         ...row,
                                         quantity: v === "" ? 1 : Number(v),
                                       }
-                                    : row
-                                )
-                              ); }
-                            }
+                                    : row,
+                                ),
+                              );
+                            }}
                             min={1}
                             hideControls
                           />
@@ -563,18 +575,18 @@ export function PurchaseOrderForm({
                         <Table.Td style={{ padding: 8 }}>
                           <NumberInput
                             value={it.rate === 0 ? "" : it.rate}
-                            onChange={(v) =>
-                              { setProducts((prev) =>
+                            onChange={(v) => {
+                              setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? {
                                         ...row,
                                         rate: v === "" ? 0 : Number(v),
                                       }
-                                    : row
-                                )
-                              ); }
-                            }
+                                    : row,
+                                ),
+                              );
+                            }}
                             hideControls
                             min={0}
                           />
@@ -585,11 +597,11 @@ export function PurchaseOrderForm({
                         <Table.Td style={{ padding: 8, textAlign: "right" }}>
                           <Button
                             variant="subtle"
-                            onClick={() =>
-                              { setProducts((prev) =>
-                                prev.filter((r) => r.id !== it.id)
-                              ); }
-                            }
+                            onClick={() => {
+                              setProducts((prev) =>
+                                prev.filter((r) => r.id !== it.id),
+                              );
+                            }}
                           >
                             <Trash2 size={14} />
                           </Button>
@@ -606,9 +618,9 @@ export function PurchaseOrderForm({
             <label>Remarks</label>
             <Textarea
               value={remarks}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                { setRemarks(e.target.value); }
-              }
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                setRemarks(e.target.value);
+              }}
               minRows={3}
             />
           </div>
@@ -640,7 +652,13 @@ export function PurchaseOrderForm({
       </Card>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <Button type="button" variant="outline" onClick={() => { window.print(); }}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            window.print();
+          }}
+        >
           Print
         </Button>
         <Button type="submit" onClick={handleSubmit}>

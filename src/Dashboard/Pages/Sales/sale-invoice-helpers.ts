@@ -1,13 +1,13 @@
 /**
  * Sale Invoice Helper Functions
- * 
+ *
  * Shared logic for creating sale invoices from various sources:
  * - Manual invoice creation
  * - Quotation imports
  * - Sale returns
  */
 
-import type { SaleRecordPayload } from "../../../lib/api";
+import type { SaleRecordPayload } from "../../../api";
 import type { SalesPayload } from "../../../components/sales/SalesDocShell";
 
 /**
@@ -59,7 +59,7 @@ type SaleItem = {
  */
 export function normalizeCustomer(
   customer: CustomerInput | undefined,
-  customers: Array<{ _id: string; name: string }>
+  customers: Array<{ _id: string; name: string }>,
 ): { _id: string; name: string } | undefined {
   if (!customer) return undefined;
 
@@ -74,9 +74,7 @@ export function normalizeCustomer(
   // If customer is an object with name
   if (typeof customer === "object" && "name" in customer) {
     const id =
-      "_id" in customer && customer._id
-        ? String(customer._id)
-        : customer.name;
+      "_id" in customer && customer._id ? String(customer._id) : customer.name;
     return {
       _id: typeof id === "string" ? id : String(id),
       name: customer.name,
@@ -91,7 +89,7 @@ export function normalizeCustomer(
  */
 export function mapSaleItems(
   items: SalesPayload["items"],
-  inventory: InventoryItem[]
+  inventory: InventoryItem[],
 ): SaleItem[] {
   if (!items) return [];
 
@@ -99,7 +97,7 @@ export function mapSaleItems(
     const inv = inventory.find(
       (p) =>
         String(p._id) === String(it._id) ||
-        String(p.itemName) === String(it.itemName)
+        String(p.itemName) === String(it.itemName),
     );
 
     return {
@@ -127,14 +125,12 @@ export function mapSaleItems(
 /**
  * Sanitize mapped products to ensure proper types
  */
-export function sanitizeProducts(products: SaleItem[]): Array<Omit<SaleItem, 'thickness'> & { thickness?: number }> {
+export function sanitizeProducts(products: SaleItem[]): SaleItem[] {
   return products.map((item) => ({
     ...item,
     thickness:
-      typeof item.thickness === "string"
-        ? isNaN(Number(item.thickness))
-          ? undefined
-          : Number(item.thickness)
+      item.thickness === undefined || item.thickness === null
+        ? undefined
         : item.thickness,
     discount: item.discount ?? 0,
     discountAmount: item.discountAmount ?? 0,
@@ -153,26 +149,38 @@ export function buildSaleApiPayload(
   invoiceNumber: string,
   inventory: InventoryItem[],
   customers: Array<{ _id: string; name: string }>,
-  metadata?: Record<string, unknown>
 ): SaleRecordPayload {
   const invoiceDate = payload.docDate || new Date().toISOString();
   const customer = normalizeCustomer(payload.customer, customers);
   const products = mapSaleItems(payload.items, inventory);
   const mappedProducts = sanitizeProducts(products);
+  const totalGrossAmount = Math.floor(payload.totals?.totalGrossAmount ?? 0);
+  const totalDiscountAmount = Math.floor(
+    payload.totals?.totalDiscountAmount ?? 0,
+  );
+  const totalNetAmount = Math.floor(payload.totals?.totalNetAmount ?? 0);
+  const receivedAmount = Math.floor(payload.receivedAmount ?? 0);
+  const pendingAmount = Math.floor(totalNetAmount - receivedAmount);
 
   return {
     invoiceNumber,
     invoiceDate,
     items: mappedProducts,
     subTotal: Math.floor(payload.totals?.subTotal ?? 0),
-    totalGrossAmount: Math.floor(payload.totals?.totalGrossAmount ?? 0),
-    totalNetAmount: Math.floor(payload.totals?.totalNetAmount ?? 0),
+    totalGrossAmount,
+    totalNetAmount,
     discount: 0,
-    totalDiscount: Math.floor(payload.totals?.totalDiscountAmount ?? 0),
-    // Backend DTO expects Customer object (not null/undefined)
+    totalDiscountAmount,
     customer: customer ?? ({} as any),
-    paymentMethod: undefined,
-    length: payload.items?.length ?? 0,
-    metadata: metadata ?? { source: "manual" },
+    paymentMethod:
+      payload.customer?.paymentType === "Debit" ? "Cash" : undefined,
+    remarks: payload.remarks ?? "",
+    length: mappedProducts.reduce(
+      (sum, item) => sum + Number(item.length ?? 0),
+      0,
+    ),
+    amount: totalNetAmount,
+    receivedAmount,
+    pendingAmount,
   };
 }

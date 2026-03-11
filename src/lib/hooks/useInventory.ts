@@ -1,8 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notifications } from "@mantine/notifications";
-import * as api from "../api";
+import * as api from "../../api";
 import { ensureArray } from "../api-response-utils";
-import type { InventoryItemPayload, CategoryPayload, ColorPayload } from "../api";
+import type {
+  InventoryItemPayload,
+  CategoryPayload,
+  ColorPayload,
+} from "../../api";
+
+type InventoryListParams = {
+  page: number;
+  limit: number;
+  search?: string;
+  category?: string | null;
+};
 
 export const INVENTORY_QUERY_KEY = ["inventory"];
 export const CATEGORIES_QUERY_KEY = ["categories"];
@@ -102,6 +113,40 @@ export function useInventory() {
     isCreating: createInventoryMutation.isPending,
     isUpdating: updateInventoryMutation.isPending,
     isDeleting: deleteInventoryMutation.isPending,
+  };
+}
+
+export function useInventoryList(params: InventoryListParams) {
+  const inventoryQuery = useQuery({
+    queryKey: [
+      ...INVENTORY_QUERY_KEY,
+      "list",
+      params.page,
+      params.limit,
+      params.search ?? "",
+      params.category ?? "",
+    ],
+    queryFn: async () =>
+      api.getInventoryPage({
+        page: params.page,
+        limit: params.limit,
+        search: params.search,
+        category: params.category ?? undefined,
+      }),
+    staleTime: 1000 * 60,
+  });
+
+  return {
+    inventory: inventoryQuery.data?.data || [],
+    pagination: {
+      total: inventoryQuery.data?.total ?? 0,
+      page: inventoryQuery.data?.page ?? params.page,
+      lastPage: inventoryQuery.data?.lastPage ?? 1,
+    },
+    isLoading: inventoryQuery.isLoading,
+    isError: inventoryQuery.isError,
+    error: inventoryQuery.error,
+    refetch: inventoryQuery.refetch,
   };
 }
 

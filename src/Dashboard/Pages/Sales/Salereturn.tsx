@@ -8,7 +8,6 @@ import {
   Menu,
   ActionIcon,
 } from "@mantine/core";
-import { logger } from "../../../lib/logger";
 import { IconDotsVertical, IconEdit, IconPrinter } from "@tabler/icons-react";
 import SalesDocShell, {
   type SalesPayload,
@@ -18,21 +17,16 @@ import {
   createSaleReturn,
   deleteSaleReturn,
   type SaleRecordPayload,
-} from "../../../lib/api";
+} from "../../../api";
 import { showNotification } from "@mantine/notifications";
-import { useDataContext } from "../../Context/DataContext";
+import { useCustomers } from "../../../hooks";
 import { useInventory } from "../../../hooks/useInventory";
 import { formatCurrency } from "../../../lib/format-utils";
 import { useState, useEffect } from "react";
 
 export default function SaleReturnPage() {
-  const { customers } = useDataContext();
+  const { customers = [] } = useCustomers();
   const { inventory } = useInventory();
-
-  // Debug: log customers to check structure
-  useEffect(() => {
-    logger.debug("[SaleReturn] customers:", customers);
-  }, [customers]);
 
   // Inventory is auto-loaded by useInventory hook
   // No need for manual loadInventory calls
@@ -42,10 +36,10 @@ export default function SaleReturnPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | number | null>(
-    null
+    null,
   );
   const [initialPayload, setInitialPayload] = useState<SalesPayload | null>(
-    null
+    null,
   );
   const [editOpen, setEditOpen] = useState(false);
   const [editPayload, setEditPayload] = useState<SalesPayload | null>(null);
@@ -77,22 +71,32 @@ export default function SaleReturnPage() {
     // Resolve customer from payload.customer (supports object with id or raw value)
     const customerRef = (payload as any).customer;
     let selectedCustomer = null;
-    if (customerRef && typeof customerRef === 'object' && (customerRef.id || customerRef._id)) {
-      selectedCustomer = customers.find((c) => String(c._id) === String(customerRef.id ?? customerRef._id));
-    } else if (typeof customerRef === 'string' && customerRef) {
-      selectedCustomer = customers.find((c) => String(c._id) === String(customerRef) || String(c.name).toLowerCase() === String(customerRef).toLowerCase());
+    if (
+      customerRef &&
+      typeof customerRef === "object" &&
+      (customerRef.id || customerRef._id)
+    ) {
+      selectedCustomer = customers.find(
+        (c) => String(c._id) === String(customerRef.id ?? customerRef._id),
+      );
+    } else if (typeof customerRef === "string" && customerRef) {
+      selectedCustomer = customers.find(
+        (c) =>
+          String(c._id) === String(customerRef) ||
+          String(c.name).toLowerCase() === String(customerRef).toLowerCase(),
+      );
     }
     const customerObject = selectedCustomer
       ? { _id: selectedCustomer._id, name: selectedCustomer.name }
-      : (customerRef && typeof customerRef === 'object' && customerRef.name)
-      ? { name: String(customerRef.name) }
-      : null;
+      : customerRef && typeof customerRef === "object" && customerRef.name
+        ? { name: String(customerRef.name) }
+        : null;
     const products =
       payload.items?.map((it) => {
         const inv = inventory.find(
           (p) =>
             String(p._id) === String(it._id) ||
-            String(p.itemName) === String(it.itemName)
+            String(p.itemName) === String(it.itemName),
         );
         return {
           _id: inv?._id,
@@ -139,10 +143,6 @@ export default function SaleReturnPage() {
       metadata: { source: "sale-return" },
     };
     try {
-      logger.debug(
-        "[SaleReturn] apiPayload sent to backend:",
-        JSON.stringify(apiPayload, null, 2)
-      );
       await createSaleReturn(apiPayload);
       showNotification({
         title: "Sale Return Saved",
@@ -200,7 +200,9 @@ export default function SaleReturnPage() {
       .then((data) => {
         setReturns(Array.isArray(data) ? data : []);
       })
-      .finally(() => { setLoading(false); });
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   return (
@@ -221,7 +223,9 @@ export default function SaleReturnPage() {
               type="text"
               placeholder="Search returns..."
               value={q}
-              onChange={(e) => { setQ(e.target.value); }}
+              onChange={(e) => {
+                setQ(e.target.value);
+              }}
               style={{
                 padding: 6,
                 width: 260,
@@ -229,7 +233,13 @@ export default function SaleReturnPage() {
                 borderRadius: 4,
               }}
             />
-            <Button onClick={() => { setOpen(true); }} variant="filled" size="sm">
+            <Button
+              onClick={() => {
+                setOpen(true);
+              }}
+              variant="filled"
+              size="sm"
+            >
               + Add Sale Return
             </Button>
           </div>
@@ -237,7 +247,9 @@ export default function SaleReturnPage() {
         {/* Add Sale Return Modal */}
         <Modal
           opened={open && !initialPayload}
-          onClose={() => { setOpen(false); }}
+          onClose={() => {
+            setOpen(false);
+          }}
           title="Create Sale Return"
           size="100%"
         >
@@ -322,7 +334,10 @@ export default function SaleReturnPage() {
                           if (!x) continue;
                           if (typeof x === "string") {
                             const found = customers.find(
-                              (c) => String(c._id) === String(x) || String(c.name).toLowerCase() === String(x).toLowerCase()
+                              (c) =>
+                                String(c._id) === String(x) ||
+                                String(c.name).toLowerCase() ===
+                                  String(x).toLowerCase(),
                             );
                             if (found) return found.name;
                             return x;
@@ -330,7 +345,9 @@ export default function SaleReturnPage() {
                           if (typeof x === "object") {
                             if (x.name) return x.name;
                             if (x._id || x.id) {
-                              const found = customers.find((c) => String(c._id) === String(x._id ?? x.id));
+                              const found = customers.find(
+                                (c) => String(c._id) === String(x._id ?? x.id),
+                              );
                               if (found) return found.name;
                               return String(x._id ?? x.id);
                             }
@@ -341,14 +358,19 @@ export default function SaleReturnPage() {
                       if (typeof ref === "object") {
                         if (ref.name) return String(ref.name);
                         if (ref._id || ref.id) {
-                          const found = customers.find((c) => String(c._id) === String(ref._id ?? ref.id));
+                          const found = customers.find(
+                            (c) => String(c._id) === String(ref._id ?? ref.id),
+                          );
                           return found ? found.name : String(ref._id ?? ref.id);
                         }
                         return "";
                       }
                       if (typeof ref === "string") {
                         const found = customers.find(
-                          (c) => String(c._id) === String(ref) || String(c.name).toLowerCase() === String(ref).toLowerCase()
+                          (c) =>
+                            String(c._id) === String(ref) ||
+                            String(c.name).toLowerCase() ===
+                              String(ref).toLowerCase(),
                         );
                         return found ? found.name : ref;
                       }
@@ -358,29 +380,44 @@ export default function SaleReturnPage() {
                   })();
 
                   const openForEdit = (sourceRet: any) => {
-                    logger.debug("[SaleReturn] Opening for edit:", sourceRet);
                     let retCustomer: any = null;
                     const custRef = sourceRet.customer;
-                    logger.debug("[SaleReturn] Customer ref:", custRef);
                     if (Array.isArray(custRef)) {
-                      const found = custRef.find((c: any) => c && (c.name || c._id || typeof c === 'string'));
+                      const found = custRef.find(
+                        (c: any) =>
+                          c && (c.name || c._id || typeof c === "string"),
+                      );
                       if (found) {
-                        if (typeof found === 'string') {
-                          const byId = customers.find((c) => String(c._id) === String(found));
-                          retCustomer = byId ? { id: byId._id, name: byId.name } : { id: found, name: found };
+                        if (typeof found === "string") {
+                          const byId = customers.find(
+                            (c) => String(c._id) === String(found),
+                          );
+                          retCustomer = byId
+                            ? { id: byId._id, name: byId.name }
+                            : { id: found, name: found };
                         } else {
-                          retCustomer = { id: found._id ?? found.id, name: found.name };
+                          retCustomer = {
+                            id: found._id ?? found.id,
+                            name: found.name,
+                          };
                         }
                       }
-                    } else if (custRef && typeof custRef === 'object') {
-                      retCustomer = { id: custRef._id ?? custRef.id, name: custRef.name };
-                    } else if (typeof custRef === 'string') {
-                      const byId = customers.find((c) => String(c._id) === String(custRef) || String(c.name).toLowerCase() === String(custRef).toLowerCase());
-                      retCustomer = byId ? { id: byId._id, name: byId.name } : { id: custRef, name: custRef };
+                    } else if (custRef && typeof custRef === "object") {
+                      retCustomer = {
+                        id: custRef._id ?? custRef.id,
+                        name: custRef.name,
+                      };
+                    } else if (typeof custRef === "string") {
+                      const byId = customers.find(
+                        (c) =>
+                          String(c._id) === String(custRef) ||
+                          String(c.name).toLowerCase() ===
+                            String(custRef).toLowerCase(),
+                      );
+                      retCustomer = byId
+                        ? { id: byId._id, name: byId.name }
+                        : { id: custRef, name: custRef };
                     }
-                    logger.debug("[SaleReturn] Resolved customer:", retCustomer);
-                    logger.debug("[SaleReturn] Source products:", sourceRet.products);
-                    logger.debug("[SaleReturn] Available inventory:", inventory);
                     setEditPayload({
                       docNo: sourceRet.invoiceNumber || "",
                       docDate: sourceRet.invoiceDate || "",
@@ -390,20 +427,27 @@ export default function SaleReturnPage() {
                         const inventoryProduct = inventory.find(
                           (p) =>
                             String(p._id) === String(item._id) ||
-                            String(p.itemName).toLowerCase().trim() === String(item.itemName ?? "").toLowerCase().trim()
+                            String(p.itemName).toLowerCase().trim() ===
+                              String(item.itemName ?? "")
+                                .toLowerCase()
+                                .trim(),
                         );
-                        logger.debug("[SaleReturn] Mapping item:", {
-                          itemId: item._id,
-                          itemName: item.itemName,
-                          foundInInventory: inventoryProduct?.itemName,
-                          inventoryId: inventoryProduct?._id,
-                        });
                         return {
-                          _id: inventoryProduct?._id ?? item._id ?? item.id ?? item.productId ?? "",
+                          _id:
+                            inventoryProduct?._id ??
+                            item._id ??
+                            item.id ??
+                            item.productId ??
+                            "",
                           itemName: item.itemName ?? item.productName ?? "",
                           description: item.description ?? "",
                           category: item.category ?? "",
-                          unit: typeof item.unit === "string" ? item.unit : typeof item.unit === "number" ? String(item.unit) : "",
+                          unit:
+                            typeof item.unit === "string"
+                              ? item.unit
+                              : typeof item.unit === "number"
+                                ? String(item.unit)
+                                : "",
                           quantity: item.quantity ?? 0,
                           salesRate: item.salesRate ?? item.rate ?? 0,
                           amount: item.amount ?? 0,
@@ -430,35 +474,74 @@ export default function SaleReturnPage() {
                       customer: retCustomer
                         ? {
                             id: retCustomer.id ?? retCustomer._id ?? undefined,
-                            name: retCustomer.name ??
-                              (customers.find((c) => String(c._id) === String(retCustomer.id ?? retCustomer._id))?.name ?? undefined),
+                            name:
+                              retCustomer.name ??
+                              customers.find(
+                                (c) =>
+                                  String(c._id) ===
+                                  String(retCustomer.id ?? retCustomer._id),
+                              )?.name ??
+                              undefined,
                           }
                         : undefined,
-                    });
-                    logger.debug("[SaleReturn] Final edit payload:", {
-                      docNo: sourceRet.invoiceNumber,
-                      customer: retCustomer,
-                      itemsCount: sourceRet.products?.length,
                     });
                     setEditingId(sourceRet.invoiceNumber || "");
                     setEditOpen(true);
                   };
 
                   return (
-                    <Table.Tr key={ret.invoiceNumber ?? idx} onDoubleClick={() => { openForEdit(ret); }} style={{ cursor: 'pointer' }}>
+                    <Table.Tr
+                      key={ret.invoiceNumber ?? idx}
+                      onDoubleClick={() => {
+                        openForEdit(ret);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
                       <Table.Td>{ret.invoiceNumber}</Table.Td>
-                      <Table.Td>{ret.invoiceDate ? new Date(ret.invoiceDate).toLocaleDateString() : ""}</Table.Td>
+                      <Table.Td>
+                        {ret.invoiceDate
+                          ? new Date(ret.invoiceDate).toLocaleDateString()
+                          : ""}
+                      </Table.Td>
                       <Table.Td>{displayCustomerName}</Table.Td>
-                      <Table.Td>{formatCurrency(ret.totalNetAmount ?? ret.subTotal ?? 0)}</Table.Td>
+                      <Table.Td>
+                        {formatCurrency(
+                          ret.totalNetAmount ?? ret.subTotal ?? 0,
+                        )}
+                      </Table.Td>
                       <Table.Td>
                         <Menu withinPortal shadow="md">
                           <Menu.Target>
-                            <ActionIcon variant="subtle"><IconDotsVertical /></ActionIcon>
+                            <ActionIcon variant="subtle">
+                              <IconDotsVertical />
+                            </ActionIcon>
                           </Menu.Target>
                           <Menu.Dropdown>
-                            <Menu.Item leftSection={<IconEdit size={16} />} onClick={() => { openForEdit(ret); }}>Edit</Menu.Item>
-                            <Menu.Item leftSection={<IconPrinter size={16} />} onClick={() => { /* Print if needed */ }}>Print</Menu.Item>
-                            <Menu.Item color="red" onClick={() => { setDeleteTarget(ret.invoiceNumber ?? ""); setDeleteModalOpen(true); }}>Delete</Menu.Item>
+                            <Menu.Item
+                              leftSection={<IconEdit size={16} />}
+                              onClick={() => {
+                                openForEdit(ret);
+                              }}
+                            >
+                              Edit
+                            </Menu.Item>
+                            <Menu.Item
+                              leftSection={<IconPrinter size={16} />}
+                              onClick={() => {
+                                /* Print if needed */
+                              }}
+                            >
+                              Print
+                            </Menu.Item>
+                            <Menu.Item
+                              color="red"
+                              onClick={() => {
+                                setDeleteTarget(ret.invoiceNumber ?? "");
+                                setDeleteModalOpen(true);
+                              }}
+                            >
+                              Delete
+                            </Menu.Item>
                           </Menu.Dropdown>
                         </Menu>
                       </Table.Td>

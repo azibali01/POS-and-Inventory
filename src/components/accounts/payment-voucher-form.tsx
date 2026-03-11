@@ -8,7 +8,7 @@ import {
   Autocomplete,
   Textarea,
 } from "@mantine/core";
-import { getSuppliers } from "../../lib/api";
+import { getSuppliers } from "../../api";
 
 import { useForm } from "@mantine/form";
 
@@ -65,7 +65,7 @@ export function PaymentVoucherForm({
             data.map((s: { name: string }) => ({
               value: s.name,
               label: s.name,
-            }))
+            })),
           );
         }
       });
@@ -90,7 +90,9 @@ export function PaymentVoucherForm({
   return (
     <Modal
       opened={open}
-      onClose={() => { onOpenChange(false); }}
+      onClose={() => {
+        onOpenChange(false);
+      }}
       title="Payment Voucher"
       centered
     >
@@ -114,9 +116,9 @@ export function PaymentVoucherForm({
               ? form.values.voucherDate
               : form.values.voucherDate.toISOString().slice(0, 10)
           }
-          onChange={(event) =>
-            { form.setFieldValue("voucherDate", event.currentTarget.value); }
-          }
+          onChange={(event) => {
+            form.setFieldValue("voucherDate", event.currentTarget.value);
+          }}
           required
         />
         <Autocomplete
@@ -153,7 +155,12 @@ export function PaymentVoucherForm({
           {...form.getInputProps("remarks")}
         />
         <Group justify="flex-end" mt="md">
-          <Button variant="outline" onClick={() => { onOpenChange(false); }}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+            }}
+          >
             Cancel
           </Button>
           <Button type="submit">Save</Button>

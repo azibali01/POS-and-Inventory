@@ -21,7 +21,12 @@ import { PurchaseOrderForm as GeneratedPOForm } from "./PurchaseOrderForm.genera
 import { usePurchase } from "../../../hooks/usePurchase";
 import { useSupplier } from "../../../hooks/useSupplier";
 
-import { IconEdit, IconPlus, IconPrinter, IconTrash } from "@tabler/icons-react";
+import {
+  IconEdit,
+  IconPlus,
+  IconPrinter,
+  IconTrash,
+} from "@tabler/icons-react";
 import { Search } from "lucide-react";
 import { generateNextDocumentNumber } from "../../../utils/document-utils";
 import {
@@ -54,9 +59,14 @@ export default function PurchaseOrdersPage() {
   //   loadPurchases,
   // } = useDataContext(); // REMOVED
 
-  const { purchases, createPurchaseAsync, updatePurchaseAsync, deletePurchaseAsync } = usePurchase();
+  const {
+    purchases,
+    createPurchaseAsync,
+    updatePurchaseAsync,
+    deletePurchaseAsync,
+  } = usePurchase();
   const { suppliers } = useSupplier();
-  
+
   useInventory(); // Ensure inventory is loaded
 
   // Inventory is auto-loaded by useInventory hook
@@ -75,7 +85,7 @@ export default function PurchaseOrdersPage() {
     return generateNextDocumentNumber(
       "PO",
       (purchases || []).map((p) => p.poNumber || ""),
-      3
+      3,
     );
   }
   // Update data from purchases and suppliers
@@ -96,23 +106,25 @@ export default function PurchaseOrdersPage() {
 
         // Use helper to resolve supplier
         const supplier = normalizePurchaseSupplier(
-          p.supplier, 
-          (p as any).supplierId, 
-          (suppliers || []) as any
+          p.supplier,
+          (p as any).supplierId,
+          (suppliers || []) as any,
         );
-        
+
         logger.debug("[PO] Resolved supplier for", p.poNumber, ":", supplier);
-        
+
         let total = typeof p.total === "number" ? p.total : 0;
         if (!total && Array.isArray(p.products)) {
           total = p.products.reduce(
             (sum, it) => sum + (it.quantity || 0) * (it.rate || 0),
-            0
+            0,
           );
         }
 
         // Map items using helper (casting to PurchaseLineItem[] as expected by helper)
-        const products = mapPurchaseOrderItems((p.products || []) as PurchaseLineItem[]);
+        const products = mapPurchaseOrderItems(
+          (p.products || []) as PurchaseLineItem[],
+        );
 
         return {
           id: String(p.id) || p.poNumber || crypto.randomUUID(),
@@ -127,7 +139,7 @@ export default function PurchaseOrdersPage() {
           remarks: p.remarks,
           createdAt: p.createdAt ? new Date(p.createdAt) : undefined,
         };
-      })
+      }),
     );
   }, [purchases, suppliers]);
 
@@ -146,30 +158,26 @@ export default function PurchaseOrdersPage() {
     try {
       // Resolve supplier from supplierId using helper
       const supplier = normalizePurchaseSupplier(
-        undefined, 
-        payload.supplierId, 
-        (suppliers || []) as any
+        undefined,
+        payload.supplierId,
+        (suppliers || []) as any,
       );
-      
+
       logger.debug("[PO] Saving with supplier:", supplier);
       logger.debug("[PO] Payload:", payload);
-      
+
       // Build API payload
       const purchasePayload = buildPurchaseOrderPayload(payload, supplier);
-      
+
       if (editPO) {
         // Update existing PO
-        // const updatedPO = await import("../../../lib/api").then((api) =>
-        //   api.updatePurchaseByNumber(editPO.poNumber, purchasePayload)
-        // );
-        
         await updatePurchaseAsync({
-          id: editPO.id || editPO.poNumber, 
-          payload: purchasePayload
+          id: editPO.id || editPO.poNumber,
+          payload: purchasePayload,
         });
-        
+
         // Local state update handled by React Query invalidation -> useEffect
-        
+
         showNotification({
           title: "Updated",
           message: `Purchase Order ${payload.poNumber} updated successfully`,
@@ -177,21 +185,17 @@ export default function PurchaseOrdersPage() {
         });
       } else {
         // Create new PO
-        // await import("../../../lib/api").then((api) =>
-        //   api.createPurchase(purchasePayload)
-        // );
-        
         await createPurchaseAsync(purchasePayload);
-        
+
         // Local state update handled by React Query invalidation -> useEffect
-        
+
         showNotification({
           title: "Created",
           message: `Purchase Order ${payload.poNumber} created successfully`,
           color: "green",
         });
       }
-      
+
       setOpen(false);
       setEditPO(null);
       // Reload handled by React Query
@@ -199,7 +203,8 @@ export default function PurchaseOrdersPage() {
       logger.error("[PO] Save error:", err);
       showNotification({
         title: "Error",
-        message: err instanceof Error ? err.message : "Failed to save purchase order",
+        message:
+          err instanceof Error ? err.message : "Failed to save purchase order",
         color: "red",
       });
     }
@@ -228,37 +233,47 @@ export default function PurchaseOrdersPage() {
                     typeof editPO.poDate === "string"
                       ? new Date(editPO.poDate)
                       : editPO.poDate instanceof Date
-                      ? editPO.poDate
-                      : undefined,
+                        ? editPO.poDate
+                        : undefined,
                 },
               }
             : {})}
         />
       </Modal>
       <div style={{ marginTop: 16 }}>
-       <Group justify="space-between">
-       
+        <Group justify="space-between">
           <Title order={2}>Purchase Orders</Title>
           <Group>
-          <TextInput
-            placeholder="Search PO number or supplier"
-            value={q}
-            onChange={(e) => { setQ(e.currentTarget.value); }}
-            style={{ width: 300 }}
-            leftSection={<Search size={16} />}
-          />
-          
-          
-          <Button onClick={() => { setOpen(true); }}
-            leftSection={<IconPlus size={16} />}
-          >
-            Create PO
-          </Button>
+            <TextInput
+              placeholder="Search PO number or supplier"
+              value={q}
+              onChange={(e) => {
+                setQ(e.currentTarget.value);
+              }}
+              style={{ width: 300 }}
+              leftSection={<Search size={16} />}
+            />
+
+            <Button
+              onClick={() => {
+                setOpen(true);
+              }}
+              leftSection={<IconPlus size={16} />}
+            >
+              Create PO
+            </Button>
           </Group>
         </Group>
       </div>
-      <Table withColumnBorders withRowBorders striped highlightOnHover withTableBorder mt="md">
-        <Table.Thead style={{backgroundColor: "#F1F3F5"}}>
+      <Table
+        withColumnBorders
+        withRowBorders
+        striped
+        highlightOnHover
+        withTableBorder
+        mt="md"
+      >
+        <Table.Thead style={{ backgroundColor: "#F1F3F5" }}>
           <Table.Tr>
             <Table.Th>PO Number</Table.Th>
             <Table.Th>Date</Table.Th>
@@ -283,13 +298,13 @@ export default function PurchaseOrdersPage() {
               <Table.Tr
                 key={o.id}
                 tabIndex={0}
-                aria-label={`PO ${o.poNumber} for ${o.supplier?.name || ''}`}
+                aria-label={`PO ${o.poNumber} for ${o.supplier?.name || ""}`}
                 onDoubleClick={() => {
                   setEditPO(o);
                   setOpen(true);
                 }}
-                style={{ cursor: 'pointer' }}
-              > 
+                style={{ cursor: "pointer" }}
+              >
                 <Table.Td style={{ fontFamily: "monospace" }}>
                   {o.poNumber}
                 </Table.Td>
@@ -301,7 +316,12 @@ export default function PurchaseOrdersPage() {
                 <Table.Td>
                   <Menu withArrow width={200} position="bottom-end">
                     <Menu.Target>
-                      <ActionIcon variant="subtle" color="gray" aria-label={`Actions for PO ${o.poNumber}`} tabIndex={0}>
+                      <ActionIcon
+                        variant="subtle"
+                        color="gray"
+                        aria-label={`Actions for PO ${o.poNumber}`}
+                        tabIndex={0}
+                      >
                         <span style={{ fontWeight: 600, fontSize: 18 }}>⋮</span>
                       </ActionIcon>
                     </Menu.Target>
@@ -328,10 +348,13 @@ export default function PurchaseOrdersPage() {
                             customer: o.supplier?.name || "",
                             items: (o.products || []).map((it, idx) => ({
                               sr: idx + 1,
-                              section: `${it.productName}${it.thickness || it.color ? ` (Thickness: ${it.thickness ?? '-'}, Color: ${it.color ?? '-'})` : ''}`,
+                              section: `${it.productName}${it.thickness || it.color ? ` (Thickness: ${it.thickness ?? "-"}, Color: ${it.color ?? "-"})` : ""}`,
                               quantity: it.quantity,
                               rate: Number(it.rate ?? 0),
-                              amount: Number(it.amount ?? (it.quantity || 0) * (it.rate || 0)),
+                              amount: Number(
+                                it.amount ??
+                                  (it.quantity || 0) * (it.rate || 0),
+                              ),
                             })),
                             totals: {
                               subtotal: o.subTotal ?? o.total,
@@ -344,7 +367,13 @@ export default function PurchaseOrdersPage() {
                       >
                         Print
                       </Menu.Item>
-                      <Menu.Item color="red" onClick={() => { setDeletePO(o); }} leftSection={<IconTrash size={16} />}>
+                      <Menu.Item
+                        color="red"
+                        onClick={() => {
+                          setDeletePO(o);
+                        }}
+                        leftSection={<IconTrash size={16} />}
+                      >
                         Delete
                       </Menu.Item>
                     </Menu.Dropdown>
@@ -356,7 +385,9 @@ export default function PurchaseOrdersPage() {
       </Table>
       <Modal
         opened={!!deletePO}
-        onClose={() => { setDeletePO(null); }}
+        onClose={() => {
+          setDeletePO(null);
+        }}
         title="Confirm Delete"
         centered
         withCloseButton
@@ -368,9 +399,15 @@ export default function PurchaseOrdersPage() {
         <Group justify="right" mt="md">
           <Button
             variant="default"
-            onClick={() => { setDeletePO(null); }}
+            onClick={() => {
+              setDeletePO(null);
+            }}
             disabled={deleteLoading}
-            style={{ color: '#222', backgroundColor: '#f3f3f3', border: '1px solid #ccc' }}
+            style={{
+              color: "#222",
+              backgroundColor: "#f3f3f3",
+              border: "1px solid #ccc",
+            }}
             aria-label="Cancel Delete PO"
           >
             Cancel
@@ -384,22 +421,22 @@ export default function PurchaseOrdersPage() {
               logger.debug("[PO] Deleting:", deletePO.poNumber);
               try {
                 // const result = await deletePurchaseByNumber(deletePO.poNumber);
-                // We use ID if available, else poNumber? 
+                // We use ID if available, else poNumber?
                 // The hooks use ID. If deletePurchaseByNumber used poNumber, we should check if we have ID.
                 // data mapping (line 118) ensures id is present (or generated? "id: p.id || p.poNumber || crypto...").
                 // If it's a real backend record, it should have an ID.
-                
+
                 await deletePurchaseAsync(deletePO.id || deletePO.poNumber);
-                
+
                 // Remove from local state handled by React Query -> useEffect
-                
+
                 showNotification({
                   title: "Deleted",
                   message: `Purchase Order ${deletePO.poNumber} deleted successfully`,
                   color: "green",
                 });
                 setDeletePO(null);
-                
+
                 // Reload handled by React Query
               } catch (err) {
                 logger.error("[PO] Delete error:", err);

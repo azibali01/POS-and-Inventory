@@ -5,6 +5,7 @@ import { Title, Text, Divider, Grid, Card, Group, Button } from "@mantine/core";
 import { TextInput } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { useDataContext } from "../../Context/DataContext";
+import { useCustomers } from "../../../hooks";
 import { useInventory } from "../../../hooks/useInventory";
 import SalesDocShell, {
   type SalesPayload,
@@ -41,8 +42,8 @@ export default function ProfitLoss() {
     loadSales,
     loadPurchaseInvoices,
     loadExpenses,
-    customers = [],
   } = useDataContext();
+  const { customers = [] } = useCustomers();
   const { inventory = [] } = useInventory();
 
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -68,13 +69,13 @@ export default function ProfitLoss() {
       sales:
         start || end
           ? sales.filter((s: SaleRecord) =>
-              inRange(s.invoiceDate || s.date || s.quotationDate)
+              inRange(s.invoiceDate || s.date || s.quotationDate),
             )
           : sales,
       purchaseInvoices:
         start || end
           ? purchaseInvoices.filter((p: PurchaseInvoiceRecord) =>
-              inRange(p.invoiceDate)
+              inRange(p.invoiceDate),
             )
           : purchaseInvoices,
       expenses:
@@ -126,11 +127,11 @@ export default function ProfitLoss() {
 
         return acc + purchaseTotal;
       },
-      0
+      0,
     );
     const eTotal = filtered.expenses.reduce(
       (acc: number, r: Expense) => acc + (r.amount || 0),
-      0
+      0,
     );
     const grossProfit = sTotal - pTotal;
     const netProfit = grossProfit - eTotal;
@@ -155,7 +156,7 @@ export default function ProfitLoss() {
       if (isNaN(d.getTime())) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
         2,
-        "0"
+        "0",
       )}`;
       // Use total, totalNetAmount, or totalGrossAmount as fallback
       const saleTotal = s.total || s.totalNetAmount || s.totalGrossAmount || 0;
@@ -167,7 +168,7 @@ export default function ProfitLoss() {
       if (isNaN(d.getTime())) return;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
         2,
-        "0"
+        "0",
       )}`;
 
       // Calculate total from purchase invoice.total, subTotal, or sum of products
@@ -193,7 +194,7 @@ export default function ProfitLoss() {
     });
     // sort by month
     return Array.from(map.values()).sort((a, b) =>
-      a.month > b.month ? 1 : -1
+      a.month > b.month ? 1 : -1,
     );
   }, [filtered]);
 
@@ -230,7 +231,9 @@ export default function ProfitLoss() {
             type="date"
             label="From Date"
             value={fromDate}
-            onChange={(e) => { setFromDate(e.currentTarget.value); }}
+            onChange={(e) => {
+              setFromDate(e.currentTarget.value);
+            }}
             mx={8}
             style={{ minWidth: 140 }}
           />
@@ -238,7 +241,9 @@ export default function ProfitLoss() {
             type="date"
             label="To Date"
             value={toDate}
-            onChange={(e) => { setToDate(e.currentTarget.value); }}
+            onChange={(e) => {
+              setToDate(e.currentTarget.value);
+            }}
             mx={8}
             style={{ minWidth: 140 }}
           />
@@ -396,15 +401,15 @@ export default function ProfitLoss() {
                     {typeof s.customer === "string"
                       ? s.customer
                       : Array.isArray(s.customer)
-                      ? (s.customer as { name: string }[])
-                          .map((c) => c.name)
-                          .join(", ")
-                      : (s.customer as { name?: string } | undefined)?.name ??
-                        "N/A"}
+                        ? (s.customer as { name: string }[])
+                            .map((c) => c.name)
+                            .join(", ")
+                        : ((s.customer as { name?: string } | undefined)
+                            ?.name ?? "N/A")}
                   </Table.Td>
                   <Table.Td style={{ textAlign: "right" }}>
                     {formatCurrency(
-                      s.total || s.totalNetAmount || s.totalGrossAmount || 0
+                      s.total || s.totalNetAmount || s.totalGrossAmount || 0,
                     )}
                   </Table.Td>
                 </Table.Tr>
@@ -416,7 +421,9 @@ export default function ProfitLoss() {
 
       <Modal
         opened={viewerOpen}
-        onClose={() => { setViewerOpen(false); }}
+        onClose={() => {
+          setViewerOpen(false);
+        }}
         size="90%"
       >
         {viewerKind === "sale" && viewerData ? (
@@ -536,7 +543,7 @@ export default function ProfitLoss() {
                     <Table.Td>
                       {typeof p.supplier === "string"
                         ? p.supplier
-                        : p.supplier?.name ?? "N/A"}
+                        : (p.supplier?.name ?? "N/A")}
                     </Table.Td>
                     <Table.Td style={{ textAlign: "right" }}>
                       {(() => {
@@ -569,7 +576,7 @@ export default function ProfitLoss() {
                       })()}
                     </Table.Td>
                   </Table.Tr>
-                )
+                ),
               )}
             </Table.Tbody>
           </Table>

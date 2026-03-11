@@ -3,27 +3,16 @@
  * Extracted from DataContext.tsx to reduce duplication and improve maintainability
  */
 
-import type { InventoryItemPayload } from "../lib/api";
+import type { InventoryItemPayload } from "../api";
 import type { Supplier } from "../components/purchase/SupplierForm";
+export type {
+  InventoryItem,
+  InventoryItemInput,
+  ProductVariant,
+  ProductVariantInput,
+} from "./product";
 
 // ===== INVENTORY TYPES =====
-
-export interface InventoryItem {
-  _id: string;
-  itemName?: string;
-  category?: string;
-  unit?: string;
-  color?: string;
-  thickness?: number;
-  salesRate?: number;
-  openingStock?: number;
-  minimumStockLevel?: number;
-  description?: string;
-  stock?: number;
-  lastUpdated?: string;
-  quantity?: number;
-  brand?: string;
-}
 
 // ===== CUSTOMER TYPES =====
 

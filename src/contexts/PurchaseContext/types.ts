@@ -6,6 +6,11 @@
  */
 
 import type { Supplier } from "../../components/purchase/SupplierForm";
+import type {
+  GRNRecordPayload,
+  PurchaseRecordPayload,
+  PurchaseReturnRecordPayload,
+} from "../../api";
 
 export interface PurchaseLineItem {
   id: string;
@@ -86,12 +91,12 @@ export interface PurchaseContextType {
   // checking DataContext again... lines 204-210.
   // It has suppliersLoading, setSuppliers, loadSuppliers, suppliersForSelect.
   // It DOES NOT have createSupplier.
-  // Wait, really? 
+  // Wait, really?
   // checking lines 1-800 of DataContext...
   // I don't see createSupplier.
   // Let me re-verify this assumption. If DataContext has no createSupplier, then PurchaseContext shouldn't either.
   // BUT SupplierForm likely acts on it?
-  // Let's stick to what DataContext has for now. 
+  // Let's stick to what DataContext has for now.
   suppliersForSelect: Array<{ value: string; label: string }>;
 
   // Purchase Orders
@@ -100,12 +105,10 @@ export interface PurchaseContextType {
   purchasesError: string | null;
   setPurchases: React.Dispatch<React.SetStateAction<PurchaseRecord[]>>;
   loadPurchases: () => Promise<PurchaseRecord[]>;
-  createPurchase: (
-    payload: import("../../lib/api").PurchaseRecordPayload
-  ) => Promise<PurchaseRecord>;
+  createPurchase: (payload: PurchaseRecordPayload) => Promise<PurchaseRecord>;
   updatePurchase: (
     id: string | number,
-    payload: Partial<import("../../lib/api").PurchaseRecordPayload>
+    payload: Partial<PurchaseRecordPayload>,
   ) => Promise<PurchaseRecord>;
   deletePurchase: (id: string | number) => Promise<void>;
 
@@ -124,7 +127,7 @@ export interface PurchaseContextType {
   grnsError: string | null;
   setGrns: React.Dispatch<React.SetStateAction<GRNRecord[]>>;
   loadGrns: () => Promise<GRNRecord[]>;
-  createGrn: (payload: import("../../lib/api").GRNRecordPayload) => Promise<GRNRecord>;
+  createGrn: (payload: GRNRecordPayload) => Promise<GRNRecord>;
   applyGrnToInventory: (grn: GRNRecord) => void;
   updatePurchaseFromGrn: (grn: GRNRecord) => void;
 
@@ -137,7 +140,7 @@ export interface PurchaseContextType {
   >;
   loadPurchaseReturns: () => Promise<PurchaseReturnRecord[]>;
   createPurchaseReturn: (
-    payload: import("../../lib/api").PurchaseReturnRecordPayload
+    payload: PurchaseReturnRecordPayload,
   ) => Promise<PurchaseReturnRecord>;
   applyPurchaseReturnToInventory: (ret: PurchaseReturnRecord) => void;
   updatePurchaseFromReturn: (ret: PurchaseReturnRecord) => void;

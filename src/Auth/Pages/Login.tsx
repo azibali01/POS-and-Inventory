@@ -15,7 +15,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { useState } from "react";
 import { useAuth } from "../Context/AuthContext";
 import { useNavigate } from "react-router";
-import { api } from "../../lib/api";
+import { axiosClient } from "../../api";
 
 const Login = () => {
   const { login } = useAuth();
@@ -35,10 +35,9 @@ const Login = () => {
     }
 
     setLoading(true);
-    setLoading(true);
     try {
       // Use new Auth endpoint
-      const res = await api.post("/auth/login", { email, password });
+      const res = await axiosClient.post("/auth/login", { email, password });
 
       // Check for success and token (new response structure)
       if (res.data.success && res.data.user && res.data.access_token) {
@@ -48,7 +47,7 @@ const Login = () => {
             email: res.data.user.email,
             name: res.data.user.name,
           },
-          res.data.access_token
+          res.data.access_token,
         );
 
         notifications.show({
@@ -120,7 +119,9 @@ const Login = () => {
               <Stack gap="md">
                 <TextInput
                   value={email}
-                  onChange={(event) => { setEmail(event.currentTarget.value); }}
+                  onChange={(event) => {
+                    setEmail(event.currentTarget.value);
+                  }}
                   label="Email Address"
                   placeholder="your.email@example.com"
                   size="md"
@@ -149,7 +150,9 @@ const Login = () => {
 
                 <PasswordInput
                   value={password}
-                  onChange={(event) => { setPassword(event.currentTarget.value); }}
+                  onChange={(event) => {
+                    setPassword(event.currentTarget.value);
+                  }}
                   label="Password"
                   placeholder="Enter your password"
                   size="md"

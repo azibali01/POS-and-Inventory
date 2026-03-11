@@ -1,25 +1,28 @@
 import { useEffect, useState } from "react";
 import { Paper, Text, Table, Button, Group, Loader } from "@mantine/core";
-import { api } from "../../lib/api";
+import { draftService, type DraftRecord, type DraftData } from "../../api";
 
 export default function SavedDraftsPanel({
   mode,
   onRestore,
 }: {
   mode?: "Quotation" | "Invoice";
-  onRestore: (data: any) => void;
+  onRestore: (data: DraftData) => void;
 }) {
-  const [drafts, setDrafts] = useState<any[]>([]);
+  const [drafts, setDrafts] = useState<DraftRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get("/drafts");
-      let list = Array.isArray(data) ? data : [];
-      if (mode) list = list.filter((d: any) => String(d.key).startsWith(`sales-draft:${mode}`));
+      let list = await draftService.getAll();
+      if (mode) {
+        list = list.filter((draft) =>
+          draft.key.startsWith(`sales-draft:${mode}`),
+        );
+      }
       setDrafts(list.reverse());
-    } catch (err) {
+    } catch {
       setDrafts([]);
     } finally {
       setLoading(false);
@@ -27,23 +30,23 @@ export default function SavedDraftsPanel({
   };
 
   useEffect(() => {
-    load();
+    void load();
   }, [mode]);
 
   const handleDelete = async (id: string) => {
     try {
-      await api.delete(`/drafts/${id}`);
-      load();
-    } catch (err) {
+      await draftService.delete(id);
+      await load();
+    } catch {
       // ignore
     }
   };
 
-  const handleRestore = (d: any) => {
+  const handleRestore = (draft: DraftRecord) => {
     try {
-      const payload = d.data ?? {};
+      const payload = draft.data ?? {};
       onRestore(payload);
-    } catch (err) {
+    } catch {
       // ignore
     }
   };
@@ -55,7 +58,7 @@ export default function SavedDraftsPanel({
         {loading ? <Loader size="xs" /> : null}
       </Group>
       {drafts.length === 0 ? (
-        <Text size="sm" color="dimmed">
+        <Text size="sm" c="dimmed">
           No saved drafts.
         </Text>
       ) : (
@@ -68,16 +71,43 @@ export default function SavedDraftsPanel({
             </tr>
           </thead>
           <tbody>
-            {drafts.map((d) => (
-              <tr key={d._id}>
-                <td style={{ maxWidth: 300, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.key}</td>
-                <td>{d.createdAt ? new Date(d.createdAt).toLocaleString() : "-"}</td>
+            {drafts.map((draft) => (
+              <tr key={draft._id ?? draft.key}>
+                <td
+                  style={{
+                    maxWidth: 300,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {draft.key}
+                </td>
+                <td>
+                  {draft.createdAt
+                    ? new Date(draft.createdAt).toLocaleString()
+                    : "-"}
+                </td>
                 <td style={{ textAlign: "right" }}>
                   <Group justify="flex-end">
-                    <Button size="xs" onClick={() => { handleRestore(d); }}>
+                    <Button
+                      size="xs"
+                      onClick={() => {
+                        handleRestore(draft);
+                      }}
+                    >
                       Restore
                     </Button>
-                    <Button color="red" size="xs" variant="light" onClick={() => handleDelete(d._id)}>
+                    <Button
+                      color="red"
+                      size="xs"
+                      variant="light"
+                      onClick={() => {
+                        if (draft._id) {
+                          void handleDelete(draft._id);
+                        }
+                      }}
+                    >
                       Delete
                     </Button>
                   </Group>

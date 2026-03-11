@@ -25,7 +25,8 @@ export const ENDPOINTS = {
   SUPPLIERS: "/suppliers",
   EXPENSES: "/expenses",
   PAYMENT_VOUCHERS: "/payment-voucher",
-  RECEIPT_VOUCHERS: "/reciept-voucher",
+  RECEIPT_VOUCHERS: "/receipt-voucher",
+  SESSION: "/session",
 
   // Drafts (autosave)
   DRAFTS: "/drafts",

@@ -27,7 +27,7 @@ export const receiptVoucherService = {
    */
   async getAll(): Promise<ReceiptVoucherPayload[]> {
     const { data } = await axiosClient.get<ReceiptVoucherPayload[]>(
-      ENDPOINTS.RECEIPT_VOUCHERS
+      ENDPOINTS.RECEIPT_VOUCHERS,
     );
     return data;
   },
@@ -37,7 +37,7 @@ export const receiptVoucherService = {
    */
   async getById(id: string): Promise<ReceiptVoucherPayload> {
     const { data } = await axiosClient.get<ReceiptVoucherPayload>(
-      `${ENDPOINTS.RECEIPT_VOUCHERS}/${id}`
+      `${ENDPOINTS.RECEIPT_VOUCHERS}/${id}`,
     );
     return data;
   },
@@ -48,8 +48,29 @@ export const receiptVoucherService = {
   async create(payload: ReceiptVoucherPayload): Promise<ReceiptVoucherPayload> {
     const { data } = await axiosClient.post<ReceiptVoucherPayload>(
       ENDPOINTS.RECEIPT_VOUCHERS,
-      payload
+      payload,
     );
     return data;
+  },
+
+  /**
+   * Update receipt voucher by ID or voucher number
+   */
+  async update(
+    id: string | number,
+    payload: Partial<ReceiptVoucherPayload>,
+  ): Promise<ReceiptVoucherPayload> {
+    const { data } = await axiosClient.put<ReceiptVoucherPayload>(
+      `${ENDPOINTS.RECEIPT_VOUCHERS}/${String(id)}`,
+      payload,
+    );
+    return data;
+  },
+
+  /**
+   * Delete receipt voucher by ID or voucher number
+   */
+  async delete(id: string | number): Promise<void> {
+    await axiosClient.delete(`${ENDPOINTS.RECEIPT_VOUCHERS}/${String(id)}`);
   },
 };

@@ -27,7 +27,7 @@ export const paymentVoucherService = {
    */
   async getAll(): Promise<PaymentVoucherPayload[]> {
     const { data } = await axiosClient.get<PaymentVoucherPayload[]>(
-      ENDPOINTS.PAYMENT_VOUCHERS
+      ENDPOINTS.PAYMENT_VOUCHERS,
     );
     return data;
   },
@@ -37,7 +37,7 @@ export const paymentVoucherService = {
    */
   async getById(id: string): Promise<PaymentVoucherPayload> {
     const { data } = await axiosClient.get<PaymentVoucherPayload>(
-      `${ENDPOINTS.PAYMENT_VOUCHERS}/${id}`
+      `${ENDPOINTS.PAYMENT_VOUCHERS}/${id}`,
     );
     return data;
   },
@@ -48,8 +48,29 @@ export const paymentVoucherService = {
   async create(payload: PaymentVoucherPayload): Promise<PaymentVoucherPayload> {
     const { data } = await axiosClient.post<PaymentVoucherPayload>(
       ENDPOINTS.PAYMENT_VOUCHERS,
-      payload
+      payload,
     );
     return data;
+  },
+
+  /**
+   * Update payment voucher by ID or voucher number
+   */
+  async update(
+    id: string | number,
+    payload: Partial<PaymentVoucherPayload>,
+  ): Promise<PaymentVoucherPayload> {
+    const { data } = await axiosClient.put<PaymentVoucherPayload>(
+      `${ENDPOINTS.PAYMENT_VOUCHERS}/${String(id)}`,
+      payload,
+    );
+    return data;
+  },
+
+  /**
+   * Delete payment voucher by ID or voucher number
+   */
+  async delete(id: string | number): Promise<void> {
+    await axiosClient.delete(`${ENDPOINTS.PAYMENT_VOUCHERS}/${String(id)}`);
   },
 };

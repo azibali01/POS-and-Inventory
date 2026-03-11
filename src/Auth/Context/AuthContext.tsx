@@ -1,5 +1,11 @@
 import React from "react";
-import { api } from "../../lib/api";
+import { axiosClient } from "../../api";
+import {
+  clearAuthSession,
+  getAuthToken,
+  onAuthExpired,
+  persistAuthSession,
+} from "../../lib/auth-storage";
 
 interface User {
   id: string;
@@ -14,8 +20,6 @@ interface AuthContextType {
   login: (user: User, token: string) => void;
   logout: () => void;
 }
-//test
-
 const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -29,7 +33,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   });
 
   const [token, setToken] = React.useState<string | null>(() => {
-    return localStorage.getItem("auth_token");
+    return getAuthToken();
   });
 
   const isAuthenticated = !!token && !!user;
@@ -37,18 +41,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Set initial token in api headers if it exists
   React.useEffect(() => {
     if (token) {
-      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      axiosClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     } else {
-      delete api.defaults.headers.common["Authorization"];
+      delete axiosClient.defaults.headers.common["Authorization"];
     }
   }, [token]);
+
+  React.useEffect(() => {
+    return onAuthExpired(() => {
+      setUser(null);
+      setToken(null);
+    });
+  }, []);
 
   const login = (user: User, accessToken: string) => {
     setUser(user);
     setToken(accessToken);
     try {
-      localStorage.setItem("auth_user", JSON.stringify(user));
-      localStorage.setItem("auth_token", accessToken);
+      persistAuthSession(user, accessToken);
     } catch (error) {
       console.error("Failed to save auth data to localStorage:", error);
     }
@@ -58,8 +68,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(null);
     setToken(null);
     try {
-      localStorage.removeItem("auth_user");
-      localStorage.removeItem("auth_token");
+      clearAuthSession();
     } catch (error) {
       console.error("Failed to remove auth data from localStorage:", error);
     }

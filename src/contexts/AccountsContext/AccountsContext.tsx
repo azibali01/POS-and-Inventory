@@ -7,7 +7,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import React, { createContext, useState, useCallback, useRef } from "react";
 import { showNotification } from "@mantine/notifications";
-import * as api from "../../lib/api";
+import * as api from "../../api";
 import { ensureArray } from "../../lib/api-response-utils";
 import { logger } from "../../lib/logger";
 import type {
@@ -17,7 +17,7 @@ import type {
 } from "./types";
 
 const AccountsContext = createContext<AccountsContextType | undefined>(
-  undefined
+  undefined,
 );
 
 /**
@@ -44,10 +44,10 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
 
   // Refs to track loading promises
   const receiptVouchersPromiseRef = useRef<Promise<ReceiptVoucher[]> | null>(
-    null
+    null,
   );
   const paymentVouchersPromiseRef = useRef<Promise<PaymentVoucher[]> | null>(
-    null
+    null,
   );
 
   /**

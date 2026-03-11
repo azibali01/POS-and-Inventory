@@ -1,4 +1,3 @@
- 
 import { useState, useMemo, useEffect } from "react";
 import {
   Title,
@@ -16,28 +15,23 @@ import {
 import { showNotification } from "@mantine/notifications";
 import { IconPlus, IconEdit, IconTrash } from "@tabler/icons-react";
 import Table from "../../../lib/AppTable";
-import { useDataContext } from "../../Context/DataContext";
-import type { Color } from "../../Context/DataContext";
+import { useColor } from "../../../hooks/useColor";
+import type { ColorPayload } from "../../../api";
 
 export default function ColorPage() {
   const {
     colors,
-    colorsLoading,
-    createColor,
-    updateColor,
-    deleteColor,
-    refreshFromBackend,
-  } = useDataContext();
-
-  useEffect(() => {
-    refreshFromBackend();
-  }, []);
+    isLoading: colorsLoading,
+    createColorAsync,
+    updateColorAsync,
+    deleteColorAsync,
+  } = useColor();
 
   const [opened, setOpened] = useState(false);
-  const [editingColor, setEditingColor] = useState<Color | null>(null);
+  const [editingColor, setEditingColor] = useState<ColorPayload | null>(null);
   const [deleteModalOpened, setDeleteModalOpened] = useState(false);
-  const [colorToDelete, setColorToDelete] = useState<Color | null>(null);
-  
+  const [colorToDelete, setColorToDelete] = useState<ColorPayload | null>(null);
+
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -57,7 +51,7 @@ export default function ColorPage() {
     return colors.slice(start, end);
   }, [colors, currentPage, itemsPerPage]);
 
-  const handleOpenModal = (color?: Color) => {
+  const handleOpenModal = (color?: ColorPayload) => {
     if (color) {
       setEditingColor(color);
       setForm({
@@ -97,12 +91,15 @@ export default function ColorPage() {
 
     try {
       if (editingColor && editingColor._id) {
-        await updateColor(editingColor._id, {
-          name: form.name.trim(),
-          description: form.description.trim(),
+        await updateColorAsync({
+          id: editingColor._id,
+          payload: {
+            name: form.name.trim(),
+            description: form.description.trim(),
+          },
         });
       } else {
-        await createColor({
+        await createColorAsync({
           name: form.name.trim(),
           description: form.description.trim(),
         });
@@ -113,7 +110,7 @@ export default function ColorPage() {
     }
   };
 
-  const handleDeleteClick = (color: Color) => {
+  const handleDeleteClick = (color: ColorPayload) => {
     setColorToDelete(color);
     setDeleteModalOpened(true);
   };
@@ -122,7 +119,7 @@ export default function ColorPage() {
     if (!colorToDelete || !colorToDelete._id) return;
 
     try {
-      await deleteColor(colorToDelete._id);
+      await deleteColorAsync(colorToDelete._id);
       setDeleteModalOpened(false);
       setColorToDelete(null);
     } catch (error) {
@@ -135,9 +132,7 @@ export default function ColorPage() {
       <Group justify="space-between" mb="md">
         <div>
           <Title order={2}>Colors</Title>
-          <Text color="dimmed">
-            Manage color options for products
-          </Text>
+          <Text color="dimmed">Manage color options for products</Text>
           <Group gap="xs" mt="xs">
             <Text size="sm" color="dimmed">
               Showing {paginatedColors.length} of {totalColors} colors
@@ -157,7 +152,9 @@ export default function ColorPage() {
         <div>
           <Button
             leftSection={<IconPlus />}
-            onClick={() => { handleOpenModal(); }}
+            onClick={() => {
+              handleOpenModal();
+            }}
           >
             Add Color
           </Button>
@@ -193,13 +190,17 @@ export default function ColorPage() {
                     <Group justify="flex-end">
                       <ActionIcon
                         variant="subtle"
-                        onClick={() => { handleOpenModal(color); }}
+                        onClick={() => {
+                          handleOpenModal(color);
+                        }}
                       >
                         <IconEdit size={18} />
                       </ActionIcon>
                       <ActionIcon
                         variant="subtle"
-                        onClick={() => { handleDeleteClick(color); }}
+                        onClick={() => {
+                          handleDeleteClick(color);
+                        }}
                       >
                         <IconTrash size={18} color="red" />
                       </ActionIcon>
@@ -242,16 +243,18 @@ export default function ColorPage() {
           placeholder="Enter color name"
           required
           value={form.name}
-          onChange={(e) => { setForm({ ...form, name: e.currentTarget.value }); }}
+          onChange={(e) => {
+            setForm({ ...form, name: e.currentTarget.value });
+          }}
           mb="sm"
         />
         <Textarea
           label="Description"
           placeholder="Optional description"
           value={form.description}
-          onChange={(e) =>
-            { setForm({ ...form, description: e.currentTarget.value }); }
-          }
+          onChange={(e) => {
+            setForm({ ...form, description: e.currentTarget.value });
+          }}
           rows={3}
           mb="md"
         />
@@ -268,7 +271,9 @@ export default function ColorPage() {
       {/* Delete Confirmation Modal */}
       <Modal
         opened={deleteModalOpened}
-        onClose={() => { setDeleteModalOpened(false); }}
+        onClose={() => {
+          setDeleteModalOpened(false);
+        }}
         title="Delete Color"
         size="sm"
       >
@@ -279,7 +284,9 @@ export default function ColorPage() {
         <Group justify="flex-end">
           <Button
             variant="default"
-            onClick={() => { setDeleteModalOpened(false); }}
+            onClick={() => {
+              setDeleteModalOpened(false);
+            }}
           >
             Cancel
           </Button>

@@ -1,69 +1,60 @@
-# React + TypeScript + Vite
+# POS and Inventory Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React, TypeScript, Vite, Mantine, and React Query frontend for the 7 Star Traders POS and inventory workflow.
 
-Currently, two official plugins are available:
+## Core Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Sales invoices, quotations, sale returns, and draft restore
+- Purchase orders, purchase invoices, GRNs, and purchase returns
+- Products, categories, colors, stock reporting, and inventory views
+- Customers, suppliers, expenses, payment vouchers, and receipt vouchers
+- Authenticated cashier shift flow backed by `GET /session/active`, `POST /session/open`, and `POST /session/close`
 
-## Expanding the ESLint configuration
+## Local Development
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Default local frontend URL: `http://localhost:5173`
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Environment Variables
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Create a `.env` file in this folder when you need to override defaults.
+
+```env
+VITE_API_URL=http://localhost:3000
+VITE_APP_NAME=7 Star Traders
+VITE_APP_VERSION=1.0.0
 ```
+
+Notes:
+
+- `VITE_API_URL` should point to the Nest backend base URL.
+- If `VITE_API_URL` is omitted, development defaults to `http://localhost:3000`.
+- Production builds fall back to the hardcoded deployed API URL from `src/lib/env.ts`, but setting `VITE_API_URL` explicitly is safer.
+
+## Production Build
+
+```bash
+npm install
+npm run build
+npm run preview
+```
+
+The build output is written to `dist/`.
+
+## Production Setup
+
+1. Set `VITE_API_URL` to the public backend origin.
+2. Build with `npm run build`.
+3. Deploy the `dist/` directory to your static host.
+4. Make sure the backend `ALLOWED_ORIGINS` includes the deployed frontend origin.
+
+## Recommended Deployment Checks
+
+- Log in with a seeded or bootstrap admin account.
+- Verify sales invoice creation is blocked until a shift is opened.
+- Verify receipt voucher and sale return routes resolve correctly.
+- Verify paginated sales, purchase invoices, and product lists load from the backend.

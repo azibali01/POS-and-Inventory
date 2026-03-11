@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useDataContext } from "../../Dashboard/Context/DataContext";
+import { useCustomers } from "../../hooks";
 import {
   Modal,
   TextInput,
@@ -37,16 +37,15 @@ export function ReceiptForm({
   onSave: (payload: ReceiptVoucher) => void;
   initialValues?: Partial<ReceiptVoucher>;
 }) {
-  const dataCtx = useDataContext();
-  const customers = dataCtx?.customers ?? [];
+  const { customers = [] } = useCustomers();
 
   const [voucherNumber, setVoucherNumber] = useState("");
   const [voucherDate, setVoucherDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
+    new Date().toISOString().slice(0, 10),
   );
   const [receivedFrom, setReceivedFrom] = useState("");
   const [receivedFromId, setReceivedFromId] = useState<string | undefined>(
-    undefined
+    undefined,
   );
   const [amount, setAmount] = useState<number | undefined>(undefined);
   const [paymentMode, setPaymentMode] =
@@ -62,8 +61,8 @@ export function ReceiptForm({
         initialValues?.voucherDate
           ? typeof initialValues.voucherDate === "string"
             ? (initialValues.voucherDate as string).slice(0, 10)
-            : (initialValues.voucherDate).toISOString().slice(0, 10)
-          : new Date().toISOString().slice(0, 10)
+            : initialValues.voucherDate.toISOString().slice(0, 10)
+          : new Date().toISOString().slice(0, 10),
       );
       setReceivedFrom(initialValues?.receivedFrom ?? "");
       setReceivedFromId(initialValues?.receivedFromId);
@@ -116,20 +115,26 @@ export function ReceiptForm({
   return (
     <Modal
       opened={open}
-      onClose={() => { onOpenChange(false); }}
+      onClose={() => {
+        onOpenChange(false);
+      }}
       title="Receipt Voucher"
     >
       <TextInput
         label="Voucher No"
         value={voucherNumber}
-        onChange={(e) => { setVoucherNumber(e.currentTarget.value); }}
+        onChange={(e) => {
+          setVoucherNumber(e.currentTarget.value);
+        }}
         placeholder="RV-2025-001"
       />
       <TextInput
         label="Date"
         type="date"
         value={voucherDate}
-        onChange={(e) => { setVoucherDate(e.currentTarget.value); }}
+        onChange={(e) => {
+          setVoucherDate(e.currentTarget.value);
+        }}
       />
 
       <Select
@@ -157,7 +162,9 @@ export function ReceiptForm({
         <TextInput
           label="Manual Entry"
           value={receivedFrom}
-          onChange={(e) => { setReceivedFrom(e.currentTarget.value); }}
+          onChange={(e) => {
+            setReceivedFrom(e.currentTarget.value);
+          }}
           placeholder="Customer Name or Other"
         />
       )}
@@ -166,7 +173,9 @@ export function ReceiptForm({
         <NumberInput
           label="Amount"
           value={amount}
-          onChange={(v) => { setAmount(typeof v === "number" ? v : undefined); }}
+          onChange={(v) => {
+            setAmount(typeof v === "number" ? v : undefined);
+          }}
           hideControls
         />
         <Select
@@ -176,12 +185,16 @@ export function ReceiptForm({
             label: v,
           }))}
           value={paymentMode}
-          onChange={(v) => { setPaymentMode(v as ReceiptVoucher["paymentMode"]); }}
+          onChange={(v) => {
+            setPaymentMode(v as ReceiptVoucher["paymentMode"]);
+          }}
         />
         <TextInput
           label="Reference"
           value={reference}
-          onChange={(e) => { setReference(e.currentTarget.value); }}
+          onChange={(e) => {
+            setReference(e.currentTarget.value);
+          }}
           placeholder="INV-2025-001"
         />
       </Group>
@@ -189,12 +202,19 @@ export function ReceiptForm({
       <TextInput
         label="Remarks"
         value={remarks}
-        onChange={(e) => { setRemarks(e.currentTarget.value); }}
+        onChange={(e) => {
+          setRemarks(e.currentTarget.value);
+        }}
         placeholder="Optional notes"
       />
 
       <Group justify="flex-end" mt="md">
-        <Button variant="outline" onClick={() => { onOpenChange(false); }}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            onOpenChange(false);
+          }}
+        >
           Cancel
         </Button>
         <Button variant="default" onClick={printPreview}>

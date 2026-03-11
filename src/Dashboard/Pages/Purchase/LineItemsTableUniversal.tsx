@@ -1,29 +1,96 @@
 import { useMemo } from "react";
-import { Button, NumberInput, TextInput, Select, Group } from "@mantine/core";
+import {
+  Badge,
+  Button,
+  NumberInput,
+  TextInput,
+  Select,
+  Group,
+  Text,
+} from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { Trash2 } from "lucide-react";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency } from "../../../lib/format-utils";
 import { useEffect } from "react";
+import type { InventoryItem } from "../../../types";
+import {
+  calculateLineSubtotal,
+  findSelectedProduct,
+  findSelectedVariant,
+  getColorOptions,
+  getProductOptions,
+  getThicknessOptions,
+  getVariantStock,
+  hasIncompleteVariantSelection,
+  toProductId,
+} from "../../../lib/variant-line-item-utils";
 export interface LineItemsTableUniversalProps {
   items: PurchaseLineItem[];
   setItems: (items: PurchaseLineItem[]) => void;
-  inventory: {
-    id?: string;
-    _id?: string;
-    itemName?: string;
-    name?: string;
-    unit?: string;
-    salesRate?: number;
-    color?: string;
-    thickness?: string;
-    length?: string | number;
-  }[];
+  inventory: InventoryItem[];
   colors: { name: string }[];
   allowNegativeQty?: boolean;
   editableRate?: boolean;
   showAmountCol?: boolean;
   addRowLabel?: string;
+}
+
+export function createEmptyPurchaseLineItem(): PurchaseLineItem {
+  return {
+    id: crypto.randomUUID(),
+    productId: "",
+    sku: "",
+    productName: "",
+    itemName: "",
+    quantity: 1,
+    rate: 0,
+    salesRate: 0,
+    unit: "pcs",
+    color: "",
+    thickness: "",
+    length: "",
+    grossAmount: 0,
+    percent: 0,
+    discountAmount: 0,
+    netAmount: 0,
+    amount: 0,
+    subtotal: 0,
+    availableStock: 0,
+  };
+}
+
+function normalizePurchaseRow(
+  item: PurchaseLineItem,
+  patch: Partial<PurchaseLineItem> = {},
+): PurchaseLineItem {
+  const next = { ...item, ...patch };
+  const rate = Number(next.rate ?? next.salesRate ?? 0);
+  const quantity = Number(next.quantity ?? 0);
+  const subtotal = calculateLineSubtotal({
+    ...next,
+    quantity,
+    rate,
+    salesRate: rate,
+  });
+
+  return {
+    ...next,
+    itemName: String(next.itemName || next.productName || ""),
+    productName: String(next.productName || next.itemName || ""),
+    productId: toProductId(next.productId),
+    sku: String(next.sku || ""),
+    thickness: String(next.thickness || ""),
+    color: String(next.color || ""),
+    quantity,
+    rate,
+    salesRate: rate,
+    grossAmount: subtotal,
+    netAmount: subtotal,
+    amount: subtotal,
+    subtotal,
+    availableStock: Number(next.availableStock ?? 0),
+  };
 }
 
 export function LineItemsTableUniversal({
@@ -36,18 +103,9 @@ export function LineItemsTableUniversal({
   showAmountCol = true,
   addRowLabel = "Add Item",
 }: LineItemsTableUniversalProps) {
-  const products = useMemo(
-    () =>
-      inventory.map((p) => ({
-        id: String(p.id || p._id),
-        name: p.itemName ?? p.name ?? "",
-        unit: p.unit,
-        salesRate: p.salesRate || 0,
-        color: p.color,
-        thickness: p.thickness,
-        length: p.length,
-      })),
-    [inventory]
+  const productOptions = useMemo(
+    () => getProductOptions(inventory),
+    [inventory],
   );
 
   // Ensure at least one row is present on mount
@@ -59,25 +117,7 @@ export function LineItemsTableUniversal({
   }, []);
 
   function addRow() {
-    setItems([
-      ...items,
-      {
-        id: crypto.randomUUID(),
-        productId: "",
-        productName: "",
-        quantity: 1,
-        rate: 0,
-        unit: "pcs",
-        color: "",
-        thickness: "",
-        length: "",
-        grossAmount: 0,
-        percent: 0,
-        discountAmount: 0,
-        netAmount: 0,
-        amount: 0,
-      },
-    ]);
+    setItems([...items, createEmptyPurchaseLineItem()]);
   }
 
   function removeRow(id: string) {
@@ -88,19 +128,8 @@ export function LineItemsTableUniversal({
     setItems(
       items.map((i) => {
         if (i.id !== id) return i;
-        const next: PurchaseLineItem = { ...i, ...patch };
-        // Calculate amount as quantity * rate * (length if present)
-        const qty = Number(next.quantity) || 0;
-        const rate = Number(next.rate) || 0;
-        const length =
-          next.length !== undefined &&
-          next.length !== null &&
-          next.length !== ""
-            ? Number(next.length)
-            : 1;
-        next.amount = qty * rate * length;
-        return next;
-      })
+        return normalizePurchaseRow(i, patch);
+      }),
     );
   }
 
@@ -124,13 +153,13 @@ export function LineItemsTableUniversal({
           <Table.Thead>
             <Table.Tr>
               <Table.Th style={{ textAlign: "left", padding: 8, width: 180 }}>
-                Item
+                Product
               </Table.Th>
               <Table.Th style={{ textAlign: "left", padding: 8, width: 120 }}>
-                Color
+                Thickness
               </Table.Th>
               <Table.Th style={{ textAlign: "left", padding: 8, width: 100 }}>
-                Thickness
+                Color
               </Table.Th>
               <Table.Th style={{ textAlign: "left", padding: 8, width: 100 }}>
                 Length
@@ -152,120 +181,188 @@ export function LineItemsTableUniversal({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {items.map((row) => (
-              <Table.Tr key={row.id}>
-                <Table.Td style={{ padding: 8 }}>
-                  <Select
-                    searchable
-                    clearable
-                    nothingFoundMessage="No products found"
-                    data={products.map((p) => ({
-                      value: String(p.id),
-                      label: `${p.name}${
-                        p.thickness || p.color
-                          ? ` (Thickness: ${p.thickness ?? "-"}, Color: ${
-                              p.color ?? "-"
-                            })`
-                          : ""
-                      }`,
-                    }))}
-                    value={
-                      products.find((p) => p.name === row.productName)?.id || ""
-                    }
-                    onChange={(productId) => {
-                      const p = products.find(
-                        (x) => String(x.id) === String(productId)
-                      );
-                      if (p) {
-                        updateRow(row.id, {
-                          productName: p.name || "",
-                          rate: p.salesRate ?? 0,
-                          color: p.color ?? undefined,
-                          thickness: p.thickness
-                            ? String(p.thickness)
-                            : undefined,
-                          length: p.length ?? undefined,
-                        });
-                      } else {
-                        updateRow(row.id, {
-                          productName: "",
-                          rate: 0,
-                          color: undefined,
-                          thickness: undefined,
-                          length: undefined,
-                        });
+            {items.map((rawRow) => {
+              const row = normalizePurchaseRow(rawRow);
+              const selectedProduct = findSelectedProduct(inventory, row);
+              const thicknessOptions = getThicknessOptions(selectedProduct);
+              const colorOptions = getColorOptions(
+                selectedProduct,
+                String(row.thickness || ""),
+              );
+              const selectedVariant = findSelectedVariant(
+                selectedProduct,
+                String(row.thickness || ""),
+                String(row.color || ""),
+                row.sku,
+              );
+              const availableStock = getVariantStock(selectedVariant);
+              const quantity = Number(row.quantity || 0);
+              const oversoldBy = Math.max(0, quantity - availableStock);
+
+              return (
+                <Table.Tr key={row.id}>
+                  <Table.Td style={{ padding: 8 }}>
+                    <Select
+                      searchable
+                      clearable
+                      nothingFoundMessage="No products found"
+                      data={productOptions}
+                      value={
+                        toProductId(selectedProduct?._id) || row.productId || ""
                       }
-                    }}
-                  />
-                </Table.Td>
-                <Table.Td style={{ padding: 8 }}>
-                  <Select
-                    placeholder="Color"
-                    data={colors.map((c) => ({ value: c.name, label: c.name }))}
-                    value={row.color}
-                    onChange={(v: string | null) =>
-                      { updateRow(row.id, {
-                        color: v ?? undefined,
-                      }); }
-                    }
-                  />
-                </Table.Td>
-                <Table.Td style={{ padding: 8 }}>
-                  <TextInput
-                    value={row.thickness}
-                    onChange={(e) =>
-                      { updateRow(row.id, { thickness: e.target.value }); }
-                    }
-                    placeholder="Thickness"
-                  />
-                </Table.Td>
-                <Table.Td style={{ padding: 8 }}>
-                  <TextInput
-                    value={String(row.length ?? "")}
-                    onChange={(e) =>
-                      { updateRow(row.id, { length: e.target.value }); }
-                    }
-                    placeholder="Length"
-                  />
-                </Table.Td>
-                <Table.Td style={{ padding: 8, textAlign: "right" }}>
-                  <NumberInput
-                    value={row.quantity}
-                    onChange={(v) =>
-                      { updateRow(row.id, {
-                        quantity: allowNegativeQty
-                          ? Number(v)
-                          : Math.max(0, Number(v || 0)),
-                      }); }
-                    }
-                    min={allowNegativeQty ? undefined : 0}
-                    hideControls
-                  />
-                </Table.Td>
-                <Table.Td style={{ padding: 8 }}>
-                  <NumberInput
-                    value={row.rate}
-                    onChange={(v) =>
-                      { editableRate
-                        ? updateRow(row.id, { rate: Number(v || 0) })
-                        : undefined; }
-                    }
-                    min={0}
-                    readOnly={!editableRate}
-                  />
-                </Table.Td>
-                {showAmountCol && (
-                  <Table.Td style={{ padding: 8, textAlign: "left" }}>
-                    {formatCurrency(row.amount ?? 0)}
+                      onChange={(productId) => {
+                        const product =
+                          inventory.find(
+                            (entry) =>
+                              toProductId(entry._id) ===
+                              String(productId || ""),
+                          ) || null;
+                        updateRow(row.id, {
+                          productId: productId || "",
+                          productName: product?.itemName || "",
+                          itemName: product?.itemName || "",
+                          unit: product?.unit || "pcs",
+                          sku: "",
+                          thickness: "",
+                          color: "",
+                          quantity: 0,
+                          rate: 0,
+                          salesRate: 0,
+                          availableStock: 0,
+                        });
+                      }}
+                    />
                   </Table.Td>
-                )}
-                <Table.Td style={{ padding: 8, textAlign: "left" }}>
-                  <Button variant="subtle" onClick={() => { removeRow(row.id); }}>
-                    <Trash2 size={16} />
-                  </Button>
-                </Table.Td>
-              </Table.Tr>
-            ))}
+                  <Table.Td style={{ padding: 8 }}>
+                    <Select
+                      placeholder="Thickness"
+                      data={thicknessOptions}
+                      value={String(row.thickness || "")}
+                      onChange={(v: string | null) => {
+                        updateRow(row.id, {
+                          thickness: v ?? "",
+                          color: "",
+                          sku: "",
+                          quantity: 0,
+                          rate: 0,
+                          salesRate: 0,
+                          availableStock: 0,
+                        });
+                      }}
+                      disabled={!selectedProduct}
+                      error={
+                        selectedProduct && !String(row.thickness || "").trim()
+                          ? "Required"
+                          : undefined
+                      }
+                    />
+                  </Table.Td>
+                  <Table.Td style={{ padding: 8 }}>
+                    <Select
+                      placeholder="Color"
+                      data={colorOptions}
+                      value={String(row.color || "")}
+                      onChange={(v: string | null) => {
+                        const color = v ?? "";
+                        const variant = findSelectedVariant(
+                          selectedProduct,
+                          String(row.thickness || ""),
+                          color,
+                        );
+                        updateRow(row.id, {
+                          color,
+                          sku: variant?.sku || "",
+                          rate: Number(variant?.salesRate ?? 0),
+                          salesRate: Number(variant?.salesRate ?? 0),
+                          availableStock: getVariantStock(variant),
+                        });
+                      }}
+                      disabled={
+                        !selectedProduct || !String(row.thickness || "").trim()
+                      }
+                      error={
+                        selectedProduct && !String(row.color || "").trim()
+                          ? "Required"
+                          : undefined
+                      }
+                    />
+                    {row.sku ? (
+                      <Text size="xs" c="dimmed" mt={4}>
+                        SKU: {row.sku}
+                      </Text>
+                    ) : null}
+                  </Table.Td>
+                  <Table.Td style={{ padding: 8 }}>
+                    <TextInput
+                      value={String(row.length ?? "")}
+                      onChange={(e) => {
+                        updateRow(row.id, { length: e.target.value });
+                      }}
+                      placeholder="Length"
+                    />
+                  </Table.Td>
+                  <Table.Td style={{ padding: 8, textAlign: "right" }}>
+                    <NumberInput
+                      value={row.quantity}
+                      onChange={(v) => {
+                        updateRow(row.id, {
+                          quantity: allowNegativeQty
+                            ? Number(v)
+                            : Math.max(0, Number(v || 0)),
+                        });
+                      }}
+                      min={allowNegativeQty ? undefined : 0}
+                      hideControls
+                      error={
+                        hasIncompleteVariantSelection(row)
+                          ? "Complete variant selection first"
+                          : undefined
+                      }
+                    />
+                    {row.sku ? (
+                      <Group gap={6} mt={4} justify="flex-end">
+                        <Badge
+                          color={availableStock > 0 ? "green" : "red"}
+                          variant="light"
+                        >
+                          Available Stock: {availableStock}
+                        </Badge>
+                        {oversoldBy > 0 ? (
+                          <Badge color="red">Over by {oversoldBy}</Badge>
+                        ) : null}
+                      </Group>
+                    ) : null}
+                  </Table.Td>
+                  <Table.Td style={{ padding: 8 }}>
+                    <NumberInput
+                      value={row.rate}
+                      onChange={(v) => {
+                        editableRate
+                          ? updateRow(row.id, { rate: Number(v || 0) })
+                          : undefined;
+                      }}
+                      min={0}
+                      readOnly={!editableRate}
+                    />
+                  </Table.Td>
+                  {showAmountCol && (
+                    <Table.Td style={{ padding: 8, textAlign: "left" }}>
+                      {formatCurrency(row.subtotal ?? row.amount ?? 0)}
+                    </Table.Td>
+                  )}
+                  <Table.Td style={{ padding: 8, textAlign: "left" }}>
+                    <Button
+                      variant="subtle"
+                      onClick={() => {
+                        removeRow(row.id);
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
           </Table.Tbody>
         </Table>
       </div>

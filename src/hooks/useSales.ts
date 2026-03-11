@@ -3,9 +3,13 @@ import {
   salesService,
   saleReturnService,
   quotationService,
+  type ListQueryParams,
   type SaleRecordPayload,
   type QuotationRecordPayload,
 } from "../api";
+
+type SalesListParams = Required<Pick<ListQueryParams, "page" | "limit">> &
+  Pick<ListQueryParams, "search">;
 
 /**
  * Custom hook for sales management
@@ -90,6 +94,25 @@ export function useSales() {
   };
 }
 
+export function useSalesList(params: SalesListParams) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ["sales", "list", params.page, params.limit, params.search ?? ""],
+    queryFn: () => salesService.list(params),
+  });
+
+  return {
+    sales: data?.data ?? [],
+    pagination: {
+      total: data?.total ?? 0,
+      page: data?.page ?? params.page,
+      lastPage: data?.lastPage ?? 1,
+    },
+    isLoading,
+    error,
+    refetch,
+  };
+}
+
 /**
  * Custom hook for sale returns management
  */
@@ -109,7 +132,8 @@ export function useSaleReturns() {
 
   // Create sale return mutation
   const createMutation = useMutation({
-    mutationFn: (saleReturn: Record<string, unknown>) => saleReturnService.create(saleReturn),
+    mutationFn: (saleReturn: Record<string, unknown>) =>
+      saleReturnService.create(saleReturn),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
     },

@@ -7,7 +7,6 @@ import {
   Box,
   Grid,
   Tabs,
-
   Pagination,
   Select,
 } from "@mantine/core";
@@ -19,7 +18,7 @@ import {
 } from "@tabler/icons-react";
 
 import { useState, useEffect, useMemo } from "react";
-import api from "../../../lib/api";
+import { axiosClient } from "../../../api";
 import type { InventoryItem } from "../../Context/DataContext";
 
 function formatNumber(n: number | undefined) {
@@ -42,7 +41,7 @@ export default function StockReportPage() {
   useEffect(() => {
     async function fetchProducts() {
       try {
-        const { data } = await api.get("products");
+        const { data } = await axiosClient.get("/products");
         setInventory(Array.isArray(data) ? data : []);
       } catch {
         setInventory([]);
@@ -68,7 +67,7 @@ export default function StockReportPage() {
   const negativeStockItems = products.filter((p) => getStockValue(p) < 0);
   // In stock: stock > minimumStockLevel
   const inStockItems = products.filter(
-    (p) => getStockValue(p) > (p.minimumStockLevel || 0)
+    (p) => getStockValue(p) > (p.minimumStockLevel || 0),
   );
 
   // Pagination for All Items
@@ -89,7 +88,7 @@ export default function StockReportPage() {
 
   // Pagination for Negative Stock
   const negTotalPages = Math.ceil(
-    negativeStockItems.length / parseInt(negPerPage)
+    negativeStockItems.length / parseInt(negPerPage),
   );
   const negPaginated = useMemo(() => {
     const start = (negPage - 1) * parseInt(negPerPage);
@@ -193,7 +192,10 @@ export default function StockReportPage() {
               </Box>
             </Card.Section>
             <Card.Section>
-              <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
+              <div
+                className="app-table-wrapper"
+                style={{ maxHeight: "55vh", overflow: "auto" }}
+              >
                 <Table verticalSpacing="sm">
                   <Table.Thead>
                     <Table.Tr>
@@ -285,7 +287,10 @@ export default function StockReportPage() {
               </Box>
             </Card.Section>
             <Card.Section>
-              <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
+              <div
+                className="app-table-wrapper"
+                style={{ maxHeight: "55vh", overflow: "auto" }}
+              >
                 <Table verticalSpacing="sm">
                   <Table.Thead>
                     <Table.Tr>
@@ -334,7 +339,7 @@ export default function StockReportPage() {
                         >
                           {formatNumber(
                             (product.minimumStockLevel || 0) -
-                              getStockValue(product)
+                              getStockValue(product),
                           )}
                         </Table.Td>
                       </Table.Tr>
@@ -385,7 +390,10 @@ export default function StockReportPage() {
               </Box>
             </Card.Section>
             <Card.Section>
-              <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
+              <div
+                className="app-table-wrapper"
+                style={{ maxHeight: "55vh", overflow: "auto" }}
+              >
                 <Table verticalSpacing="sm">
                   <Table.Thead>
                     <Table.Tr>

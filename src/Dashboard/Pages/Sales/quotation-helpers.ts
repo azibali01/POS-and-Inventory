@@ -8,7 +8,7 @@ import type {
   QuotationRecordPayload,
   InventoryItemPayload,
   CustomerPayload,
-} from "../../../lib/api";
+} from "../../../api";
 import type { SalesPayload } from "../../../components/sales/SalesDocShell";
 
 /**
@@ -17,7 +17,7 @@ import type { SalesPayload } from "../../../components/sales/SalesDocShell";
  */
 export function normalizeQuotationCustomer(
   customer: SalesPayload["customer"],
-  customers: Array<{ _id: string; name: string }>
+  customers: Array<{ _id: string; name: string }>,
 ): CustomerPayload | undefined {
   if (!customer) return undefined;
 
@@ -36,7 +36,7 @@ export function normalizeQuotationCustomer(
  * Ensures proper type conversions and defaults
  */
 export function mapQuotationProducts(
-  items: SalesPayload["products"] | undefined
+  items: SalesPayload["products"] | undefined,
 ): InventoryItemPayload[] {
   if (!items) return [];
 
@@ -50,9 +50,7 @@ export function mapQuotationProducts(
         : 0,
     discountAmount:
       typeof (it as { discountAmount?: unknown }).discountAmount === "number"
-        ? Math.floor(
-            Number((it as { discountAmount?: number }).discountAmount)
-          )
+        ? Math.floor(Number((it as { discountAmount?: number }).discountAmount))
         : 0,
     salesRate: Math.floor(it.salesRate ?? 0),
     color: it.color ?? "",
@@ -71,14 +69,12 @@ export function mapQuotationProducts(
       typeof (it as { totalGrossAmount?: unknown }).totalGrossAmount ===
       "number"
         ? Math.floor(
-            Number((it as { totalGrossAmount?: number }).totalGrossAmount)
+            Number((it as { totalGrossAmount?: number }).totalGrossAmount),
           )
         : 0,
     totalNetAmount:
       typeof (it as { totalNetAmount?: unknown }).totalNetAmount === "number"
-        ? Math.floor(
-            Number((it as { totalNetAmount?: number }).totalNetAmount)
-          )
+        ? Math.floor(Number((it as { totalNetAmount?: number }).totalNetAmount))
         : 0,
   }));
 }
@@ -88,14 +84,16 @@ export function mapQuotationProducts(
  * Sums up the total based on rate and quantity
  */
 export function calculateGrossAmount(
-  products: InventoryItemPayload[] | undefined
+  products: InventoryItemPayload[] | undefined,
 ): number {
   if (!products) return 0;
 
   return products.reduce((sum, it) => {
-    const rate = Number((it as InventoryItemPayload & { rate?: number }).rate) || 0;
+    const rate =
+      Number((it as InventoryItemPayload & { rate?: number }).rate) || 0;
     const quantity =
-      Number((it as InventoryItemPayload & { quantity?: number }).quantity) || 0;
+      Number((it as InventoryItemPayload & { quantity?: number }).quantity) ||
+      0;
     return sum + rate * quantity;
   }, 0);
 }
@@ -107,7 +105,7 @@ export function calculateGrossAmount(
 export function buildQuotationPayload(
   payload: SalesPayload,
   quotationNumber: string,
-  customers: Array<{ _id: string; name: string }>
+  customers: Array<{ _id: string; name: string }>,
 ): QuotationRecordPayload {
   const customer = normalizeQuotationCustomer(payload.customer, customers);
   const products = mapQuotationProducts(payload.products);
@@ -118,14 +116,14 @@ export function buildQuotationPayload(
     products,
     quotationDate: payload.docDate ?? new Date().toISOString(),
     // Backend expects single customer object, not array
-    customer: customer ?? {} as any,
+    customer: customer ?? ({} as any),
     remarks: payload.remarks ?? "",
     subTotal: Math.floor(payload.totals?.subTotal ?? gross),
     totalGrossAmount: Math.floor(
       (payload as SalesPayload & { totalGrossAmount?: number })
         .totalGrossAmount ??
         payload.totals?.total ??
-        gross
+        gross,
     ),
     totalDiscount:
       (
@@ -152,7 +150,7 @@ export function buildQuotationPayload(
 export function buildTempQuotationRow(
   payload: SalesPayload,
   quotationNumber: string,
-  customer: CustomerPayload | undefined
+  customer: CustomerPayload | undefined,
 ): QuotationRecordPayload {
   const products = mapQuotationProducts(payload.products);
   const gross = calculateGrossAmount(payload.products);
@@ -162,14 +160,14 @@ export function buildTempQuotationRow(
     products,
     quotationDate: payload.docDate ?? new Date().toISOString(),
     // Backend expects single customer object, not array
-    customer: customer ?? {} as any,
+    customer: customer ?? ({} as any),
     remarks: payload.remarks ?? "",
     subTotal: Math.floor(payload.totals?.subTotal ?? gross),
     totalGrossAmount: Math.floor(
       (payload as SalesPayload & { totalGrossAmount?: number })
         .totalGrossAmount ??
         payload.totals?.total ??
-        gross
+        gross,
     ),
     totalDiscount:
       (

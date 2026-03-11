@@ -1,22 +1,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { useState, useMemo } from "react";
-import { logger } from "../../../lib/logger";
+import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
   Button,
   Box,
   Text,
+  TextInput,
+  Select,
   Menu,
   ActionIcon,
   Table,
   Title,
+  Pagination,
 } from "@mantine/core";
 import {
   IconEdit,
   IconTrash,
   IconPrinter,
   IconDotsVertical,
+  IconSearch,
 } from "@tabler/icons-react";
 import openPrintWindow from "../../../components/print/printWindow";
 import { generateGatePassHTML } from "../../../components/print/printTemplate";
@@ -24,14 +27,22 @@ import SalesDocShell, {
   type SalesPayload,
 } from "../../../components/sales/SalesDocShell";
 import SavedDraftsPanel from "../../../components/sales/SavedDraftsPanel";
-import { useSales, useQuotations } from "../../../hooks/useSales";
+import ShiftManager from "../../../components/sales/ShiftManager";
+import { useSales, useSalesList, useQuotations } from "../../../hooks/useSales";
 import { useCustomer } from "../../../hooks/useCustomer";
+import { useShift } from "../../../hooks/useShift";
 import { useInventory } from "../../../lib/hooks/useInventory";
 import { formatCurrency } from "../../../lib/format-utils";
 import { showNotification } from "@mantine/notifications";
-import type { SaleRecordPayload } from "../../../lib/api";
+import type { SaleRecordPayload } from "../../../api";
 import { generateNextDocumentNumber } from "../../../utils/document-utils";
 import { buildSaleApiPayload } from "./sale-invoice-helpers";
+import { useDebounce } from "../../../hooks/useDebounce";
+import {
+  findSelectedProduct,
+  findSelectedVariant,
+  toProductId,
+} from "../../../lib/variant-line-item-utils";
 
 // Extend SaleRecord type to include items, id, and date for edit logic compatibility
 export type SaleRecordWithItems = SaleRecordPayload & {
@@ -65,8 +76,244 @@ type SaleItem = {
   metadata?: Record<string, unknown>;
 };
 
+function formatDateForInput(value: unknown): string {
+  if (!value) return "";
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+}
+
+function normalizeInvoiceCustomer(
+  customer: unknown,
+  customers: Array<{
+    _id?: string | number;
+    name?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    openingAmount?: number;
+    paymentType?: "Credit" | "Debit";
+  }>,
+  customerName?: string,
+) {
+  if (Array.isArray(customer) && customer[0]) {
+    const first = customer[0] as {
+      _id?: string | number;
+      id?: string | number;
+      name?: string;
+      phone?: string;
+      address?: string;
+      city?: string;
+      openingAmount?: number;
+      paymentType?: "Credit" | "Debit";
+    };
+
+    if (first.name) {
+      return {
+        _id: first._id,
+        id: first.id ?? first._id,
+        name: first.name,
+        phone: first.phone,
+        address: first.address,
+        city: first.city,
+        openingAmount: first.openingAmount,
+        paymentType: first.paymentType,
+      };
+    }
+  }
+
+  if (customer && typeof customer === "object" && "name" in customer) {
+    const entry = customer as {
+      _id?: string | number;
+      id?: string | number;
+      name?: string;
+      phone?: string;
+      address?: string;
+      city?: string;
+      openingAmount?: number;
+      paymentType?: "Credit" | "Debit";
+    };
+
+    if (entry.name) {
+      return {
+        _id: entry._id,
+        id: entry.id ?? entry._id,
+        name: entry.name,
+        phone: entry.phone,
+        address: entry.address,
+        city: entry.city,
+        openingAmount: entry.openingAmount,
+        paymentType: entry.paymentType,
+      };
+    }
+  }
+
+  const fallbackName = String(customerName ?? "").trim();
+  if (fallbackName) {
+    const matchedCustomer = customers.find(
+      (entry) =>
+        String(entry.name ?? "")
+          .trim()
+          .toLowerCase() === fallbackName.toLowerCase(),
+    );
+
+    if (matchedCustomer?.name) {
+      return {
+        _id: matchedCustomer._id,
+        id: matchedCustomer._id,
+        name: matchedCustomer.name,
+        phone: matchedCustomer.phone,
+        address: matchedCustomer.address,
+        city: matchedCustomer.city,
+        openingAmount: matchedCustomer.openingAmount,
+        paymentType: matchedCustomer.paymentType,
+      };
+    }
+
+    return {
+      name: fallbackName,
+    };
+  }
+
+  return undefined;
+}
+
+function mapInvoiceItemForEdit(item: SaleItem, inventory: any[]) {
+  const productId = item.productId ?? item._id ?? item.id ?? "";
+  const productName = item.productName ?? item.itemName ?? item.name ?? "";
+  const selectedProduct = findSelectedProduct(inventory, {
+    productId,
+    productName,
+    itemName: productName,
+  });
+  const variant = findSelectedVariant(
+    selectedProduct,
+    String(item.thickness ?? ""),
+    String(item.color ?? ""),
+    item.sku,
+  );
+  const resolvedProductId =
+    toProductId(selectedProduct?._id) || toProductId(productId);
+  const resolvedThickness = String(item.thickness ?? variant?.thickness ?? "");
+  const resolvedColor = String(item.color ?? variant?.color ?? "");
+  const resolvedRate = Number(item.salesRate ?? item.sellingPrice ?? 0);
+  const resolvedQuantity = Number(item.quantity ?? 0);
+  const resolvedLength = Number(item.length ?? 0);
+  const subtotal = Number(
+    item.totalGrossAmount ?? resolvedQuantity * resolvedRate * resolvedLength,
+  );
+  const discountAmount = Number(item.discountAmount ?? 0);
+
+  return {
+    ...item,
+    _id: resolvedProductId,
+    productId: resolvedProductId,
+    sku: String(item.sku ?? variant?.sku ?? ""),
+    productName: String(selectedProduct?.itemName ?? productName),
+    itemName: String(selectedProduct?.itemName ?? productName),
+    unit:
+      typeof item.unit === "string"
+        ? item.unit
+        : item.unit !== undefined
+          ? String(item.unit)
+          : String(selectedProduct?.unit ?? ""),
+    thickness: resolvedThickness,
+    color: resolvedColor,
+    quantity: resolvedQuantity,
+    salesRate: resolvedRate,
+    rate: resolvedRate,
+    discount: Number(item.discount ?? 0),
+    discountAmount,
+    length: resolvedLength,
+    amount: subtotal,
+    subtotal,
+    totalGrossAmount: subtotal,
+    totalNetAmount: Number(
+      item.totalNetAmount ?? Math.max(0, subtotal - discountAmount),
+    ),
+    availableStock: Number(
+      variant?.availableStock ?? variant?.openingStock ?? 0,
+    ),
+    openingStock: Number(variant?.openingStock ?? variant?.availableStock ?? 0),
+    brand: String(item.brand ?? (selectedProduct as any)?.brand ?? ""),
+  };
+}
+
+function buildEditPayload(
+  invoice: SaleRecordWithItems,
+  customers: Array<{
+    _id?: string | number;
+    name?: string;
+    phone?: string;
+    address?: string;
+    city?: string;
+    openingAmount?: number;
+    paymentType?: "Credit" | "Debit";
+  }>,
+  inventory: any[],
+): SalesPayload {
+  const items = (
+    (invoice.items && invoice.items.length > 0
+      ? invoice.items
+      : invoice.products) ?? []
+  ).map((item: any) => mapInvoiceItemForEdit(item, inventory));
+
+  return {
+    ...invoice,
+    mode: "Invoice",
+    docNo: String(invoice.invoiceNumber ?? invoice.id ?? ""),
+    docDate: formatDateForInput(
+      invoice.invoiceDate ?? invoice.date ?? invoice.quotationDate,
+    ),
+    customer: normalizeInvoiceCustomer(
+      invoice.customer,
+      customers,
+      invoice.customerName,
+    ),
+    items,
+    totals: {
+      subTotal: invoice.subTotal ?? 0,
+      total: invoice.totalNetAmount ?? invoice.amount ?? 0,
+      amount: invoice.amount ?? invoice.totalNetAmount ?? 0,
+      totalGrossAmount: invoice.totalGrossAmount ?? 0,
+      totalDiscountAmount:
+        (invoice as SaleRecordPayload & { totalDiscountAmount?: number })
+          .totalDiscountAmount ??
+        invoice.totalDiscount ??
+        0,
+      totalNetAmount: invoice.totalNetAmount ?? 0,
+    },
+    remarks: invoice.remarks ?? "",
+    terms: "",
+    receivedAmount:
+      (invoice as SaleRecordPayload & { receivedAmount?: number })
+        .receivedAmount ?? 0,
+  };
+}
+
 export default function SaleInvoice() {
   const { sales, createSaleAsync, deleteSaleAsync } = useSales();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState("10");
+  const debouncedSearch = useDebounce(searchTerm, 500);
+  const {
+    sales: salesPage,
+    pagination,
+    isLoading: salesListLoading,
+  } = useSalesList({
+    page: currentPage,
+    limit: Number(pageSize),
+    search: debouncedSearch || undefined,
+  });
   const { quotations, updateQuotationAsync } = useQuotations();
   const { customers } = useCustomer();
   const { inventory } = useInventory();
@@ -79,13 +326,56 @@ export default function SaleInvoice() {
   const [editingId, setEditingId] = useState<string | number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [initialPayload, setInitialPayload] = useState<SalesPayload | null>(
-    null
+    null,
   );
   const [open, setOpen] = useState(false);
   const [draftsOpen, setDraftsOpen] = useState(false);
+  const [shiftManagerOpen, setShiftManagerOpen] = useState(false);
+  const { hasActiveSession } = useShift();
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   // const [deleteTargetDisplay, setDeleteTargetDisplay] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const createInitialPayload = useMemo<SalesPayload>(
+    () => ({
+      docNo: generateNextDocumentNumber(
+        "INV",
+        sales.map((s) => String(s.invoiceNumber || s.id || "")),
+        4,
+      ),
+      docDate: (() => {
+        let dateObj: Date;
+        if (sales && sales.length > 0) {
+          const latest = sales.reduce<Date | null>((max: Date | null, s) => {
+            const nextDate = s.invoiceDate
+              ? new Date(s.invoiceDate)
+              : s.date
+                ? new Date(s.date)
+                : null;
+            return nextDate && (!max || nextDate > max) ? nextDate : max;
+          }, null);
+          dateObj = latest || new Date();
+        } else {
+          dateObj = new Date();
+        }
+
+        return dateObj.toISOString().slice(0, 10);
+      })(),
+      mode: "Invoice",
+      items: [],
+      totals: {
+        subTotal: 0,
+        total: 0,
+        amount: 0,
+        totalGrossAmount: 0,
+        totalDiscountAmount: 0,
+        totalNetAmount: 0,
+      },
+      terms: "",
+      remarks: "",
+    }),
+    [sales],
+  );
 
   const filteredQuotations = useMemo(() => {
     if (!importQuotationSearch) return quotations;
@@ -97,8 +387,12 @@ export default function SaleInvoice() {
   }, [importQuotationSearch, quotations]);
 
   const [deleteTarget, setDeleteTarget] = useState<string | number | null>(
-    null
+    null,
   );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch]);
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -121,17 +415,15 @@ export default function SaleInvoice() {
     }
   }
 
-
-
   // Handler for creating a new sale invoice (not import)
   async function handleCreateInvoiceSubmit(payload: SalesPayload) {
-    const existingInvoiceNumbers = sales.map(
-      (s) => String(s.invoiceNumber || s.id || "")
+    const existingInvoiceNumbers = sales.map((s) =>
+      String(s.invoiceNumber || s.id || ""),
     );
     const invoiceNumber = generateNextDocumentNumber(
       "INV",
       existingInvoiceNumbers,
-      4
+      4,
     );
 
     const apiPayload = buildSaleApiPayload(
@@ -139,7 +431,6 @@ export default function SaleInvoice() {
       invoiceNumber,
       inventory as any,
       customers as any,
-      { source: "manual" }
     );
 
     try {
@@ -172,13 +463,13 @@ export default function SaleInvoice() {
 
   // Handler for importing quotation
   async function handleQuotationImportSubmit(payload: SalesPayload) {
-    const existingInvoiceNumbers = sales.map(
-      (s) => String(s.invoiceNumber || s.id || "")
+    const existingInvoiceNumbers = sales.map((s) =>
+      String(s.invoiceNumber || s.id || ""),
     );
     const invoiceNumber = generateNextDocumentNumber(
       "INV",
       existingInvoiceNumbers,
-      4
+      4,
     );
 
     const apiPayload = buildSaleApiPayload(
@@ -186,17 +477,10 @@ export default function SaleInvoice() {
       invoiceNumber,
       inventory as any,
       customers as any,
-      { source: "quotation-import" }
     );
 
-    // Override quotationDate for quotation imports
-    const enrichedPayload = {
-      ...apiPayload,
-      quotationDate: apiPayload.invoiceDate,
-    };
-
     try {
-      await createSaleAsync(enrichedPayload);
+      await createSaleAsync(apiPayload);
       showNotification({
         title: "Sale Invoice Imported",
         message: `Invoice ${invoiceNumber} imported from quotation`,
@@ -230,7 +514,7 @@ export default function SaleInvoice() {
           status: "converted",
           convertedInvoiceId: invoiceNumber,
           convertedAt: new Date().toISOString(),
-        }
+        },
       });
     } catch (err) {
       console.error("Failed to update quotation status", err);
@@ -249,28 +533,74 @@ export default function SaleInvoice() {
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: 12,
-            gap: 8,
+            gap: 12,
+            flexWrap: "wrap",
           }}
         >
           <Title>Sales Invoices</Title>
-          <div style={{ display: "flex", gap: 8, alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <TextInput
+              placeholder="Search invoices, customers, items..."
+              value={searchTerm}
+              onChange={(event) => {
+                setSearchTerm(event.currentTarget.value);
+              }}
+              leftSection={<IconSearch size={16} />}
+              style={{ minWidth: 280 }}
+            />
+            <Select
+              value={pageSize}
+              onChange={(value) => {
+                setPageSize(value || "10");
+                setCurrentPage(1);
+              }}
+              data={["10", "25", "50"]}
+              w={96}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
               <Button
-                onClick={() => { setImportOpen(true); }}
+                onClick={() => {
+                  setImportOpen(true);
+                }}
                 variant="filled"
                 size="sm"
               >
                 Import from Quotation
               </Button>
-              <Button onClick={() => { setOpen(true); }} variant="filled" size="sm">
+              <Button
+                onClick={() => {
+                  setOpen(true);
+                }}
+                variant="filled"
+                size="sm"
+              >
                 + Add Sale Invoice
               </Button>
-              <Button variant="outline" size="sm" onClick={() => { setDraftsOpen(true); }}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDraftsOpen(true);
+                }}
+              >
                 Saved Drafts
+              </Button>
+              <Button
+                variant={hasActiveSession ? "light" : "outline"}
+                size="sm"
+                color={hasActiveSession ? "green" : "yellow"}
+                onClick={() => {
+                  setShiftManagerOpen(true);
+                }}
+              >
+                {hasActiveSession ? "Shift Open" : "Shift Manager"}
               </Button>
             </div>
           </div>
         </div>
+        <Text c="dimmed" size="sm" mb="sm">
+          Showing {salesPage.length} of {pagination.total} sales invoices
+        </Text>
         {/* Unified Add/Edit/Import Sale Invoice Modal */}
         <Modal
           opened={open}
@@ -297,65 +627,19 @@ export default function SaleInvoice() {
                   ? handleQuotationImportSubmit
                   : handleCreateInvoiceSubmit
               }
-              initial={
-                initialPayload ?? {
-                  docNo: generateNextDocumentNumber(
-                    "INV",
-                    sales.map((s) => String(s.invoiceNumber || s.id || "")),
-                    4
-                  ),
-                  docDate: (() => {
-                    let dateObj: Date;
-                    if (sales && sales.length > 0) {
-                      // Find the latest invoice date
-                      const latest = sales.reduce<Date | null>((max: Date | null, s) => {
-                        const d = s.invoiceDate
-                          ? new Date(s.invoiceDate)
-                          : s.date
-                          ? new Date(s.date)
-                          : null;
-                        return d && (!max || d > max) ? d : max;
-                      }, null);
-                      dateObj = latest ? latest : new Date();
-                    } else {
-                      dateObj = new Date();
-                    }
-                    // Format as yyyy-mm-dd for HTML date input
-                    return dateObj.toISOString().slice(0, 10);
-                  })(),
-                  mode: "Invoice",
-                  items: [
-                    {
-                      itemName: "Select product",
-                      quantity: 1,
-                      salesRate: 0,
-                      discount: 0,
-                      discountAmount: 0,
-                      length: 0,
-                      color: "",
-                      unit: "pcs",
-                      amount: 0,
-                      totalGrossAmount: 0,
-                      totalNetAmount: 0,
-                    },
-                  ],
-                  totals: {
-                    subTotal: 0,
-                    total: 0,
-                    amount: 0,
-                    totalGrossAmount: 0,
-                    totalDiscountAmount: 0,
-                    totalNetAmount: 0,
-                  },
-                  terms: "",
-                  remarks: "",
-                }
-              }
+              initial={initialPayload ?? createInitialPayload}
             />
           </div>
         </Modal>
 
-        <Modal opened={draftsOpen} onClose={() => { setDraftsOpen(false); }} title="Saved Drafts" size="lg">
+        <Modal
+          opened={draftsOpen}
+          onClose={() => {
+            setDraftsOpen(false);
+          }}
+          title="Saved Drafts"
+          size="lg"
+        >
           <SavedDraftsPanel
             mode="Invoice"
             onRestore={(data) => {
@@ -365,9 +649,20 @@ export default function SaleInvoice() {
             }}
           />
         </Modal>
-        {sales && sales.length > 0 ? (
-          <Table withRowBorders withColumnBorders highlightOnHover withTableBorder>
-            <Table.Thead bg={"gray.1"}> 
+        <ShiftManager
+          opened={shiftManagerOpen}
+          onClose={() => {
+            setShiftManagerOpen(false);
+          }}
+        />
+        {salesListLoading || salesPage.length > 0 ? (
+          <Table
+            withRowBorders
+            withColumnBorders
+            highlightOnHover
+            withTableBorder
+          >
+            <Table.Thead bg={"gray.1"}>
               <Table.Tr>
                 <Table.Th>Invoice #</Table.Th>
                 <Table.Th>Date</Table.Th>
@@ -377,330 +672,342 @@ export default function SaleInvoice() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {sales.map((inv, idx) => (
-                <Table.Tr
-                  key={inv.invoiceNumber ?? inv.id ?? idx}
-                  onDoubleClick={() => {
-                    // open editor same as Edit menu
-                    const invWithItems = inv as SaleRecordWithItems;
-                    const { products, ...rest } = invWithItems;
-                    setEditPayload({
-                      ...rest,
-                      mode: "Invoice",
-                      docNo: String(invWithItems.invoiceNumber ?? invWithItems.id ?? ""),
-                      docDate: typeof invWithItems.invoiceDate === "string" ? invWithItems.invoiceDate : invWithItems.invoiceDate ? String(invWithItems.invoiceDate) : typeof invWithItems.date === "string" ? invWithItems.date : "",
-                      customer: Array.isArray(invWithItems.customer) && invWithItems.customer[0]?.name ? { name: invWithItems.customer[0].name } : undefined,
-                      items: ((invWithItems.items && invWithItems.items.length > 0 ? invWithItems.items : invWithItems.products) ?? []).map((it: any) => ({
-                        ...it,
-                        unit: typeof it.unit === "string" ? it.unit : it.unit !== undefined ? String(it.unit) : "",
-                        amount: (it.quantity ?? 0) * (it.salesRate ?? 0),
-                        totalGrossAmount: (it.quantity ?? 0) * (it.salesRate ?? 0),
-                        totalNetAmount: (it.quantity ?? 0) * (it.salesRate ?? 0),
-                      })),
-                      totals: {
-                        subTotal: inv.subTotal ?? 0,
-                        total: inv.totalNetAmount ?? 0,
-                        amount: inv.amount ?? 0,
-                        totalGrossAmount: inv.totalGrossAmount ?? 0,
-                        totalDiscountAmount: inv.totalDiscount ?? 0,
-                        totalNetAmount: inv.totalNetAmount ?? 0,
-                      },
-                      remarks: inv.remarks ?? "",
-                      terms: "",
-                    });
-                    setEditOpen(true);
-                    setEditingId(inv.invoiceNumber ?? inv.id ?? "");
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <Table.Td>{inv.invoiceNumber ?? inv.id}</Table.Td>
-                  <Table.Td>
-                    {(() => {
-                      const dateVal = inv.invoiceDate || inv.date || inv.quotationDate;
-                      if (!dateVal) return "";
-                      try {
-                        const dateObj = new Date(dateVal);
-                        return isNaN(dateObj.getTime()) ? "" : dateObj.toLocaleDateString();
-                      } catch {
-                        return "";
-                      }
-                    })()}
-                  </Table.Td>
-                  <Table.Td>
-                    {
-                      // Prefer customerName if it's a string and not an invoice number
-                      typeof inv.customerName === "string" &&
-                      inv.customerName &&
-                      !/^INV-\d+$/i.test(inv.customerName)
-                        ? inv.customerName
-                        : Array.isArray(inv.customer) &&
-                          inv.customer[0]?.name &&
-                          !/^INV-\d+$/i.test(inv.customer[0].name)
-                        ? inv.customer[0].name
-                        : typeof inv.customer === "object" &&
-                          inv.customer &&
-                          "name" in inv.customer &&
-                          typeof inv.customer.name === "string" &&
-                          !/^INV-\d+$/i.test(inv.customer.name)
-                        ? inv.customer.name
-                        : ""
-                    }
-                  </Table.Td>
-                  <Table.Td>
-                    {formatCurrency(
-                      inv.totalNetAmount ?? inv.subTotal ?? inv.amount ?? 0
-                    )}
-                  </Table.Td>
-
-                  <Table.Td>
-                    <Menu withinPortal shadow="md">
-                      <Menu.Target>
-                        <ActionIcon variant="subtle">
-                          <IconDotsVertical />
-                        </ActionIcon>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        <Menu.Item
-                          leftSection={<IconEdit size={16} />}
-                          onClick={() => {
-                            // Cast inv as SaleRecordWithItems to access items property
-                            const invWithItems = inv as SaleRecordWithItems;
-                            const { products, ...rest } = invWithItems;
-                            setEditPayload({
-                              ...rest,
-                              mode: "Invoice",
-                              docNo: String(
-                                invWithItems.invoiceNumber ??
-                                  invWithItems.id ??
-                                  ""
-                              ),
-                              docDate:
-                                typeof invWithItems.invoiceDate === "string"
-                                  ? invWithItems.invoiceDate
-                                  : invWithItems.invoiceDate
-                                  ? String(invWithItems.invoiceDate)
-                                  : typeof invWithItems.date === "string"
-                                  ? invWithItems.date
-                                  : "",
-                              customer:
-                                Array.isArray(invWithItems.customer) &&
-                                invWithItems.customer[0]?.name
-                                  ? { name: invWithItems.customer[0].name }
-                                  : undefined,
-                              items: (
-                                (invWithItems.items &&
-                                invWithItems.items.length > 0
-                                  ? invWithItems.items
-                                  : invWithItems.products) ?? []
-                              ).map((it: any) => ({
-                                ...it,
-                                unit:
-                                  typeof it.unit === "string"
-                                    ? it.unit
-                                    : it.unit !== undefined
-                                    ? String(it.unit)
-                                    : "",
-                                amount:
-                                  (it.quantity ?? 0) * (it.salesRate ?? 0),
-                                totalGrossAmount:
-                                  (it.quantity ?? 0) * (it.salesRate ?? 0),
-                                totalNetAmount:
-                                  (it.quantity ?? 0) * (it.salesRate ?? 0),
-                              })),
-                              totals: {
-                                subTotal: inv.subTotal ?? 0,
-                                total: inv.totalNetAmount ?? 0,
-                                amount: inv.amount ?? 0,
-                                totalGrossAmount: inv.totalGrossAmount ?? 0,
-                                totalDiscountAmount: inv.totalDiscount ?? 0,
-                                totalNetAmount: inv.totalNetAmount ?? 0,
-                              },
-                              remarks: inv.remarks ?? "",
-                              terms: "",
-                            });
-                            setEditOpen(true);
-                            setEditingId(inv.invoiceNumber ?? inv.id ?? "");
-                          }}
-                        >
-                          Edit
-                        </Menu.Item>
-                        <Menu.Item
-                          leftSection={<IconPrinter size={16} />}
-                          onClick={() => {
-                            // Print logic: build invoice data and open print window
-                            const items = (inv.products ?? []).map((it, idx) => {
-                              const quantity = it.quantity ?? 0;
-                              const rate = it.salesRate ?? 0;
-                              const length = (it as any).length ?? 0;
-                              const gross = length * quantity * rate;
-                              const discountPercent = (it as any).discount ?? 0;
-                              const discountAmount = (it as any).discountAmount ?? ((gross * discountPercent) / 100);
-                              const net = gross - discountAmount;
-                              
-                              return {
-                                sr: idx + 1,
-                                itemName: it.itemName || "",
-                                section: it.itemName || "",
-                                color: it.color || "",
-                                thickness: it.thickness || "",
-                                length: length,
-                                sizeFt: length,
-                                quantity: quantity,
-                                qty: quantity,
-                                lengths: quantity,
-                                totalFeet: quantity * length,
-                                rate: rate,
-                                gross: gross,
-                                discountPercent: discountPercent,
-                                discount: discountAmount,
-                                net: net,
-                                amount: net,
-                              };
-                            });
-                            
-                            const totalGrossAmount = items.reduce((sum, it) => sum + it.gross, 0);
-                            const totalDiscount = items.reduce((sum, it) => sum + it.discount, 0);
-                            const totalNetAmount = inv.totalNetAmount ?? totalGrossAmount - totalDiscount;
-                            
-                            openPrintWindow({
-                              title: "Sales Invoice",
-                              companyName: "Seven Star Traders",
-                              addressLines: [
-                                "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
-                              ],
-                              invoiceNo: String(
-                                inv.invoiceNumber ?? inv.id ?? ""
-                              ),
-                              date:
-                                typeof inv.invoiceDate === "string"
-                                  ? inv.invoiceDate
-                                  : inv.invoiceDate
-                                  ? String(inv.invoiceDate)
-                                  : typeof inv.date === "string"
-                                  ? inv.date
-                                  : "",
-                              ms:
-                                Array.isArray(inv.customer) &&
-                                inv.customer[0]?.name
-                                  ? inv.customer[0].name
-                                  : inv.customerName ?? "",
-                              customer:
-                                Array.isArray(inv.customer) &&
-                                inv.customer[0]?.name
-                                  ? inv.customer[0].name
-                                  : inv.customerName ?? "",
-                              customerPhone:
-                                Array.isArray(inv.customer) &&
-                                inv.customer[0] &&
-                                'phone' in inv.customer[0]
-                                  ? (inv.customer[0] as any).phone
-                                  : undefined,
-                              customerAddress:
-                                Array.isArray(inv.customer) &&
-                                inv.customer[0] &&
-                                'address' in inv.customer[0]
-                                  ? (inv.customer[0] as any).address
-                                  : undefined,
-                              customerCity:
-                                Array.isArray(inv.customer) &&
-                                inv.customer[0] &&
-                                'city' in inv.customer[0]
-                                  ? (inv.customer[0] as any).city
-                                  : undefined,
-                              grn: null,
-                              items,
-                              totals: {
-                                subtotal: inv.subTotal ?? totalGrossAmount,
-                                totalGrossAmount: totalGrossAmount,
-                                totalDiscount: totalDiscount,
-                                totalNetAmount: totalNetAmount,
-                                total: totalNetAmount,
-                              },
-                              footerNotes: [
-                                "Extrusion & Powder Coating",
-                                "Aluminum Window, Door, Profiles & All Kinds of Pipes",
-                              ],
-                            });
-                          }}
-                        >
-                          Print
-                        </Menu.Item>
-                        <Menu.Item
-                          leftSection={<IconPrinter size={16} />}
-                          onClick={() => {
-                            const items = (inv.products ?? []).map((p: any) => {
-                              const length = p.length ?? 0;
-                              const quantity = p.quantity ?? 0;
-                              const rate = p.rate ?? 0;
-                              const gross = length * quantity * rate;
-                              const discountPercent = p.discountPercent ?? 0;
-                              const discountAmount = (gross * discountPercent) / 100;
-                              const net = gross - discountAmount;
-                              
-                              return {
-                                itemName: p.itemName ?? "",
-                                color: p.color ?? "",
-                                thickness: p.thickness ?? "",
-                                length,
-                                qty: quantity,
-                                rate,
-                                gross,
-                                discountPercent,
-                                discount: discountAmount,
-                                net,
-                                amount: net,
-                              };
-                            });
-                            
-                            const totalGrossAmount = items.reduce((sum, it) => sum + it.gross, 0);
-                            const totalDiscount = items.reduce((sum, it) => sum + it.discount, 0);
-                            const totalNetAmount = inv.totalNetAmount ?? totalGrossAmount - totalDiscount;
-                            
-                            const gatePassHTML = generateGatePassHTML({
-                              title: "Sales Invoice",
-                              invoiceNo: String(inv.invoiceNumber ?? inv.id ?? ""),
-                              date: typeof inv.invoiceDate === "string" ? inv.invoiceDate : inv.invoiceDate ? String(inv.invoiceDate) : typeof inv.date === "string" ? inv.date : "",
-                              customer: Array.isArray(inv.customer) && inv.customer[0]?.name ? inv.customer[0].name : inv.customerName ?? "",
-                              customerPhone: Array.isArray(inv.customer) && inv.customer[0] && 'phone' in inv.customer[0] ? (inv.customer[0] as any).phone : undefined,
-                              customerAddress: Array.isArray(inv.customer) && inv.customer[0] && 'address' in inv.customer[0] ? (inv.customer[0] as any).address : undefined,
-                              customerCity: Array.isArray(inv.customer) && inv.customer[0] && 'city' in inv.customer[0] ? (inv.customer[0] as any).city : undefined,
-                              items,
-                              totals: {
-                                subtotal: inv.subTotal ?? totalGrossAmount,
-                                totalGrossAmount: totalGrossAmount,
-                                totalDiscount: totalDiscount,
-                                totalNetAmount: totalNetAmount,
-                                total: totalNetAmount,
-                              },
-                            });
-                            const printWindow = window.open("", "_blank");
-                            if (printWindow) {
-                              printWindow.document.write(gatePassHTML);
-                              printWindow.document.close();
-                            }
-                          }}
-                        >
-                          Print as Gate Pass
-                        </Menu.Item>
-                        <Menu.Item
-                          color="red"
-                          leftSection={<IconTrash size={16} />}
-                          onClick={() => {
-                            setDeleteTarget(inv.invoiceNumber ?? inv.id ?? "");
-                            setDeleteModalOpen(true);
-                          }}
-                        >
-                          Delete
-                        </Menu.Item>
-                      </Menu.Dropdown>
-                    </Menu>
+              {salesListLoading ? (
+                <Table.Tr>
+                  <Table.Td colSpan={5} style={{ textAlign: "center" }}>
+                    Loading sales invoices...
                   </Table.Td>
                 </Table.Tr>
-              ))}
+              ) : (
+                salesPage.map((inv, idx) => (
+                  <Table.Tr
+                    key={inv.invoiceNumber ?? inv.id ?? idx}
+                    onDoubleClick={() => {
+                      // open editor same as Edit menu
+                      const invWithItems = inv as SaleRecordWithItems;
+                      setEditPayload(
+                        buildEditPayload(
+                          invWithItems,
+                          customers as any,
+                          inventory as any,
+                        ),
+                      );
+                      setEditOpen(true);
+                      setEditingId(inv.invoiceNumber ?? inv.id ?? "");
+                    }}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <Table.Td>{inv.invoiceNumber ?? inv.id}</Table.Td>
+                    <Table.Td>
+                      {(() => {
+                        const dateVal =
+                          inv.invoiceDate || inv.date || inv.quotationDate;
+                        if (!dateVal) return "";
+                        try {
+                          const dateObj = new Date(dateVal);
+                          return isNaN(dateObj.getTime())
+                            ? ""
+                            : dateObj.toLocaleDateString();
+                        } catch {
+                          return "";
+                        }
+                      })()}
+                    </Table.Td>
+                    <Table.Td>
+                      {
+                        // Prefer customerName if it's a string and not an invoice number
+                        typeof inv.customerName === "string" &&
+                        inv.customerName &&
+                        !/^INV-\d+$/i.test(inv.customerName)
+                          ? inv.customerName
+                          : Array.isArray(inv.customer) &&
+                              inv.customer[0]?.name &&
+                              !/^INV-\d+$/i.test(inv.customer[0].name)
+                            ? inv.customer[0].name
+                            : typeof inv.customer === "object" &&
+                                inv.customer &&
+                                "name" in inv.customer &&
+                                typeof inv.customer.name === "string" &&
+                                !/^INV-\d+$/i.test(inv.customer.name)
+                              ? inv.customer.name
+                              : ""
+                      }
+                    </Table.Td>
+                    <Table.Td>
+                      {formatCurrency(
+                        inv.totalNetAmount ?? inv.subTotal ?? inv.amount ?? 0,
+                      )}
+                    </Table.Td>
+
+                    <Table.Td>
+                      <Menu withinPortal shadow="md">
+                        <Menu.Target>
+                          <ActionIcon variant="subtle">
+                            <IconDotsVertical />
+                          </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Item
+                            leftSection={<IconEdit size={16} />}
+                            onClick={() => {
+                              // Cast inv as SaleRecordWithItems to access items property
+                              const invWithItems = inv as SaleRecordWithItems;
+                              setEditPayload(
+                                buildEditPayload(
+                                  invWithItems,
+                                  customers as any,
+                                  inventory as any,
+                                ),
+                              );
+                              setEditOpen(true);
+                              setEditingId(inv.invoiceNumber ?? inv.id ?? "");
+                            }}
+                          >
+                            Edit
+                          </Menu.Item>
+                          <Menu.Item
+                            leftSection={<IconPrinter size={16} />}
+                            onClick={() => {
+                              // Print logic: build invoice data and open print window
+                              const items = (inv.products ?? []).map(
+                                (it, idx) => {
+                                  const quantity = it.quantity ?? 0;
+                                  const rate = it.salesRate ?? 0;
+                                  const length = (it as any).length ?? 0;
+                                  const gross = length * quantity * rate;
+                                  const discountPercent =
+                                    (it as any).discount ?? 0;
+                                  const discountAmount =
+                                    (it as any).discountAmount ??
+                                    (gross * discountPercent) / 100;
+                                  const net = gross - discountAmount;
+
+                                  return {
+                                    sr: idx + 1,
+                                    itemName: it.itemName || "",
+                                    section: it.itemName || "",
+                                    color: it.color || "",
+                                    thickness: it.thickness || "",
+                                    length: length,
+                                    sizeFt: length,
+                                    quantity: quantity,
+                                    qty: quantity,
+                                    lengths: quantity,
+                                    totalFeet: quantity * length,
+                                    rate: rate,
+                                    gross: gross,
+                                    discountPercent: discountPercent,
+                                    discount: discountAmount,
+                                    net: net,
+                                    amount: net,
+                                  };
+                                },
+                              );
+
+                              const totalGrossAmount = items.reduce(
+                                (sum, it) => sum + it.gross,
+                                0,
+                              );
+                              const totalDiscount = items.reduce(
+                                (sum, it) => sum + it.discount,
+                                0,
+                              );
+                              const totalNetAmount =
+                                inv.totalNetAmount ??
+                                totalGrossAmount - totalDiscount;
+
+                              openPrintWindow({
+                                title: "Sales Invoice",
+                                companyName: "Seven Star Traders",
+                                addressLines: [
+                                  "Nasir Gardezi Road, Chowk Fawara, Bohar Gate Multan",
+                                ],
+                                invoiceNo: String(
+                                  inv.invoiceNumber ?? inv.id ?? "",
+                                ),
+                                date:
+                                  typeof inv.invoiceDate === "string"
+                                    ? inv.invoiceDate
+                                    : inv.invoiceDate
+                                      ? String(inv.invoiceDate)
+                                      : typeof inv.date === "string"
+                                        ? inv.date
+                                        : "",
+                                ms:
+                                  Array.isArray(inv.customer) &&
+                                  inv.customer[0]?.name
+                                    ? inv.customer[0].name
+                                    : (inv.customerName ?? ""),
+                                customer:
+                                  Array.isArray(inv.customer) &&
+                                  inv.customer[0]?.name
+                                    ? inv.customer[0].name
+                                    : (inv.customerName ?? ""),
+                                customerPhone:
+                                  Array.isArray(inv.customer) &&
+                                  inv.customer[0] &&
+                                  "phone" in inv.customer[0]
+                                    ? (inv.customer[0] as any).phone
+                                    : undefined,
+                                customerAddress:
+                                  Array.isArray(inv.customer) &&
+                                  inv.customer[0] &&
+                                  "address" in inv.customer[0]
+                                    ? (inv.customer[0] as any).address
+                                    : undefined,
+                                customerCity:
+                                  Array.isArray(inv.customer) &&
+                                  inv.customer[0] &&
+                                  "city" in inv.customer[0]
+                                    ? (inv.customer[0] as any).city
+                                    : undefined,
+                                grn: null,
+                                items,
+                                totals: {
+                                  subtotal: inv.subTotal ?? totalGrossAmount,
+                                  totalGrossAmount: totalGrossAmount,
+                                  totalDiscount: totalDiscount,
+                                  totalNetAmount: totalNetAmount,
+                                  total: totalNetAmount,
+                                },
+                                footerNotes: [
+                                  "Extrusion & Powder Coating",
+                                  "Aluminum Window, Door, Profiles & All Kinds of Pipes",
+                                ],
+                              });
+                            }}
+                          >
+                            Print
+                          </Menu.Item>
+                          <Menu.Item
+                            leftSection={<IconPrinter size={16} />}
+                            onClick={() => {
+                              const items = (inv.products ?? []).map(
+                                (p: any) => {
+                                  const length = p.length ?? 0;
+                                  const quantity = p.quantity ?? 0;
+                                  const rate = p.rate ?? 0;
+                                  const gross = length * quantity * rate;
+                                  const discountPercent =
+                                    p.discountPercent ?? 0;
+                                  const discountAmount =
+                                    (gross * discountPercent) / 100;
+                                  const net = gross - discountAmount;
+
+                                  return {
+                                    itemName: p.itemName ?? "",
+                                    color: p.color ?? "",
+                                    thickness: p.thickness ?? "",
+                                    length,
+                                    qty: quantity,
+                                    rate,
+                                    gross,
+                                    discountPercent,
+                                    discount: discountAmount,
+                                    net,
+                                    amount: net,
+                                  };
+                                },
+                              );
+
+                              const totalGrossAmount = items.reduce(
+                                (sum, it) => sum + it.gross,
+                                0,
+                              );
+                              const totalDiscount = items.reduce(
+                                (sum, it) => sum + it.discount,
+                                0,
+                              );
+                              const totalNetAmount =
+                                inv.totalNetAmount ??
+                                totalGrossAmount - totalDiscount;
+
+                              const gatePassHTML = generateGatePassHTML({
+                                title: "Sales Invoice",
+                                invoiceNo: String(
+                                  inv.invoiceNumber ?? inv.id ?? "",
+                                ),
+                                date:
+                                  typeof inv.invoiceDate === "string"
+                                    ? inv.invoiceDate
+                                    : inv.invoiceDate
+                                      ? String(inv.invoiceDate)
+                                      : typeof inv.date === "string"
+                                        ? inv.date
+                                        : "",
+                                customer:
+                                  Array.isArray(inv.customer) &&
+                                  inv.customer[0]?.name
+                                    ? inv.customer[0].name
+                                    : (inv.customerName ?? ""),
+                                customerPhone:
+                                  Array.isArray(inv.customer) &&
+                                  inv.customer[0] &&
+                                  "phone" in inv.customer[0]
+                                    ? (inv.customer[0] as any).phone
+                                    : undefined,
+                                customerAddress:
+                                  Array.isArray(inv.customer) &&
+                                  inv.customer[0] &&
+                                  "address" in inv.customer[0]
+                                    ? (inv.customer[0] as any).address
+                                    : undefined,
+                                customerCity:
+                                  Array.isArray(inv.customer) &&
+                                  inv.customer[0] &&
+                                  "city" in inv.customer[0]
+                                    ? (inv.customer[0] as any).city
+                                    : undefined,
+                                items,
+                                totals: {
+                                  subtotal: inv.subTotal ?? totalGrossAmount,
+                                  totalGrossAmount: totalGrossAmount,
+                                  totalDiscount: totalDiscount,
+                                  totalNetAmount: totalNetAmount,
+                                  total: totalNetAmount,
+                                },
+                              });
+                              const printWindow = window.open("", "_blank");
+                              if (printWindow) {
+                                printWindow.document.write(gatePassHTML);
+                                printWindow.document.close();
+                              }
+                            }}
+                          >
+                            Print as Gate Pass
+                          </Menu.Item>
+                          <Menu.Item
+                            color="red"
+                            leftSection={<IconTrash size={16} />}
+                            onClick={() => {
+                              setDeleteTarget(
+                                inv.invoiceNumber ?? inv.id ?? "",
+                              );
+                              setDeleteModalOpen(true);
+                            }}
+                          >
+                            Delete
+                          </Menu.Item>
+                        </Menu.Dropdown>
+                      </Menu>
+                    </Table.Td>
+                  </Table.Tr>
+                ))
+              )}
             </Table.Tbody>
           </Table>
         ) : (
           <div>No sales invoices found.</div>
+        )}
+        {pagination.lastPage > 1 && (
+          <Box mt="md">
+            <Pagination
+              value={currentPage}
+              onChange={setCurrentPage}
+              total={pagination.lastPage}
+              withEdges
+            />
+          </Box>
         )}
       </div>
       {/* Edit Invoice Modal */}
@@ -732,7 +1039,9 @@ export default function SaleInvoice() {
       {/* Import Quotation Modal */}
       <Modal
         opened={importOpen}
-        onClose={() => { setImportOpen(false); }}
+        onClose={() => {
+          setImportOpen(false);
+        }}
         title="Import from Quotation"
         size="100%"
       >
@@ -743,7 +1052,9 @@ export default function SaleInvoice() {
               type="text"
               placeholder="Search by Quotation Number..."
               value={importQuotationSearch || ""}
-              onChange={(e) => { setImportQuotationSearch(e.target.value); }}
+              onChange={(e) => {
+                setImportQuotationSearch(e.target.value);
+              }}
               style={{
                 padding: 6,
                 width: 260,
@@ -764,13 +1075,15 @@ export default function SaleInvoice() {
                   background: "#fff",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div
+                  style={{ display: "flex", justifyContent: "space-between" }}
+                >
                   <div>
                     <div style={{ fontWeight: 700 }}>
                       {q.quotationNumber ?? `Quotation ${idx + 1}`}
                     </div>
                     <div style={{ color: "#666" }}>
-                      Date: {" "}
+                      Date:{" "}
                       {q.quotationDate
                         ? new Date(q.quotationDate).toLocaleDateString()
                         : "-"}
@@ -791,28 +1104,50 @@ export default function SaleInvoice() {
                   </div>
                 </div>
                 {/* ...items table, remarks, and import button as in previous logic... */}
-                <div style={{ marginTop: 8, display: "flex", justifyContent: "flex-end" }}>
+                <div
+                  style={{
+                    marginTop: 8,
+                    display: "flex",
+                    justifyContent: "flex-end",
+                  }}
+                >
                   <Button
                     size="xs"
                     onClick={() => {
                       // Convert quotation to SalesPayload-compatible import form
                       // Robustly find the full customer object, fallback to minimal if not found
-                      let cust = customers.find((c) => String(c._id) === String(q.customer));
+                      let cust = customers.find(
+                        (c) => String(c._id) === String(q.customer),
+                      );
                       if (!cust && q.customer) {
-                        if (typeof q.customer === "object" && q.customer !== null && "name" in q.customer) {
-                          const id = typeof (q.customer as { _id?: unknown })._id === "string"
-                            ? (q.customer as { _id?: string })._id
-                            : String((q.customer as { name: unknown }).name);
+                        if (
+                          typeof q.customer === "object" &&
+                          q.customer !== null &&
+                          "name" in q.customer
+                        ) {
+                          const id =
+                            typeof (q.customer as { _id?: unknown })._id ===
+                            "string"
+                              ? (q.customer as { _id?: string })._id
+                              : String((q.customer as { name: unknown }).name);
                           cust = {
                             _id: id ?? "",
-                            name: String((q.customer as { name: unknown }).name),
+                            name: String(
+                              (q.customer as { name: unknown }).name,
+                            ),
                           };
                         } else {
-                          cust = { _id: String(q.customer), name: String(q.customer) };
+                          cust = {
+                            _id: String(q.customer),
+                            name: String(q.customer),
+                          };
                         }
                       }
                       const items = (q.products ?? []).map((it) => {
-                        function getProp<TResult = unknown>(obj: Record<string, unknown>, ...keys: string[]): TResult | undefined {
+                        function getProp<TResult = unknown>(
+                          obj: Record<string, unknown>,
+                          ...keys: string[]
+                        ): TResult | undefined {
                           for (const key of keys) {
                             if (obj && typeof obj === "object" && key in obj) {
                               return obj[key] as TResult;
@@ -821,7 +1156,10 @@ export default function SaleInvoice() {
                           return undefined;
                         }
                         let lengthValue: number | undefined;
-                        const rawLength = getProp<string | number | undefined>(it as unknown as Record<string, unknown>, "length");
+                        const rawLength = getProp<string | number | undefined>(
+                          it as unknown as Record<string, unknown>,
+                          "length",
+                        );
                         if (typeof rawLength === "string") {
                           const parsed = Number(rawLength);
                           lengthValue = isNaN(parsed) ? undefined : parsed;
@@ -842,13 +1180,18 @@ export default function SaleInvoice() {
                           totalGrossAmount: Number(it.totalGrossAmount ?? 0),
                           totalNetAmount: Number(it.totalNetAmount ?? 0),
                           amount: quantity * salesRate,
-                          unit: typeof it.unit === "string" ? it.unit : String(it.unit ?? ""),
+                          unit:
+                            typeof it.unit === "string"
+                              ? it.unit
+                              : String(it.unit ?? ""),
                           metadata: { ...(it.metadata ?? {}) },
                         };
                       });
                       const apiPayload: SalesPayload = {
                         docNo: q.quotationNumber ?? `Quotation ${idx + 1}`,
-                        docDate: q.quotationDate ? new Date(q.quotationDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+                        docDate: q.quotationDate
+                          ? new Date(q.quotationDate).toISOString().slice(0, 10)
+                          : new Date().toISOString().slice(0, 10),
                         mode: "Invoice",
                         items,
                         totals: {
@@ -863,7 +1206,6 @@ export default function SaleInvoice() {
                         terms: "",
                         customer: cust ?? undefined,
                       };
-                      logger.debug("Importing quotation as SalePayload:", apiPayload);
                       setInitialPayload(apiPayload);
                       setOpen(true);
                       setImportOpen(false);
@@ -881,7 +1223,9 @@ export default function SaleInvoice() {
       {/* Delete Confirmation Modal */}
       <Modal
         opened={deleteModalOpen}
-        onClose={() => { setDeleteModalOpen(false); }}
+        onClose={() => {
+          setDeleteModalOpen(false);
+        }}
         title="Confirm Deletion"
       >
         <Box p="md">
@@ -905,7 +1249,12 @@ export default function SaleInvoice() {
             >
               Delete Invoice
             </Button>
-            <Button variant="outline" onClick={() => { setDeleteModalOpen(false); }}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteModalOpen(false);
+              }}
+            >
               Cancel
             </Button>
           </div>

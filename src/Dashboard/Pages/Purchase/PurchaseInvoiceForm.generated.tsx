@@ -14,8 +14,9 @@ import {
 import Table from "../../../lib/AppTable";
 import type { PurchaseLineItem } from "./types";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
-import { useDataContext } from "../../Context/DataContext";
+import { useColor } from "../../../hooks/useColor";
 import { useInventory } from "../../../hooks/useInventory";
+import { useSupplier } from "../../../hooks/useSupplier";
 import { Trash2 } from "lucide-react";
 import { Group } from "@mantine/core";
 import type { Supplier as BaseSupplier } from "../../../components/purchase/SupplierForm";
@@ -24,7 +25,7 @@ type Supplier = BaseSupplier & {
   Credit?: number;
   Debit?: number;
 };
-import type { InventoryItem } from "../../Context/DataContext";
+import type { InventoryItem } from "../../../types/product";
 
 export type PurchaseInvoiceFormPayload = {
   purchaseInvoiceNumber: string;
@@ -58,7 +59,7 @@ export function PurchaseInvoiceForm({
         : new Date(initialValues.invoiceDate as string | Date)
             .toISOString()
             .slice(0, 10)
-      : new Date().toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10),
   );
   const [expectedDelivery, setExpectedDelivery] = useState<string>(
     initialValues?.expectedDelivery
@@ -67,9 +68,10 @@ export function PurchaseInvoiceForm({
         : new Date(initialValues.expectedDelivery as string | Date)
             .toISOString()
             .slice(0, 10)
-      : ""
+      : "",
   );
-  const { colors = [], suppliers = [] } = useDataContext();
+  const { colors = [] } = useColor();
+  const { suppliers = [] } = useSupplier();
   const { inventory = [] } = useInventory();
   function isSupplierObject(obj: unknown): obj is { _id: string } {
     return (
@@ -90,10 +92,10 @@ export function PurchaseInvoiceForm({
     return "";
   }
   const [supplierId, setSupplierId] = useState<string>(
-    getSupplierIdFromInitialValues(initialValues)
+    getSupplierIdFromInitialValues(initialValues),
   );
   const [remarks, setRemarks] = useState(
-    initialValues?.remarks ?? "Monthly stock replenishment"
+    initialValues?.remarks ?? "Monthly stock replenishment",
   );
   const [status] = useState("Draft");
   const [products, setProducts] = useState<PurchaseLineItem[]>(
@@ -123,7 +125,7 @@ export function PurchaseInvoiceForm({
             netAmount: 0,
             amount: 0,
           },
-        ]
+        ],
   );
   const subTotal = useMemo(() => {
     return products.reduce((s, i) => {
@@ -136,7 +138,7 @@ export function PurchaseInvoiceForm({
   const total = subTotal;
 
   const selectedSupplier = suppliers.find(
-    (s: Supplier) => String(s._id) === String(supplierId)
+    (s: Supplier) => String(s._id) === String(supplierId),
   );
 
   function handleSubmit(e: React.FormEvent) {
@@ -163,14 +165,14 @@ export function PurchaseInvoiceForm({
         thickness: p.thickness,
         length: Math.floor(Number(p.length) || 0),
         grossAmount: Math.floor(
-          typeof p.grossAmount === "number" ? p.grossAmount : 0
+          typeof p.grossAmount === "number" ? p.grossAmount : 0,
         ),
         netAmount: Math.floor(
-          typeof p.netAmount === "number" ? p.netAmount : 0
+          typeof p.netAmount === "number" ? p.netAmount : 0,
         ),
         percent: Math.floor(typeof p.percent === "number" ? p.percent : 0),
         discountAmount: Math.floor(
-          typeof p.discountAmount === "number" ? p.discountAmount : 0
+          typeof p.discountAmount === "number" ? p.discountAmount : 0,
         ),
         amount: Math.floor(typeof p.amount === "number" ? p.amount : 0),
         inventoryId: inventory.find((inv) => inv.itemName === p.productName)
@@ -224,9 +226,9 @@ export function PurchaseInvoiceForm({
                 id="invoiceDate"
                 type="date"
                 value={invoiceDate}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  { setInvoiceDate(e.target.value); }
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setInvoiceDate(e.target.value);
+                }}
               />
             </div>
             <div>
@@ -235,9 +237,9 @@ export function PurchaseInvoiceForm({
                 id="expDate"
                 type="date"
                 value={expectedDelivery}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                  { setExpectedDelivery(e.target.value); }
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  setExpectedDelivery(e.target.value);
+                }}
               />
             </div>
           </div>
@@ -253,7 +255,9 @@ export function PurchaseInvoiceForm({
                   label: `${s.name} — ${s.city}`,
                 }))}
                 value={supplierId}
-                onChange={(v) => { setSupplierId(v ?? ""); }}
+                onChange={(v) => {
+                  setSupplierId(v ?? "");
+                }}
                 placeholder={
                   suppliers.length === 0
                     ? "No suppliers found"
@@ -362,8 +366,8 @@ export function PurchaseInvoiceForm({
               <Button
                 variant="subtle"
                 size="sm"
-                onClick={() =>
-                  { setProducts((prev) => [
+                onClick={() => {
+                  setProducts((prev) => [
                     ...prev,
                     {
                       id: crypto.randomUUID(),
@@ -381,13 +385,16 @@ export function PurchaseInvoiceForm({
                       netAmount: 0,
                       amount: 0,
                     },
-                  ]); }
-                }
+                  ]);
+                }}
               >
                 + Add Row
               </Button>
             </Group>
-            <div className="app-table-wrapper" style={{ maxHeight: '50vh', overflow: 'auto' }}>
+            <div
+              className="app-table-wrapper"
+              style={{ maxHeight: "50vh", overflow: "auto" }}
+            >
               <Table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <Table.Thead>
                   <Table.Tr>
@@ -455,17 +462,17 @@ export function PurchaseInvoiceForm({
                             value={
                               it.productName &&
                               inventory.some(
-                                (p) => p.itemName === it.productName
+                                (p) => p.itemName === it.productName,
                               )
                                 ? inventory.find(
-                                    (p) => p.itemName === it.productName
+                                    (p) => p.itemName === it.productName,
                                   )?._id
                                 : ""
                             }
                             onChange={(val) => {
                               const prod = inventory.find(
                                 (p: InventoryItem) =>
-                                  String(p._id) === String(val)
+                                  String(p._id) === String(val),
                               );
                               setProducts((prev) =>
                                 prev.map((row) =>
@@ -479,8 +486,8 @@ export function PurchaseInvoiceForm({
                                           ? String(prod.thickness)
                                           : undefined,
                                       }
-                                    : row
-                                )
+                                    : row,
+                                ),
                               );
                             }}
                             placeholder="Select product"
@@ -494,62 +501,62 @@ export function PurchaseInvoiceForm({
                               label: c.name,
                             }))}
                             value={it.color}
-                            onChange={(v) =>
-                              { setProducts((prev) =>
+                            onChange={(v) => {
+                              setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? { ...row, color: v ?? undefined }
-                                    : row
-                                )
-                              ); }
-                            }
+                                    : row,
+                                ),
+                              );
+                            }}
                           />
                         </Table.Td>
                         <Table.Td style={{ padding: 8 }}>
                           <TextInput
                             value={it.thickness ?? ""}
-                            onChange={(e) =>
-                              { setProducts((prev) =>
+                            onChange={(e) => {
+                              setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? { ...row, thickness: e.target.value }
-                                    : row
-                                )
-                              ); }
-                            }
+                                    : row,
+                                ),
+                              );
+                            }}
                             placeholder="Thickness"
                           />
                         </Table.Td>
                         <Table.Td style={{ padding: 8 }}>
                           <TextInput
                             value={String(it.length ?? "")}
-                            onChange={(e) =>
-                              { setProducts((prev) =>
+                            onChange={(e) => {
+                              setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? { ...row, length: e.target.value }
-                                    : row
-                                )
-                              ); }
-                            }
+                                    : row,
+                                ),
+                              );
+                            }}
                             placeholder="Length"
                           />
                         </Table.Td>
                         <Table.Td style={{ padding: 8, textAlign: "right" }}>
                           <NumberInput
                             value={it.quantity === 0 ? "" : it.quantity}
-                            onChange={(v) =>
-                              { setProducts((prev) =>
+                            onChange={(v) => {
+                              setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? {
                                         ...row,
                                         quantity: v === "" ? 1 : Number(v),
                                       }
-                                    : row
-                                )
-                              ); }
-                            }
+                                    : row,
+                                ),
+                              );
+                            }}
                             min={1}
                             hideControls
                           />
@@ -557,18 +564,18 @@ export function PurchaseInvoiceForm({
                         <Table.Td style={{ padding: 8 }}>
                           <NumberInput
                             value={it.rate === 0 ? "" : it.rate}
-                            onChange={(v) =>
-                              { setProducts((prev) =>
+                            onChange={(v) => {
+                              setProducts((prev) =>
                                 prev.map((row) =>
                                   row.id === it.id
                                     ? {
                                         ...row,
                                         rate: v === "" ? 0 : Number(v),
                                       }
-                                    : row
-                                )
-                              ); }
-                            }
+                                    : row,
+                                ),
+                              );
+                            }}
                             min={0}
                             hideControls
                           />
@@ -579,11 +586,11 @@ export function PurchaseInvoiceForm({
                         <Table.Td style={{ padding: 8, textAlign: "right" }}>
                           <Button
                             variant="subtle"
-                            onClick={() =>
-                              { setProducts((prev) =>
-                                prev.filter((r) => r.id !== it.id)
-                              ); }
-                            }
+                            onClick={() => {
+                              setProducts((prev) =>
+                                prev.filter((r) => r.id !== it.id),
+                              );
+                            }}
                           >
                             <Trash2 size={14} />
                           </Button>
@@ -600,9 +607,9 @@ export function PurchaseInvoiceForm({
             <label>Remarks</label>
             <Textarea
               value={remarks}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                { setRemarks(e.target.value); }
-              }
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => {
+                setRemarks(e.target.value);
+              }}
               minRows={3}
             />
           </div>
@@ -634,7 +641,13 @@ export function PurchaseInvoiceForm({
       </Card>
 
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <Button type="button" variant="outline" onClick={() => { window.print(); }}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            window.print();
+          }}
+        >
           Print
         </Button>
         <Button type="submit" onClick={handleSubmit}>

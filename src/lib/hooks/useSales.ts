@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notifications } from "@mantine/notifications";
-import * as api from "../api";
-import type { SaleRecordPayload } from "../api";
+import * as api from "../../api";
+import type { SaleRecordPayload } from "../../api";
 
 export const SALES_QUERY_KEY = ["sales"];
 

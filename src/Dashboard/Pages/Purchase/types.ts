@@ -1,12 +1,15 @@
 export type PurchaseLineItem = {
   id: string;
   productId: string;
+  sku?: string;
   productName: string;
+  itemName?: string;
   code?: string;
   unit: string;
   percent?: number;
   quantity: number;
   rate: number;
+  salesRate?: number;
   color?: string;
   grossAmount: number;
   discountAmount?: number;
@@ -14,6 +17,8 @@ export type PurchaseLineItem = {
   thickness?: string;
   length?: string | number;
   amount?: number;
+  subtotal?: number;
+  availableStock?: number;
 };
 
 export type PurchaseLineItems = PurchaseLineItem[];

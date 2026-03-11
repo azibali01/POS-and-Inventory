@@ -12,7 +12,7 @@ import Table from "../../lib/AppTable";
 import { Plus, Trash2 } from "lucide-react";
 import { useExpenses } from "../../lib/hooks/useExpenses";
 
-import type { ExpensePayload } from "../../lib/api";
+import type { ExpensePayload } from "../../api";
 
 // Helper types derived from payload to match existing component expectations
 export interface ExpenseType {
@@ -91,7 +91,9 @@ export default function ExpensesPage() {
     setDeletingId(expenseNumber);
     try {
       deleteExpense(id, {
-        onSettled: () => { setDeletingId(null); },
+        onSettled: () => {
+          setDeletingId(null);
+        },
       });
     } catch (err) {
       setDeletingId(null);
@@ -105,7 +107,7 @@ export default function ExpensesPage() {
       (e) =>
         (e.expenseNumber || "").toLowerCase().includes(t) ||
         (e.categoryType || "").toLowerCase().includes(t) ||
-        (e.description || "").toLowerCase().includes(t)
+        (e.description || "").toLowerCase().includes(t),
     );
   }, [q, expenses]);
 
@@ -119,10 +121,17 @@ export default function ExpensesPage() {
         <TextInput
           placeholder="Search expenses..."
           value={q}
-          onChange={(e) => { setQ((e.target as HTMLInputElement)?.value ?? ""); }}
+          onChange={(e) => {
+            setQ((e.target as HTMLInputElement)?.value ?? "");
+          }}
           style={{ flex: 1, maxWidth: 420 }}
         />
-        <Button leftSection={<Plus />} onClick={() => { setOpen(true); }}>
+        <Button
+          leftSection={<Plus />}
+          onClick={() => {
+            setOpen(true);
+          }}
+        >
           Add Expense
         </Button>
       </Group>
@@ -216,7 +225,9 @@ export default function ExpensesPage() {
       {editing && (
         <EditExpenseDialogMantine
           expense={editing}
-          onClose={() => { setEditing(null); }}
+          onClose={() => {
+            setEditing(null);
+          }}
           onSave={(patch) => {
             const id = editing.id || editing._id;
             if (id) {
@@ -300,15 +311,17 @@ function AddExpenseDialogMantine({
   return (
     <Modal
       opened={open}
-      onClose={() => { onOpenChange(false); }}
+      onClose={() => {
+        onOpenChange(false);
+      }}
       title="Add Expense"
     >
       <TextInput
         label="Expense No"
         value={expenseNumber}
-        onChange={(e) =>
-          { setExpenseNumber((e.target as HTMLInputElement)?.value ?? ""); }
-        }
+        onChange={(e) => {
+          setExpenseNumber((e.target as HTMLInputElement)?.value ?? "");
+        }}
         placeholder="EXP-2025-001"
       />
       {errors.expenseNumber && (
@@ -319,9 +332,9 @@ function AddExpenseDialogMantine({
         label="Date"
         type="date"
         value={expenseDate}
-        onChange={(e) =>
-          { setExpenseDate((e.target as HTMLInputElement)?.value ?? ""); }
-        }
+        onChange={(e) => {
+          setExpenseDate((e.target as HTMLInputElement)?.value ?? "");
+        }}
       />
       {errors.expenseDate && (
         <div style={{ color: "#e03131" }}>{errors.expenseDate}</div>
@@ -331,29 +344,31 @@ function AddExpenseDialogMantine({
         label="Category"
         data={categories.map((c) => ({ value: c, label: c }))}
         value={category}
-        onChange={(v) => { setCategory(v ?? categories[0]); }}
+        onChange={(v) => {
+          setCategory(v ?? categories[0]);
+        }}
       />
 
       <TextInput
         label="Description"
         value={description}
-        onChange={(e) =>
-          { setDescription((e.target as HTMLInputElement)?.value ?? ""); }
-        }
+        onChange={(e) => {
+          setDescription((e.target as HTMLInputElement)?.value ?? "");
+        }}
       />
 
       <NumberInput
         label="Amount"
         value={amount}
-        onChange={(v) =>
-          { setAmount(
+        onChange={(v) => {
+          setAmount(
             typeof v === "number"
               ? v
               : v === "" || v == null
-              ? undefined
-              : Number(v)
-          ); }
-        }
+                ? undefined
+                : Number(v),
+          );
+        }}
         hideControls
       />
       {errors.amount && <div style={{ color: "#e03131" }}>{errors.amount}</div>}
@@ -362,26 +377,33 @@ function AddExpenseDialogMantine({
         label="Payment Method"
         data={["Cash", "Card"].map((v) => ({ value: v, label: v }))}
         value={paymentMethod}
-        onChange={(v) => { setPaymentMethod(v as ExpenseType["paymentMethod"]); }}
+        onChange={(v) => {
+          setPaymentMethod(v as ExpenseType["paymentMethod"]);
+        }}
       />
 
       <TextInput
         label="Reference"
         value={reference}
-        onChange={(e) =>
-          { setReference((e.target as HTMLInputElement)?.value ?? ""); }
-        }
+        onChange={(e) => {
+          setReference((e.target as HTMLInputElement)?.value ?? "");
+        }}
       />
       <TextInput
         label="Remarks"
         value={remarks}
-        onChange={(e) =>
-          { setRemarks((e.target as HTMLInputElement)?.value ?? ""); }
-        }
+        onChange={(e) => {
+          setRemarks((e.target as HTMLInputElement)?.value ?? "");
+        }}
       />
 
       <Group justify="flex-end" mt="md">
-        <Button variant="outline" onClick={() => { onOpenChange(false); }}>
+        <Button
+          variant="outline"
+          onClick={() => {
+            onOpenChange(false);
+          }}
+        >
           Cancel
         </Button>
         <Button
@@ -424,86 +446,95 @@ function EditExpenseDialogMantine({
       <TextInput
         label="Expense No"
         value={String(payload.expenseNumber ?? "")}
-        onChange={(e) =>
-          { setPayload((p: Partial<ExpenseType>) => ({
+        onChange={(e) => {
+          setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             expenseNumber: (e.target as HTMLInputElement)?.value ?? "",
-          })); }
-        }
+          }));
+        }}
       />
       <TextInput
         label="Date"
         type="date"
         value={String(payload.date ?? "").slice(0, 10)}
-        onChange={(e) =>
-          { setPayload((p: Partial<ExpenseType>) => ({
+        onChange={(e) => {
+          setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             date: (e.target as HTMLInputElement)?.value ?? "",
-          })); }
-        }
+          }));
+        }}
       />
       <Select
         label="Category"
         data={categories.map((c) => ({ value: c, label: c }))}
         value={String(payload.categoryType ?? categories[0])}
-        onChange={(v) =>
-          { setPayload((p) => ({ ...p, categoryType: v ?? undefined })); }
-        }
+        onChange={(v) => {
+          setPayload((p) => ({ ...p, categoryType: v ?? undefined }));
+        }}
       />
       <TextInput
         label="Description"
         value={String(payload.description ?? "")}
-        onChange={(e) =>
-          { setPayload((p: Partial<ExpenseType>) => ({
+        onChange={(e) => {
+          setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             description: (e.target as HTMLInputElement)?.value ?? "",
-          })); }
-        }
+          }));
+        }}
       />
       <NumberInput
         label="Amount"
         value={Number(payload.amount ?? 0)}
-        onChange={(v) =>
-          { setPayload((p: Partial<ExpenseType>) => ({ ...p, amount: Number(v) })); }
-        }
+        onChange={(v) => {
+          setPayload((p: Partial<ExpenseType>) => ({
+            ...p,
+            amount: Number(v),
+          }));
+        }}
         hideControls
       />
       <Select
         label="Payment Method"
         data={["Cash", "Card"].map((v) => ({ value: v, label: v }))}
         value={String(payload.paymentMethod ?? "Cash")}
-        onChange={(v) =>
-          { setPayload((p: Partial<ExpenseType>) => ({
+        onChange={(v) => {
+          setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             paymentMethod: v as ExpenseType["paymentMethod"],
-          })); }
-        }
+          }));
+        }}
       />
       <TextInput
         label="Reference"
         value={String(payload.reference ?? "")}
-        onChange={(e) =>
-          { setPayload((p: Partial<ExpenseType>) => ({
+        onChange={(e) => {
+          setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             reference: (e.target as HTMLInputElement)?.value ?? "",
-          })); }
-        }
+          }));
+        }}
       />
       <TextInput
         label="Remarks"
         value={String(payload.remarks ?? "")}
-        onChange={(e) =>
-          { setPayload((p: Partial<ExpenseType>) => ({
+        onChange={(e) => {
+          setPayload((p: Partial<ExpenseType>) => ({
             ...p,
             remarks: (e.target as HTMLInputElement)?.value ?? "",
-          })); }
-        }
+          }));
+        }}
       />
       <Group justify="flex-end" mt="md">
         <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={() => { onSave(payload); }}>Save</Button>
+        <Button
+          onClick={() => {
+            onSave(payload);
+          }}
+        >
+          Save
+        </Button>
       </Group>
     </Modal>
   );

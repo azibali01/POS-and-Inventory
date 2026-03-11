@@ -1,6 +1,16 @@
-import { axiosClient, unwrapPaginated, type PaginatedResponse } from "../client/axiosClient";
+import {
+  axiosClient,
+  unwrapPaginated,
+  toPaginatedResponse,
+  type ListQueryParams,
+  type PaginatedResponse,
+} from "../client/axiosClient";
 import { ENDPOINTS } from "../client/apiConfig";
 import type { InventoryItemPayload } from "./salesService";
+
+export interface InventoryListQueryParams extends ListQueryParams {
+  category?: string;
+}
 
 /**
  * Color Payload
@@ -29,17 +39,14 @@ export interface CategoryPayload {
  * Handles all inventory and product-related API calls
  */
 export const inventoryService = {
-  /**
-   * Get all products/inventory
-   */
-  async getAll() {
-    const candidates = ["/products"];
+  async list(params: InventoryListQueryParams = {}) {
+    const candidates = [ENDPOINTS.PRODUCTS];
     for (const path of candidates) {
       try {
         const { data } = await axiosClient.get<
           InventoryItemPayload[] | PaginatedResponse<InventoryItemPayload>
-        >(path, { params: { limit: 10000 } });
-        return unwrapPaginated(data);
+        >(path, { params });
+        return toPaginatedResponse(data, params.page ?? 1);
       } catch (err: unknown) {
         const error = err as { response?: { status?: number } };
         const status = error?.response?.status;
@@ -47,8 +54,21 @@ export const inventoryService = {
         throw error;
       }
     }
-    // nothing found — return empty list to keep app usable
-    return [] as InventoryItemPayload[];
+
+    return {
+      data: [] as InventoryItemPayload[],
+      total: 0,
+      page: params.page ?? 1,
+      lastPage: 1,
+    };
+  },
+
+  /**
+   * Get all products/inventory
+   */
+  async getAll() {
+    const response = await inventoryService.list({ page: 1, limit: 10000 });
+    return unwrapPaginated(response);
   },
 
   /**
@@ -56,7 +76,7 @@ export const inventoryService = {
    */
   async getById(id: string | number) {
     const { data } = await axiosClient.get(
-      `${ENDPOINTS.PRODUCTS}/${String(id)}`
+      `${ENDPOINTS.PRODUCTS}/${String(id)}`,
     );
     return data;
   },
@@ -67,7 +87,7 @@ export const inventoryService = {
   async create(item: InventoryItemPayload) {
     const { data } = await axiosClient.post<InventoryItemPayload>(
       ENDPOINTS.PRODUCTS,
-      item
+      item,
     );
     return data;
   },
@@ -78,7 +98,7 @@ export const inventoryService = {
   async update(id: string | number, patch: Partial<InventoryItemPayload>) {
     const { data } = await axiosClient.put<InventoryItemPayload>(
       `${ENDPOINTS.PRODUCTS}/${String(id)}`,
-      patch
+      patch,
     );
     return data;
   },
@@ -87,8 +107,8 @@ export const inventoryService = {
    * Delete product by ID
    */
   async delete(id: string | number) {
-    const { data} = await axiosClient.delete(
-      `${ENDPOINTS.PRODUCTS}/${String(id)}`
+    const { data } = await axiosClient.delete(
+      `${ENDPOINTS.PRODUCTS}/${String(id)}`,
     );
     return data;
   },
@@ -112,7 +132,7 @@ export const colorService = {
   async create(payload: ColorPayload) {
     const { data } = await axiosClient.post<ColorPayload>(
       ENDPOINTS.COLORS,
-      payload
+      payload,
     );
     return data;
   },
@@ -123,7 +143,7 @@ export const colorService = {
   async update(id: string | number, payload: Partial<ColorPayload>) {
     const { data } = await axiosClient.put<ColorPayload>(
       `${ENDPOINTS.COLORS}/${id}`,
-      payload
+      payload,
     );
     return data;
   },
@@ -146,7 +166,7 @@ export const categoryService = {
    */
   async getAll() {
     const { data } = await axiosClient.get<CategoryPayload[]>(
-      ENDPOINTS.CATEGORIES
+      ENDPOINTS.CATEGORIES,
     );
     return data;
   },
@@ -157,7 +177,7 @@ export const categoryService = {
   async create(payload: CategoryPayload) {
     const { data } = await axiosClient.post<CategoryPayload>(
       ENDPOINTS.CATEGORIES,
-      payload
+      payload,
     );
     return data;
   },
@@ -168,7 +188,7 @@ export const categoryService = {
   async update(id: string | number, payload: Partial<CategoryPayload>) {
     const { data } = await axiosClient.put<CategoryPayload>(
       `${ENDPOINTS.CATEGORIES}/${id}`,
-      payload
+      payload,
     );
     return data;
   },

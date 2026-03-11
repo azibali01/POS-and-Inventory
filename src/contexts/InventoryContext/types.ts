@@ -5,6 +5,8 @@
  * categories, and colors.
  */
 
+import type { InventoryItemPayload } from "../../api";
+
 export interface InventoryItem {
   _id: string;
   itemName?: string;
@@ -46,12 +48,10 @@ export interface InventoryContextType {
   inventoryError: string | null;
   setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
   loadInventory: () => Promise<InventoryItem[]>;
-  createInventory: (
-    payload: import("../../lib/api").InventoryItemPayload
-  ) => Promise<InventoryItem>;
+  createInventory: (payload: InventoryItemPayload) => Promise<InventoryItem>;
   updateInventory: (
     id: string,
-    payload: Partial<import("../../lib/api").InventoryItemPayload>
+    payload: Partial<InventoryItemPayload>,
   ) => Promise<InventoryItem>;
   deleteInventory: (id: string) => Promise<void>;
 
@@ -62,9 +62,12 @@ export interface InventoryContextType {
   setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
   loadCategories: () => Promise<Category[]>;
   createCategory: (
-    payload: Omit<Category, "id"> | { name: string }
+    payload: Omit<Category, "id"> | { name: string },
   ) => Promise<Category>;
-  updateCategory: (id: string | number, payload: Partial<Category>) => Promise<Category>;
+  updateCategory: (
+    id: string | number,
+    payload: Partial<Category>,
+  ) => Promise<Category>;
   deleteCategory: (id: string | number) => Promise<void>;
 
   // Colors

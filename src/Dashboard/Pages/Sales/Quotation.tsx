@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { logger } from "../../../lib/logger";
 import {
   Box,
   Button,
@@ -25,7 +24,6 @@ import {
   buildQuotationPayload,
 } from "./quotation-helpers";
 
-
 // openPrintWindow already imported above
 import type { InvoiceData } from "../../../components/print/printTemplate";
 // DataContext removed
@@ -40,7 +38,7 @@ import {
   type QuotationRecordPayload,
   type InventoryItemPayload,
   type CustomerPayload,
-} from "../../../lib/api";
+} from "../../../api";
 import { useQuotations } from "../../../hooks/useSales";
 import { useCustomer } from "../../../hooks/useCustomer";
 import { useInventory } from "../../../lib/hooks/useInventory";
@@ -66,7 +64,12 @@ import openPrintWindow from "../../../components/print/printWindow";
 import { generateGatePassHTML } from "../../../components/print/printTemplate";
 
 function Quotation() {
-  const { quotations, createQuotationAsync, updateQuotationAsync, deleteQuotationAsync } = useQuotations();
+  const {
+    quotations,
+    createQuotationAsync,
+    updateQuotationAsync,
+    deleteQuotationAsync,
+  } = useQuotations();
   const { customers } = useCustomer();
   // sales hook removed as unused
   const { inventory } = useInventory(); // Ensure inventory is loaded
@@ -79,10 +82,10 @@ function Quotation() {
   const [editingId, setEditingId] = useState<string | number | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | number | null>(
-    null
+    null,
   );
   const [deleteTargetDisplay, setDeleteTargetDisplay] = useState<string | null>(
-    null
+    null,
   );
   const [draftsOpen, setDraftsOpen] = useState(false);
 
@@ -100,21 +103,21 @@ function Quotation() {
           String(q.quotationNumber) === qNum ||
           String((q as { _id?: string })._id) === qNum ||
           String(
-            (q as Partial<QuotationRecordPayload> & { id?: string }).id
+            (q as Partial<QuotationRecordPayload> & { id?: string }).id,
           ) === qNum ||
           String(
-            (q as Partial<QuotationRecordPayload> & { docNo?: string }).docNo
-          ) === qNum
+            (q as Partial<QuotationRecordPayload> & { docNo?: string }).docNo,
+          ) === qNum,
       );
 
-      if (toDelete && (toDelete).quotationNumber) {
-        qNum = String((toDelete).quotationNumber);
+      if (toDelete && toDelete.quotationNumber) {
+        qNum = String(toDelete.quotationNumber);
       } else if (toDelete && (toDelete as any).quotationNumber) {
         qNum = String((toDelete as any).quotationNumber);
       }
 
       await deleteQuotationAsync(qNum);
-      
+
       showNotification({
         title: "Deleted",
         message: "Quotation deleted",
@@ -136,7 +139,7 @@ function Quotation() {
   // form state for creating quotation
 
   // Only show actual quotations, not sales invoices
-  const quotes = (quotations || []);
+  const quotes = quotations || [];
 
   // Note: generateNextDocumentNumber is imported from utils/document-utils
   // It replaces the custom generateNextQuotationNumber function
@@ -158,15 +161,13 @@ function Quotation() {
       Array.isArray(q.customer) && q.customer[0] ? q.customer[0] : null;
     const customerName =
       // Use customerName if present (for legacy/compatibility), otherwise extract from customer array or string
-      (
-        "customerName" in q
-          ? (q as { customerName: string }).customerName
-          : customerData?.name
+      "customerName" in q
+        ? (q as { customerName: string }).customerName
+        : customerData?.name
           ? customerData.name
           : typeof q.customer === "string"
-          ? q.customer
-          : ""
-      );
+            ? q.customer
+            : "";
 
     return {
       title: "Quotation",
@@ -199,7 +200,7 @@ function Quotation() {
               (it as InventoryItemPayload & { rate?: number }).rate ??
               (it as InventoryItemPayload & { salesRate?: number }).salesRate ??
               (it as InventoryItemPayload & { unitPrice?: number }).unitPrice ??
-              0
+              0,
           );
 
           const gross = length * quantity * rateValue;
@@ -232,7 +233,7 @@ function Quotation() {
             net: net,
             amount: net,
           };
-        }
+        },
       ),
       totals: (() => {
         const grossAmount = ((q.items ?? q.products) || []).reduce(
@@ -246,11 +247,11 @@ function Quotation() {
                 (it as any).rate ??
                 (it as any).salesRate ??
                 (it as any).unitPrice ??
-                0
+                0,
             );
             return sum + len * qty * rate;
           },
-          0
+          0,
         );
 
         const totalDiscountAmt = ((q.items ?? q.products) || []).reduce(
@@ -258,7 +259,7 @@ function Quotation() {
             const discountAmount = Number((it as any).discountAmount || 0);
             return sum + discountAmount;
           },
-          0
+          0,
         );
 
         const netAmount = grossAmount - totalDiscountAmt;
@@ -278,14 +279,10 @@ function Quotation() {
 
   // Save from SalesDocShell: create or update depending on editingId
   async function saveFromShell(payload: SalesPayload) {
-    logger.debug("=== saveFromShell called ===");
-    logger.debug("Payload:", payload);
-    logger.debug("Creating state:", creating);
     if (creating) return; // Prevent concurrent submissions
 
     // Normalize customer using helper function
     const cust = normalizeQuotationCustomer(payload.customer, customers as any);
-    logger.debug("Normalized customer:", cust);
 
     if (!cust) {
       showNotification({
@@ -298,18 +295,22 @@ function Quotation() {
     }
 
     setCreating(true);
-    
+
     // Determine quotationNumber: prefer provided docNo, otherwise generate using utility
     const assignedQuotationNumber =
       (payload as Partial<SalesPayload> & { docNo?: string }).docNo ??
       generateNextDocumentNumber(
         "Quo",
         quotes.map((q) => String(q.quotationNumber || "")),
-        4
+        4,
       );
 
     // Build API payload using helper function
-    const apiPayload = buildQuotationPayload(payload, assignedQuotationNumber, customers as any);
+    const apiPayload = buildQuotationPayload(
+      payload,
+      assignedQuotationNumber,
+      customers as any,
+    );
 
     try {
       // ensure payload includes a quotationNumber for create
@@ -319,7 +320,7 @@ function Quotation() {
         // prefer updating by quotationNumber
         const qNum = String(editingId);
         await updateQuotationAsync({ quotationNumber: qNum, data: apiPayload });
-        
+
         showNotification({
           title: "Quotation Updated",
           message: "Quotation has been updated.",
@@ -327,19 +328,18 @@ function Quotation() {
         });
       } else {
         await createQuotationAsync(apiPayload);
-        
+
         showNotification({
           title: "Quotation Created",
           message: "Quotation created.",
           color: "green",
         });
       }
-      
+
       // Close modal immediately
       setOpen(false);
       setInitialPayload(null);
       setEditingId(null);
-      
     } catch (err: unknown) {
       showNotification({
         title: editingId ? "Update Failed" : "Create Failed",
@@ -364,7 +364,7 @@ function Quotation() {
     if (q && q.customer) {
       if (Array.isArray(q.customer) && q.customer[0]) {
         resolvedCustomerId =
-          (q.customer[0]).id ??
+          q.customer[0].id ??
           (q.customer[0] as any).customerId ??
           (q.customer[0] as any).name ??
           undefined;
@@ -376,7 +376,7 @@ function Quotation() {
       const byName = (customers || []).find(
         (c: CustomerPayload) =>
           String(c.name).trim() ===
-          String((q as { customerName?: string }).customerName).trim()
+          String((q as { customerName?: string }).customerName).trim(),
       );
       if (byName) resolvedCustomerId = byName._id;
       else resolvedCustomerId = (q as { customerName?: string }).customerName;
@@ -384,16 +384,16 @@ function Quotation() {
 
     setInitialPayload({
       docNo: existingNumber,
-      docDate: (q.quotationDate ?? ""),
+      docDate: q.quotationDate ?? "",
       customer:
         Array.isArray(q.customer) && q.customer.length > 0
           ? { name: q.customer[0]?.name ?? String(q.customer[0]) }
           : typeof q.customer === "string" || typeof q.customer === "number"
-          ? { name: String(q.customer) }
-          : typeof resolvedCustomerId === "string" ||
-            typeof resolvedCustomerId === "number"
-          ? { name: String(resolvedCustomerId) }
-          : { name: "" },
+            ? { name: String(q.customer) }
+            : typeof resolvedCustomerId === "string" ||
+                typeof resolvedCustomerId === "number"
+              ? { name: String(resolvedCustomerId) }
+              : { name: "" },
       remarks: q.remarks ?? "",
       totals: {
         subTotal: q.subTotal ?? q.totalGrossAmount ?? 0,
@@ -460,7 +460,7 @@ function Quotation() {
                 const gen = generateNextDocumentNumber(
                   "Quo",
                   quotes.map((q) => String(q.quotationNumber || "")),
-                  4
+                  4,
                 );
                 setInitialPayload({
                   docNo: gen,
@@ -489,7 +489,9 @@ function Quotation() {
               variant="outline"
               size="sm"
               ml={8}
-              onClick={() => { setDraftsOpen(true); }}
+              onClick={() => {
+                setDraftsOpen(true);
+              }}
             >
               Saved Drafts
             </Button>
@@ -527,17 +529,18 @@ function Quotation() {
                       (q as QuotationRecordPayload & { id?: string })?.id ??
                       (q as QuotationRecordPayload & { docNo?: string })
                         ?.docNo);
-                  const dateVal = (q &&
+                  const dateVal =
+                    q &&
                     (q.quotationDate ??
                       q.quotationDate ??
                       (q as QuotationRecordPayload & { docDate?: string })
-                        ?.docDate));
+                        ?.docDate);
                   const amountVal = Number(
                     q?.subTotal ??
                       q?.totalGrossAmount ??
                       q?.subTotal ??
                       q?.totalNetAmount ??
-                      0
+                      0,
                   );
                   // Always resolve customer name from customer[0]?.name if available, fallback to customerId lookup for optimistic rows
                   let customerDisplay = "";
@@ -567,7 +570,7 @@ function Quotation() {
                     }
                     if (customerId) {
                       const found = customers.find(
-                        (c) => String(c._id) === String(customerId)
+                        (c) => String(c._id) === String(customerId),
                       );
                       if (found && found.name) customerDisplay = found.name;
                     }
@@ -590,7 +593,9 @@ function Quotation() {
                   return (
                     <Table.Tr
                       key={rowKey}
-                      onDoubleClick={() => { openQuotationInEditor(q); }}
+                      onDoubleClick={() => {
+                        openQuotationInEditor(q);
+                      }}
                       style={{ cursor: "pointer" }}
                     >
                       <Table.Td>{String(displayNumber ?? "-")}</Table.Td>
@@ -650,7 +655,9 @@ function Quotation() {
                               </Menu.Item>
 
                               <Menu.Item
-                                onClick={() => { openQuotationInEditor(q); }}
+                                onClick={() => {
+                                  openQuotationInEditor(q);
+                                }}
                                 leftSection={<IconEdit size={14} />}
                               >
                                 Edit
@@ -660,8 +667,7 @@ function Quotation() {
                                 onClick={() => {
                                   const id =
                                     q.quotationNumber ??
-                                    (q)
-                                      .quotationNumber ??
+                                    q.quotationNumber ??
                                     (
                                       q as QuotationRecordPayload & {
                                         docNo?: string;
@@ -673,11 +679,10 @@ function Quotation() {
                                   setDeleteTargetDisplay(
                                     String(
                                       q.quotationNumber ??
-                                        (q)
-                                          .quotationNumber ??
+                                        q.quotationNumber ??
                                         displayNumber ??
-                                        id
-                                    )
+                                        id,
+                                    ),
                                   );
                                   setDeleteModalOpen(true);
                                 }}
@@ -762,7 +767,6 @@ function Quotation() {
             submitting={creating}
             setSubmitting={setCreating}
             onSubmit={(payload: SalesPayload) => {
-              logger.debug("=== Quotation onSubmit called ===");
               // Don't close modal immediately - let saveFromShell handle it
               saveFromShell(payload);
             }}
@@ -774,7 +778,9 @@ function Quotation() {
       {/* Delete confirmation modal OUTSIDE main modal */}
       <Modal
         opened={deleteModalOpen}
-        onClose={() => { setDeleteModalOpen(false); }}
+        onClose={() => {
+          setDeleteModalOpen(false);
+        }}
         title="Confirm delete"
         centered
         size="xs"
@@ -793,7 +799,12 @@ function Quotation() {
               marginTop: 12,
             }}
           >
-            <Button variant="default" onClick={() => { setDeleteModalOpen(false); }}>
+            <Button
+              variant="default"
+              onClick={() => {
+                setDeleteModalOpen(false);
+              }}
+            >
               Cancel
             </Button>
             <Button color="red" onClick={confirmDelete}>
@@ -804,7 +815,9 @@ function Quotation() {
       </Modal>
       <Modal
         opened={draftsOpen}
-        onClose={() => { setDraftsOpen(false); }}
+        onClose={() => {
+          setDraftsOpen(false);
+        }}
         title="Saved Drafts"
         size="lg"
       >

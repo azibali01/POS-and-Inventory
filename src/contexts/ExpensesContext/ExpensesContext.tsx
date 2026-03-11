@@ -1,13 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useState, useCallback, useRef } from "react";
 import { showNotification } from "@mantine/notifications";
-import * as api from "../../lib/api";
+import * as api from "../../api";
 import { ensureArray } from "../../lib/api-response-utils";
 import { logger } from "../../lib/logger";
 import type { Expense, ExpensesContextType } from "./types";
 
 const ExpensesContext = createContext<ExpensesContextType | undefined>(
-  undefined
+  undefined,
 );
 
 /**
@@ -70,7 +70,9 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     async (payload: Omit<Expense, "id" | "createdAt" | "expenseNumber">) => {
       setExpensesLoading(true);
       try {
-        const created = await api.createExpense(payload as unknown as api.ExpensePayload);
+        const created = await api.createExpense(
+          payload as unknown as api.ExpensePayload,
+        );
         const expense = { ...created } as Expense;
         setExpenses((prev) => [expense, ...prev]);
         showNotification({
@@ -92,17 +94,20 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         setExpensesLoading(false);
       }
     },
-    []
+    [],
   );
 
   const updateExpense = useCallback(
     async (id: string, payload: Partial<Expense>) => {
       setExpensesLoading(true);
       try {
-        const updated = await api.updateExpense(id, payload as unknown as api.ExpensePayload);
+        const updated = await api.updateExpense(
+          id,
+          payload as unknown as api.ExpensePayload,
+        );
         const expense = { ...updated } as Expense;
         setExpenses((prev) =>
-          prev.map((e) => (String(e.id) === String(id) ? expense : e))
+          prev.map((e) => (String(e.id) === String(id) ? expense : e)),
         );
         showNotification({
           title: "Expense Updated",
@@ -123,7 +128,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
         setExpensesLoading(false);
       }
     },
-    []
+    [],
   );
 
   const deleteExpense = useCallback(async (id: string) => {

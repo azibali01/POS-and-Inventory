@@ -32,7 +32,7 @@ import {
   getAllPaymentVouchers,
   deletePaymentVoucher,
   updatePaymentVoucher,
-} from "../../../lib/api";
+} from "../../../api";
 // Update the import path if the file exists elsewhere, for example:
 import { PaymentVoucherForm } from "../../../components/accounts/payment-voucher-form";
 
@@ -107,7 +107,7 @@ export default function PaymentVouchersPage() {
         v.voucherNumber.toLowerCase().includes(t) ||
         v.paidTo.toLowerCase().includes(t) ||
         v.paymentMode.toLowerCase().includes(t) ||
-        (v.reference ?? "").toLowerCase().includes(t)
+        (v.reference ?? "").toLowerCase().includes(t),
     );
   }, [q, data]);
 
@@ -161,13 +161,19 @@ export default function PaymentVouchersPage() {
           <TextInput
             placeholder="Search payments..."
             value={q}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              { setQ(e.currentTarget.value); }
-            }
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              setQ(e.currentTarget.value);
+            }}
             leftSection={<Search size={16} style={{ color: "gray" }} />}
           />
 
-          <Button leftSection={<Plus />} w={180} onClick={() => { setOpen(true); }}>
+          <Button
+            leftSection={<Plus />}
+            w={180}
+            onClick={() => {
+              setOpen(true);
+            }}
+          >
             Add Payment
           </Button>
         </Group>
@@ -175,7 +181,10 @@ export default function PaymentVouchersPage() {
 
       <Card>
         <Card.Section>
-          <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
+          <div
+            className="app-table-wrapper"
+            style={{ maxHeight: "55vh", overflow: "auto" }}
+          >
             <Table
               highlightOnHover
               withRowBorders
@@ -197,7 +206,13 @@ export default function PaymentVouchersPage() {
               </Table.Thead>
               <tbody>
                 {paginatedEntries.map((v) => (
-                  <tr key={v.id} onDoubleClick={() => { setEditVoucher(v); }} style={{ cursor: 'pointer' }}>
+                  <tr
+                    key={v.id}
+                    onDoubleClick={() => {
+                      setEditVoucher(v);
+                    }}
+                    style={{ cursor: "pointer" }}
+                  >
                     <td style={{ fontFamily: "monospace", fontSize: 12 }}>
                       {v.voucherNumber}
                     </td>
@@ -222,7 +237,9 @@ export default function PaymentVouchersPage() {
                         <Menu.Dropdown>
                           <Menu.Item
                             leftSection={<IconPencil size={16} />}
-                            onClick={() => { setEditVoucher(v); }}
+                            onClick={() => {
+                              setEditVoucher(v);
+                            }}
                           >
                             Edit
                           </Menu.Item>
@@ -261,7 +278,9 @@ export default function PaymentVouchersPage() {
                           <Menu.Item
                             leftSection={<IconTrash size={16} />}
                             color="red"
-                            onClick={() => { setDeleteTarget(v); }}
+                            onClick={() => {
+                              setDeleteTarget(v);
+                            }}
                           >
                             Delete
                           </Menu.Item>
@@ -290,7 +309,9 @@ export default function PaymentVouchersPage() {
       {/* Confirm Delete Modal (must be outside the table/menu) */}
       <Modal
         opened={!!deleteTarget}
-        onClose={() => { setDeleteTarget(null); }}
+        onClose={() => {
+          setDeleteTarget(null);
+        }}
         title="Confirm Delete"
         centered
       >
@@ -300,7 +321,9 @@ export default function PaymentVouchersPage() {
         <MantineGroup justify="flex-end" mt="md">
           <MantineButton
             variant="outline"
-            onClick={() => { setDeleteTarget(null); }}
+            onClick={() => {
+              setDeleteTarget(null);
+            }}
             disabled={deleteLoading}
           >
             Cancel
@@ -315,8 +338,8 @@ export default function PaymentVouchersPage() {
                 await deletePaymentVoucher(deleteTarget.voucherNumber);
                 setData((prev) =>
                   prev.filter(
-                    (item) => item.voucherNumber !== deleteTarget.voucherNumber
-                  )
+                    (item) => item.voucherNumber !== deleteTarget.voucherNumber,
+                  ),
                 );
                 setDeleteTarget(null);
               } finally {
@@ -373,8 +396,8 @@ export default function PaymentVouchersPage() {
                         voucherNumber: editVoucher.voucherNumber,
                         id: item.id,
                       }
-                    : item
-                )
+                    : item,
+                ),
               );
             } else {
               await createPaymentVoucher(apiPayload);

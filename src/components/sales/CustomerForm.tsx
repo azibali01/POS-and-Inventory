@@ -8,9 +8,8 @@ import {
   Select,
 } from "@mantine/core";
 import { showNotification } from "@mantine/notifications";
-import { useDataContext } from "../../Dashboard/Context/DataContext";
-import type { Customer } from "../../Dashboard/Context/DataContext";
-import { createCustomer, updateCustomer } from "../../lib/api";
+import type { Customer } from "../../types";
+import { useCustomers } from "../../hooks";
 import { logger } from "../../lib/logger";
 
 export function CustomerForm({
@@ -20,7 +19,7 @@ export function CustomerForm({
   customer?: Customer;
   onClose: () => void;
 }) {
-  const { setCustomers } = useDataContext();
+  const { createCustomerAsync, updateCustomerAsync } = useCustomers();
 
   const [form, setForm] = useState<Customer>(() => ({
     _id: customer?._id || String(Date.now()),
@@ -37,10 +36,10 @@ export function CustomerForm({
   // Local UI state: keep opening amount positive and a type (credit/debit)
   const initialOpening = customer?.openingAmount ?? 0;
   const [openingAmount, setOpeningAmount] = useState<number>(
-    Math.abs(initialOpening)
+    Math.abs(initialOpening),
   );
   const [paymentType, setPaymentType] = useState<"Credit" | "Debit">(
-    customer?.paymentType === "Debit" ? "Debit" : "Credit"
+    customer?.paymentType === "Debit" ? "Debit" : "Credit",
   );
   const [loading, setLoading] = useState(false);
 
@@ -61,15 +60,7 @@ export function CustomerForm({
 
       if (customer) {
         // Update existing customer
-        await updateCustomer(customer._id, customerData);
-        const updatedCustomer = {
-          ...form,
-          openingAmount: openingAmount,
-          paymentType,
-        } as Customer;
-        setCustomers((prev) =>
-          prev.map((c) => (c._id === updatedCustomer._id ? updatedCustomer : c))
-        );
+        await updateCustomerAsync({ id: customer._id, data: customerData });
         showNotification({
           title: "Success",
           message: "Customer updated successfully",
@@ -77,19 +68,8 @@ export function CustomerForm({
         });
       } else {
         // Create new customer
-        const newCustomer = await createCustomer(customerData);
+        const newCustomer = await createCustomerAsync(customerData);
         logger.debug("Created customer response:", newCustomer);
-
-        // Ensure we have a valid MongoDB ID (string)
-        const customerId =
-          newCustomer._id || newCustomer.id || String(Date.now());
-        const customerWithId = {
-          ...form,
-          _id: String(customerId), // Ensure ID is always a string
-          openingAmount: openingAmount,
-          paymentType,
-        } as Customer;
-        setCustomers((prev) => [customerWithId, ...prev]);
         showNotification({
           title: "Success",
           message: "Customer created successfully",
@@ -116,13 +96,17 @@ export function CustomerForm({
           label="Name"
           required
           value={form.name}
-          onChange={(e) => { setForm({ ...form, name: e.currentTarget.value }); }}
+          onChange={(e) => {
+            setForm({ ...form, name: e.currentTarget.value });
+          }}
           placeholder="Customer name"
         />
         <TextInput
           label="Phone"
           value={form.phone}
-          onChange={(e) => { setForm({ ...form, phone: e.currentTarget.value }); }}
+          onChange={(e) => {
+            setForm({ ...form, phone: e.currentTarget.value });
+          }}
           placeholder="+92 ..."
         />
       </Group>
@@ -131,13 +115,17 @@ export function CustomerForm({
         label="Address"
         minRows={2}
         value={form.address}
-        onChange={(e) => { setForm({ ...form, address: e.currentTarget.value }); }}
+        onChange={(e) => {
+          setForm({ ...form, address: e.currentTarget.value });
+        }}
       />
 
       <TextInput
         label="City"
         value={form.city}
-        onChange={(e) => { setForm({ ...form, city: e.currentTarget.value }); }}
+        onChange={(e) => {
+          setForm({ ...form, city: e.currentTarget.value });
+        }}
       />
 
       <Group grow>
@@ -161,17 +149,17 @@ export function CustomerForm({
             { value: "Credit", label: "Credit" },
             { value: "Debit", label: "Debit" },
           ]}
-          onChange={(v) =>
-            { setPaymentType((v as "Credit" | "Debit") || "Credit"); }
-          }
+          onChange={(v) => {
+            setPaymentType((v as "Credit" | "Debit") || "Credit");
+          }}
           style={{ width: 150 }}
         />
         <NumberInput
           label="Credit Limit"
           value={form.creditLimit}
-          onChange={(value: number | string) =>
-            { setForm({ ...form, creditLimit: Number(value) || 0 }); }
-          }
+          onChange={(value: number | string) => {
+            setForm({ ...form, creditLimit: Number(value) || 0 });
+          }}
           hideControls
         />
       </Group>

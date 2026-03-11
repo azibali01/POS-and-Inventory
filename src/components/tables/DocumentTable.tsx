@@ -4,7 +4,12 @@
  */
 
 import { ActionIcon, Menu, Text } from "@mantine/core";
-import { IconEdit, IconTrash, IconPrinter, IconDots } from "@tabler/icons-react";
+import {
+  IconEdit,
+  IconTrash,
+  IconPrinter,
+  IconDots,
+} from "@tabler/icons-react";
 import Table from "../../lib/AppTable";
 
 export interface Column<T> {
@@ -45,9 +50,23 @@ export function DocumentTable<T>({
     return <Text c="dimmed">Loading...</Text>;
   }
 
-  if (!data || data.length === 0) {
+  if (data.length === 0) {
     return <Text c="dimmed">{emptyMessage}</Text>;
   }
+
+  const renderCellValue = (row: T, key: string) => {
+    const value = (row as Record<string, unknown>)[key];
+    if (value == null) {
+      return "";
+    }
+    if (typeof value === "string" || typeof value === "number") {
+      return value;
+    }
+    if (typeof value === "boolean") {
+      return value ? "Yes" : "No";
+    }
+    return "";
+  };
 
   return (
     <Table>
@@ -70,16 +89,19 @@ export function DocumentTable<T>({
           >
             {columns.map((col) => (
               <Table.Td key={col.key}>
-                {col.render
-                  ? col.render(row)
-                  : String((row as Record<string, unknown>)[col.key] ?? "")}
+                {col.render ? col.render(row) : renderCellValue(row, col.key)}
               </Table.Td>
             ))}
             {(onEdit || onDelete || onPrint) && (
               <Table.Td>
                 <Menu position="bottom-end">
                   <Menu.Target>
-                    <ActionIcon variant="subtle" onClick={(e) => e.stopPropagation()}>
+                    <ActionIcon
+                      variant="subtle"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
                       <IconDots size={16} />
                     </ActionIcon>
                   </Menu.Target>

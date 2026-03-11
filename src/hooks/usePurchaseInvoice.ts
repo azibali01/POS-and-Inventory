@@ -1,5 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { purchaseInvoiceService, type PurchaseInvoiceRecordPayload } from "../api";
+import {
+  purchaseInvoiceService,
+  type ListQueryParams,
+  type PurchaseInvoiceRecordPayload,
+} from "../api";
+
+type PurchaseInvoiceListParams = Required<
+  Pick<ListQueryParams, "page" | "limit">
+> &
+  Pick<ListQueryParams, "search">;
 
 /**
  * Custom hook for purchase invoice management
@@ -71,5 +80,30 @@ export function usePurchaseInvoice() {
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+  };
+}
+
+export function usePurchaseInvoiceList(params: PurchaseInvoiceListParams) {
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: [
+      "purchaseInvoices",
+      "list",
+      params.page,
+      params.limit,
+      params.search ?? "",
+    ],
+    queryFn: () => purchaseInvoiceService.list(params),
+  });
+
+  return {
+    purchaseInvoices: data?.data ?? [],
+    pagination: {
+      total: data?.total ?? 0,
+      page: data?.page ?? params.page,
+      lastPage: data?.lastPage ?? 1,
+    },
+    isLoading,
+    error,
+    refetch,
   };
 }

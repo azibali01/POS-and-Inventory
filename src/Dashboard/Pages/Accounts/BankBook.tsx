@@ -22,12 +22,12 @@ import {
   getSales,
   getPurchaseInvoices,
   getExpenses,
-} from "../../../lib/api";
+} from "../../../api";
 import type {
   ReceiptVoucherPayload,
   PaymentVoucherPayload,
   PurchaseInvoicePayload,
-} from "../../../lib/api";
+} from "../../../api";
 
 interface BankBookEntry {
   date: string | Date;
@@ -105,9 +105,7 @@ export default function BankBookPage() {
         }));
 
       // Sale Invoices (Bank/Online In)
-      const saleEntries: BankBookEntry[] = (
-        (sales) || []
-      )
+      const saleEntries: BankBookEntry[] = (sales || [])
         .filter((s) => {
           const mode =
             typeof s.paymentMethod === "string"
@@ -210,7 +208,7 @@ export default function BankBookPage() {
     return filteredData.filter(
       (v) =>
         v.particulars.toLowerCase().includes(t) ||
-        (v.refNo && v.refNo.toLowerCase().includes(t))
+        (v.refNo && v.refNo.toLowerCase().includes(t)),
     );
   }, [q, data, fromDate, toDate]);
 
@@ -220,7 +218,7 @@ export default function BankBookPage() {
       acc.payment += v.payment || 0;
       return acc;
     },
-    { receipt: 0, payment: 0 }
+    { receipt: 0, payment: 0 },
   );
 
   // Pagination logic
@@ -263,16 +261,18 @@ export default function BankBookPage() {
             mt={20}
             placeholder="Search by particulars or ref no..."
             value={q}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              { setQ(e.currentTarget.value); }
-            }
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              setQ(e.currentTarget.value);
+            }}
           />
           <TextInput
             type="date"
             label="From Date"
             w={220}
             value={fromDate}
-            onChange={(e) => { setFromDate(e.currentTarget.value); }}
+            onChange={(e) => {
+              setFromDate(e.currentTarget.value);
+            }}
             mx={4}
             style={{ minWidth: 140 }}
           />
@@ -281,7 +281,9 @@ export default function BankBookPage() {
             label="To Date"
             w={220}
             value={toDate}
-            onChange={(e) => { setToDate(e.currentTarget.value); }}
+            onChange={(e) => {
+              setToDate(e.currentTarget.value);
+            }}
             mx={4}
             style={{ minWidth: 140 }}
           />
@@ -303,7 +305,9 @@ export default function BankBookPage() {
               <NumberInput
                 label="Opening Balance"
                 value={tempOpening}
-                onChange={(val) => { setTempOpening(Number(val) || 0); }}
+                onChange={(val) => {
+                  setTempOpening(Number(val) || 0);
+                }}
                 hideControls
                 styles={{ input: { width: 120 } }}
               />
@@ -337,7 +341,9 @@ export default function BankBookPage() {
               <Button
                 size="xs"
                 variant="default"
-                onClick={() => { setEditingOpening(true); }}
+                onClick={() => {
+                  setEditingOpening(true);
+                }}
               >
                 Edit
               </Button>
@@ -369,7 +375,10 @@ export default function BankBookPage() {
           />
         </Group>
         <Card.Section>
-          <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
+          <div
+            className="app-table-wrapper"
+            style={{ maxHeight: "55vh", overflow: "auto" }}
+          >
             <Table
               highlightOnHover
               withRowBorders
@@ -424,7 +433,9 @@ export default function BankBookPage() {
                 {/* Transaction Details Modal */}
                 <Modal
                   opened={modalOpen}
-                  onClose={() => { setModalOpen(false); }}
+                  onClose={() => {
+                    setModalOpen(false);
+                  }}
                   title="Transaction Details"
                   size="md"
                   centered

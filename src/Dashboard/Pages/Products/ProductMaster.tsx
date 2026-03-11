@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { useDebouncedValue } from "@mantine/hooks";
 
 import {
   Card,
@@ -27,11 +26,16 @@ import {
   IconCheck,
   IconX,
 } from "@tabler/icons-react";
-import { useInventory, useCategories } from "../../../lib/hooks/useInventory";
+import {
+  useInventory,
+  useInventoryList,
+  useCategories,
+} from "../../../lib/hooks/useInventory";
 import type { InventoryItemPayload } from "../../../api";
 
-import { ProductForm } from "../../../components/products/ProductForm";
+import { ProductFormNew } from "../../../components/products/ProductFormNew";
 import { ProductDetails } from "../../../components/products/ProductDetails";
+import { useDebounce } from "../../../hooks/useDebounce";
 
 function formatNumber(n?: number | null) {
   if (typeof n !== "number" || !Number.isFinite(n)) return "-";
@@ -62,10 +66,8 @@ export default function ProductMaster() {
   };
 
   type ApplyResponse = { updated?: Array<{ _id: string; newPrice?: number }> };
-  
-  const {
-    categories: categoryData = [],
-  } = useCategories();
+
+  const { categories: categoryData = [] } = useCategories();
 
   const categoriesForSelect = useMemo(() => {
     return (categoryData || []).map((c: any) => ({
@@ -74,22 +76,28 @@ export default function ProductMaster() {
     }));
   }, [categoryData]);
 
-  const {
-    inventory,
-    deleteInventoryAsync: deleteInventoryItem,
-    refetch: loadInventory,
-  } = useInventory();
-  
+  const { deleteInventoryAsync: deleteInventoryItem } = useInventory();
+
   // Inventory is auto-loaded by useInventory hook
   const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearch] = useDebouncedValue(searchTerm, 200);
+  const debouncedSearch = useDebounce(searchTerm, 500);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<InventoryItemPayload | null>(
-    null
-  );
+  const [selectedProduct, setSelectedProduct] =
+    useState<InventoryItemPayload | null>(null);
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<string>("25");
+  const {
+    inventory,
+    pagination,
+    isLoading,
+    refetch: refetchInventoryList,
+  } = useInventoryList({
+    page: currentPage,
+    limit: Number(itemsPerPage),
+    search: debouncedSearch || undefined,
+    category: selectedCategory,
+  });
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -97,48 +105,35 @@ export default function ProductMaster() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [, setUploadFile] = useState<File | null>(null);
   const [uploadPreview, setUploadPreview] = useState<UploadPreviewRow[] | null>(
-    null
+    null,
   );
 
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [reviewRows, setReviewRows] = useState<ReviewRow[] | null>(null);
   const [undoSnapshot, setUndoSnapshot] = useState<Map<string, number> | null>(
-    null
+    null,
   );
 
-
-  const filtered = useMemo(() => {
-    const term = (debouncedSearch || "").toLowerCase();
-    const arr = (inventory || []).filter((p) => {
-      if (selectedCategory && (p.category || "") !== selectedCategory)
-        return false;
-      if (!term) return true;
-      return Object.values(p).some((v) =>
-        String(v).toLowerCase().includes(term)
-      );
-    });
-    return arr;
-  }, [inventory, debouncedSearch, selectedCategory]);
-
-  // Pagination logic
-  const totalPages = Math.ceil(filtered.length / parseInt(itemsPerPage));
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * parseInt(itemsPerPage);
-    const end = start + parseInt(itemsPerPage);
-    return filtered.slice(start, end);
-  }, [filtered, currentPage, itemsPerPage]);
-
-  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, selectedCategory]);
 
   const getStockStatus = (item: InventoryItemPayload) => {
-    const stock = item.openingStock ?? (item as any).stock;
-    const min = item.minimumStockLevel;
-    if (stock == null) return <Badge color="gray">Unknown</Badge>;
-    if (stock < 0) return <Badge color="red">Negative</Badge>;
-    if (stock <= (min ?? 0)) return <Badge color="yellow">Low Stock</Badge>;
+    // For master products, check total stock across all variants
+    const variants = (item as any).variants || [];
+    const totalStock = variants.reduce(
+      (sum: number, variant: any) => sum + (variant.availableStock || 0),
+      0,
+    );
+    const totalMinStock = variants.reduce(
+      (sum: number, variant: any) => sum + (variant.minimumStockLevel || 0),
+      0,
+    );
+
+    if (variants.length === 0) return <Badge color="gray">No Variants</Badge>;
+    if (totalStock < 0) return <Badge color="red">Negative</Badge>;
+    if (totalStock <= totalMinStock)
+      return <Badge color="yellow">Low Stock</Badge>;
     return <Badge color="green">In Stock</Badge>;
   };
   // Removed setInventory from useDataContext; using local setInventory only
@@ -157,7 +152,7 @@ export default function ProductMaster() {
     setDeleteLoading(true);
     try {
       await deleteInventoryItem(_id);
-      await loadInventory();
+      await refetchInventoryList();
       showNotification({
         title: "Deleted",
         message: `Product ${_id} deleted`,
@@ -187,14 +182,18 @@ export default function ProductMaster() {
           <div>
             <Button
               leftSection={<IconPlus />}
-              onClick={() => { setIsAddOpen(true); }}
+              onClick={() => {
+                setIsAddOpen(true);
+              }}
             >
               Add Product
             </Button>
             <Button
               ml={8}
               variant="outline"
-              onClick={() => { setIsUploadOpen(true); }}
+              onClick={() => {
+                setIsUploadOpen(true);
+              }}
               style={{ marginLeft: 8 }}
             >
               Upload Rates
@@ -209,7 +208,7 @@ export default function ProductMaster() {
             <Title order={4}>All Products</Title>
             <Group gap="xs">
               <Text c="dimmed">
-                Showing {paginatedProducts.length} of {filtered.length} products
+                Showing {inventory.length} of {pagination.total} products
               </Text>
               <Select
                 label="Per page"
@@ -228,7 +227,9 @@ export default function ProductMaster() {
             <TextInput
               placeholder="Search products..."
               value={searchTerm}
-              onChange={(e) => { setSearchTerm(e.currentTarget.value); }}
+              onChange={(e) => {
+                setSearchTerm(e.currentTarget.value);
+              }}
               leftSection={<IconSearch size={16} />}
               style={{ flex: 1 }}
             />
@@ -241,14 +242,19 @@ export default function ProductMaster() {
                   label: c.label,
                 }))}
               value={selectedCategory ?? undefined}
-              onChange={(v) => { setSelectedCategory(v ?? null); }}
+              onChange={(v) => {
+                setSelectedCategory(v ?? null);
+              }}
               clearable
               style={{ width: 250 }}
             />
           </div>
         </Group>
 
-        <div className="app-table-wrapper" style={{ maxHeight: '70vh', overflow: 'auto' }}>
+        <div
+          className="app-table-wrapper"
+          style={{ maxHeight: "70vh", overflow: "auto" }}
+        >
           <Table
             withColumnBorders
             withRowBorders
@@ -269,11 +275,12 @@ export default function ProductMaster() {
                 </Table.Th>
                 <Table.Th style={{ padding: "8px" }}>Category</Table.Th>
                 <Table.Th style={{ padding: "8px" }}>Brand/Supplier</Table.Th>
-                <Table.Th style={{ padding: "8px" }}>Color</Table.Th>
                 <Table.Th style={{ width: "100px", padding: "8px" }}>
-                  Opening Stock
+                  Total Variants
                 </Table.Th>
-                <Table.Th style={{ padding: "8px" }}>Sale Rate</Table.Th>
+                <Table.Th style={{ width: "120px", padding: "8px" }}>
+                  Total Stock
+                </Table.Th>
                 <Table.Th style={{ width: "120px", padding: "8px" }}>
                   Status
                 </Table.Th>
@@ -283,78 +290,97 @@ export default function ProductMaster() {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {paginatedProducts.map((p, index) => (
-                <Table.Tr key={p._id}>
-                  <Table.Td style={{ padding: "8px" }}>
-                    {(currentPage - 1) * parseInt(itemsPerPage) + index + 1}
-                  </Table.Td>
-                  <Table.Td style={{ padding: "8px" }}>
-                    {p.itemName || "-"}
-                  </Table.Td>
-                  <Table.Td style={{ padding: "8px" }}>
-                    <Badge
-                      size="sm"
-                      style={{ cursor: "pointer" }}
-                      onClick={() => { setSelectedCategory(p.category || null); }}
-                    >
-                      {p.category}
-                    </Badge>
-                  </Table.Td>
-
-                  <Table.Td style={{ padding: "8px" }}>
-                    {p.brand ?? "-"}
-                  </Table.Td>
-
-                  <Table.Td style={{ padding: "8px" }}>
-                    {p.color ?? "-"}
-                  </Table.Td>
-                  <Table.Td style={{ padding: "8px" }}>
-                    {formatNumber(p.openingStock ?? (p as any).stock)}
-                  </Table.Td>
-                  <Table.Td style={{ padding: "8px" }}>
-                    {formatCurrency(p.salesRate ?? null)}
-                  </Table.Td>
-                  <Table.Td style={{ padding: "8px" }}>
-                    {getStockStatus(p)}
-                  </Table.Td>
-                  <Table.Td style={{ padding: "8px" }}>
-                    <Group gap={0} grow>
-                      <Button
-                        variant="subtle"
-                        leftSection={<IconEye size={16} />}
-                        onClick={() => {
-                          setSelectedProduct(p);
-                          setIsViewOpen(true);
-                        }}
-                      />
-
-                      <Button
-                        variant="subtle"
-                        leftSection={<IconEdit size={16} />}
-                        onClick={() => {
-                          setSelectedProduct(p);
-                          setIsEditOpen(true);
-                        }}
-                      />
-                      <Button
-                        variant="subtle"
-                        leftSection={<IconTrash size={18} />}
-                        color="red"
-                        onClick={() => { handleDeleteRequest(String(p._id)); }}
-                      />
-                    </Group>
+              {isLoading ? (
+                <Table.Tr>
+                  <Table.Td colSpan={8} style={{ textAlign: "center" }}>
+                    Loading products...
                   </Table.Td>
                 </Table.Tr>
-              ))}
+              ) : (
+                inventory.map((p, index) => (
+                  <Table.Tr key={p._id}>
+                    <Table.Td style={{ padding: "8px" }}>
+                      {(pagination.page - 1) * parseInt(itemsPerPage) +
+                        index +
+                        1}
+                    </Table.Td>
+                    <Table.Td style={{ padding: "8px" }}>
+                      {p.itemName || "-"}
+                    </Table.Td>
+                    <Table.Td style={{ padding: "8px" }}>
+                      <Badge
+                        size="sm"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => {
+                          setSelectedCategory(p.category || null);
+                        }}
+                      >
+                        {p.category}
+                      </Badge>
+                    </Table.Td>
+
+                    <Table.Td style={{ padding: "8px" }}>
+                      {p.brand ?? "-"}
+                    </Table.Td>
+
+                    <Table.Td style={{ padding: "8px", textAlign: "center" }}>
+                      <Badge variant="light" color="blue">
+                        {(p as any).variants?.length || 0}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td style={{ padding: "8px", textAlign: "right" }}>
+                      {formatNumber(
+                        ((p as any).variants || []).reduce(
+                          (sum: number, variant: any) =>
+                            sum + (variant.availableStock || 0),
+                          0,
+                        ),
+                      )}
+                    </Table.Td>
+                    <Table.Td style={{ padding: "8px" }}>
+                      {getStockStatus(p)}
+                    </Table.Td>
+                    <Table.Td style={{ padding: "8px" }}>
+                      <Group gap={0} grow>
+                        <Button
+                          variant="subtle"
+                          leftSection={<IconEye size={16} />}
+                          onClick={() => {
+                            setSelectedProduct(p);
+                            setIsViewOpen(true);
+                          }}
+                        />
+
+                        <Button
+                          variant="subtle"
+                          leftSection={<IconEdit size={16} />}
+                          onClick={() => {
+                            setSelectedProduct(p);
+                            setIsEditOpen(true);
+                          }}
+                        />
+                        <Button
+                          variant="subtle"
+                          leftSection={<IconTrash size={18} />}
+                          color="red"
+                          onClick={() => {
+                            handleDeleteRequest(String(p._id));
+                          }}
+                        />
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ))
+              )}
             </Table.Tbody>
           </Table>
         </div>
-        {totalPages > 1 && (
+        {pagination.lastPage > 1 && (
           <Group justify="center" mt="md" pb="md">
             <Pagination
               value={currentPage}
               onChange={setCurrentPage}
-              total={totalPages}
+              total={pagination.lastPage}
               size="sm"
               withEdges
             />
@@ -364,7 +390,9 @@ export default function ProductMaster() {
 
       <Modal
         opened={isViewOpen}
-        onClose={() => { setIsViewOpen(false); }}
+        onClose={() => {
+          setIsViewOpen(false);
+        }}
         title="Product Details"
         size={"70%"}
       >
@@ -377,25 +405,35 @@ export default function ProductMaster() {
 
       <Modal
         opened={isEditOpen}
-        onClose={() => { setIsEditOpen(false); }}
+        onClose={() => {
+          setIsEditOpen(false);
+        }}
         title="Edit Product"
         size={"70%"}
       >
         {selectedProduct && (
-          <ProductForm
+          <ProductFormNew
             product={selectedProduct as any}
-            onClose={() => { setIsEditOpen(false); }}
+            onClose={() => {
+              setIsEditOpen(false);
+            }}
           />
         )}
       </Modal>
 
       <Modal
         opened={isAddOpen}
-        onClose={() => { setIsAddOpen(false); }}
+        onClose={() => {
+          setIsAddOpen(false);
+        }}
         title={<strong>Add Product</strong>}
         size={"70%"}
       >
-        <ProductForm onClose={() => { setIsAddOpen(false); }} />
+        <ProductFormNew
+          onClose={() => {
+            setIsAddOpen(false);
+          }}
+        />
       </Modal>
 
       <Modal
@@ -412,9 +450,9 @@ export default function ProductMaster() {
           <input
             type="file"
             accept=".csv, .xlsx, .xls, .pdf"
-            onChange={(e) =>
-              { setUploadFile(e.target.files ? e.target.files[0] : null); }
-            }
+            onChange={(e) => {
+              setUploadFile(e.target.files ? e.target.files[0] : null);
+            }}
           />
 
           <div style={{ marginTop: 12 }}>
@@ -433,9 +471,9 @@ export default function ProductMaster() {
                     .filter((r) => r.selected)
                     .map((r) => {
                       const matched = inventory.find(
-                        (p) => String(p._id) === String(r.matchedProductId)
+                        (p) => String(p._id) === String(r.matchedProductId),
                       );
-                      const oldPrice = matched ? matched.salesRate ?? 0 : 0;
+                      const oldPrice = matched ? (matched.salesRate ?? 0) : 0;
                       const newPrice =
                         typeof r.newPrice === "number" ? r.newPrice : null;
                       return {
@@ -473,7 +511,7 @@ export default function ProductMaster() {
                           setUploadPreview((prev) =>
                             prev
                               ? prev.map((r) => ({ ...r, selected: v }))
-                              : prev
+                              : prev,
                           );
                         }}
                       />
@@ -491,8 +529,8 @@ export default function ProductMaster() {
                       <Table.Td>
                         <Checkbox
                           checked={!!r.selected}
-                          onChange={(e) =>
-                            { setUploadPreview((prev) =>
+                          onChange={(e) => {
+                            setUploadPreview((prev) =>
                               prev
                                 ? prev.map((row, i) =>
                                     i === idx
@@ -500,11 +538,11 @@ export default function ProductMaster() {
                                           ...row,
                                           selected: e.currentTarget.checked,
                                         }
-                                      : row
+                                      : row,
                                   )
-                                : prev
-                            ); }
-                          }
+                                : prev,
+                            );
+                          }}
                         />
                       </Table.Td>
                       <Table.Td>{idx + 1}</Table.Td>
@@ -530,9 +568,9 @@ export default function ProductMaster() {
                                             : null,
                                           priceInvalid: !Number.isFinite(num),
                                         }
-                                      : row
+                                      : row,
                                   )
-                                : prev
+                                : prev,
                             );
                           }}
                         />
@@ -638,7 +676,9 @@ export default function ProductMaster() {
       {/* Review modal */}
       <Modal
         opened={isReviewOpen}
-        onClose={() => { setIsReviewOpen(false); }}
+        onClose={() => {
+          setIsReviewOpen(false);
+        }}
         title="Review changes"
         size="70%"
       >
@@ -685,9 +725,9 @@ export default function ProductMaster() {
                                         (row.oldPrice ?? 0),
                                       priceInvalid: !Number.isFinite(num),
                                     }
-                                  : row
+                                  : row,
                               )
-                            : prev
+                            : prev,
                         );
                       }}
                     />
@@ -703,8 +743,8 @@ export default function ProductMaster() {
                         r.delta && r.delta > 0
                           ? "red"
                           : r.delta && r.delta < 0
-                          ? "green"
-                          : undefined,
+                            ? "green"
+                            : undefined,
                     }}
                   >
                     {r.delta != null ? formatCurrency(r.delta) : "-"}
@@ -712,17 +752,17 @@ export default function ProductMaster() {
                   <Table.Td>
                     <Checkbox
                       checked={!!r.include}
-                      onChange={(e) =>
-                        { setReviewRows((prev) =>
+                      onChange={(e) => {
+                        setReviewRows((prev) =>
                           prev
                             ? prev.map((row, idx) =>
                                 idx === i
                                   ? { ...row, include: e.currentTarget.checked }
-                                  : row
+                                  : row,
                               )
-                            : prev
-                        ); }
-                      }
+                            : prev,
+                        );
+                      }}
                     />
                   </Table.Td>
                 </Table.Tr>
@@ -737,7 +777,7 @@ export default function ProductMaster() {
                 if (!reviewRows) return;
                 // build apply list
                 const toApply = reviewRows.filter(
-                  (r) => r.include && r.matchedProductId && r.newPrice != null
+                  (r) => r.include && r.matchedProductId && r.newPrice != null,
                 );
                 if (toApply.length === 0) {
                   showNotification({
@@ -752,9 +792,9 @@ export default function ProductMaster() {
                 for (const r of toApply) {
                   const id = r.matchedProductId!;
                   const prod = inventory.find(
-                    (p) => String(p._id) === String(id)
+                    (p) => String(p._id) === String(id),
                   );
-                  snap.set(id, prod ? prod.salesRate ?? 0 : 0);
+                  snap.set(id, prod ? (prod.salesRate ?? 0) : 0);
                 }
                 setUndoSnapshot(snap);
                 // apply locally
@@ -764,12 +804,19 @@ export default function ProductMaster() {
                 setUploadPreview(null);
                 setUploadFile(null);
                 // show small undo affordance by keeping undoSnapshot for 30s
-                setTimeout(() => { setUndoSnapshot(null); }, 30000);
+                setTimeout(() => {
+                  setUndoSnapshot(null);
+                }, 30000);
               }}
             >
               Confirm Apply
             </Button>
-            <Button variant="default" onClick={() => { setIsReviewOpen(false); }}>
+            <Button
+              variant="default"
+              onClick={() => {
+                setIsReviewOpen(false);
+              }}
+            >
               Cancel
             </Button>
           </Group>

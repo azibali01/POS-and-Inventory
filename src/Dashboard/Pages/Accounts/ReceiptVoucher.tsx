@@ -18,7 +18,6 @@ import {
 import Table from "../../../lib/AppTable";
 import { ReceiptForm } from "../../../components/accounts/receipt-form";
 import { formatCurrency, formatDate } from "../../../lib/format-utils";
-import { logger } from "../../../lib/logger";
 import { Plus, Search, MoreVertical } from "lucide-react";
 import {
   Menu,
@@ -29,7 +28,7 @@ import {
   Button as MantineButton,
 } from "@mantine/core";
 
-import { createReceiptVoucher, getAllReceiptVouchers } from "../../../lib/api";
+import { createReceiptVoucher, getAllReceiptVouchers } from "../../../api";
 import { IconPencil, IconPrinter, IconTrash } from "@tabler/icons-react";
 // Fetch all receipt vouchers from backend
 async function fetchAllReceiptVouchers() {
@@ -49,7 +48,7 @@ interface ReceiptVoucher {
 
 import openPrintWindow from "../../../components/print/printWindow";
 import type { InvoiceData } from "../../../components/print/printTemplate";
-import { deleteReceiptVoucher, updateReceiptVoucher } from "../../../lib/api";
+import { deleteReceiptVoucher, updateReceiptVoucher } from "../../../api";
 
 export default function ReceiptsPage() {
   const [q, setQ] = useState("");
@@ -66,7 +65,6 @@ export default function ReceiptsPage() {
   // Load all receipts on mount and calculate next voucher number
   useEffect(() => {
     fetchAllReceiptVouchers().then((vouchers) => {
-      logger.debug("Raw vouchers from backend:", vouchers);
       // Map backend fields to frontend fields (use correct names)
       const mapped = (vouchers || []).map((v: any) => ({
         id:
@@ -107,7 +105,7 @@ export default function ReceiptsPage() {
         v.voucherNumber.toLowerCase().includes(t) ||
         v.receivedFrom.toLowerCase().includes(t) ||
         v.paymentMode.toLowerCase().includes(t) ||
-        (v.reference ?? "").toLowerCase().includes(t)
+        (v.reference ?? "").toLowerCase().includes(t),
     );
   }, [q, data]);
 
@@ -161,13 +159,19 @@ export default function ReceiptsPage() {
           <TextInput
             placeholder="Search receipts..."
             value={q}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              { setQ(e.currentTarget.value); }
-            }
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              setQ(e.currentTarget.value);
+            }}
             leftSection={<Search size={16} style={{ color: "gray" }} />}
           />
 
-          <Button leftSection={<Plus />} w={160} onClick={() => { setOpen(true); }}>
+          <Button
+            leftSection={<Plus />}
+            w={160}
+            onClick={() => {
+              setOpen(true);
+            }}
+          >
             Add Receipt
           </Button>
         </Group>
@@ -175,7 +179,10 @@ export default function ReceiptsPage() {
 
       <Card>
         <Card.Section>
-          <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
+          <div
+            className="app-table-wrapper"
+            style={{ maxHeight: "55vh", overflow: "auto" }}
+          >
             <Table
               highlightOnHover
               withRowBorders
@@ -197,7 +204,13 @@ export default function ReceiptsPage() {
               </Table.Thead>
               <tbody>
                 {paginatedEntries.map((v) => (
-                  <tr key={v.id} onDoubleClick={() => { setEditVoucher(v); }} style={{ cursor: 'pointer' }}>
+                  <tr
+                    key={v.id}
+                    onDoubleClick={() => {
+                      setEditVoucher(v);
+                    }}
+                    style={{ cursor: "pointer" }}
+                  >
                     <td style={{ fontFamily: "monospace", fontSize: 12 }}>
                       {v.voucherNumber}
                     </td>
@@ -222,7 +235,9 @@ export default function ReceiptsPage() {
                         <Menu.Dropdown>
                           <Menu.Item
                             leftSection={<IconPencil size={16} />}
-                            onClick={() => { setEditVoucher(v); }}
+                            onClick={() => {
+                              setEditVoucher(v);
+                            }}
                           >
                             Edit
                           </Menu.Item>
@@ -261,7 +276,9 @@ export default function ReceiptsPage() {
                           <Menu.Item
                             leftSection={<IconTrash size={16} />}
                             color="red"
-                            onClick={() => { setDeleteTarget(v); }}
+                            onClick={() => {
+                              setDeleteTarget(v);
+                            }}
                           >
                             Delete
                           </Menu.Item>
@@ -290,7 +307,9 @@ export default function ReceiptsPage() {
       {/* Confirm Delete Modal (must be outside the table/menu) */}
       <Modal
         opened={!!deleteTarget}
-        onClose={() => { setDeleteTarget(null); }}
+        onClose={() => {
+          setDeleteTarget(null);
+        }}
         title="Confirm Delete"
         centered
       >
@@ -300,7 +319,9 @@ export default function ReceiptsPage() {
         <MantineGroup justify="flex-end" mt="md">
           <MantineButton
             variant="outline"
-            onClick={() => { setDeleteTarget(null); }}
+            onClick={() => {
+              setDeleteTarget(null);
+            }}
             disabled={deleteLoading}
           >
             Cancel
@@ -314,7 +335,7 @@ export default function ReceiptsPage() {
               try {
                 await deleteReceiptVoucher(deleteTarget.id);
                 setData((prev) =>
-                  prev.filter((item) => item.id !== deleteTarget.id)
+                  prev.filter((item) => item.id !== deleteTarget.id),
                 );
                 setDeleteTarget(null);
               } finally {
@@ -349,8 +370,8 @@ export default function ReceiptsPage() {
                   | undefined,
               }
             : !editVoucher && open
-            ? { voucherNumber: nextVoucherNumber }
-            : undefined
+              ? { voucherNumber: nextVoucherNumber }
+              : undefined
         }
         onSave={async (payload: ReceiptVoucher) => {
           let dateStr = "";
@@ -380,8 +401,8 @@ export default function ReceiptsPage() {
                 prev.map((item) =>
                   item.id === editVoucher.id
                     ? { ...payload, id: editVoucher.id }
-                    : item
-                )
+                    : item,
+                ),
               );
             } else {
               await createReceiptVoucher(apiPayload);

@@ -21,12 +21,12 @@ import {
   getSales,
   getPurchaseInvoices,
   getExpenses,
-} from "../../../lib/api";
+} from "../../../api";
 import type {
   ReceiptVoucherPayload,
   PaymentVoucherPayload,
   PurchaseInvoicePayload,
-} from "../../../lib/api";
+} from "../../../api";
 
 // CashBookEntry type for unified mapping
 interface CashBookEntry {
@@ -96,9 +96,7 @@ export default function CashBookPage() {
         }));
 
       // Sale Invoices (Cash In)
-      const saleEntries: CashBookEntry[] = (
-        (sales) || []
-      )
+      const saleEntries: CashBookEntry[] = (sales || [])
         .filter((s) => s.paymentMethod?.toLowerCase() === "cash")
         .map((s) => ({
           date: s.invoiceDate ?? "",
@@ -193,7 +191,7 @@ export default function CashBookPage() {
     return filteredData.filter(
       (v) =>
         v.particulars.toLowerCase().includes(t) ||
-        (v.refNo && v.refNo.toLowerCase().includes(t))
+        (v.refNo && v.refNo.toLowerCase().includes(t)),
     );
   }, [q, data, fromDate, toDate]);
 
@@ -204,7 +202,7 @@ export default function CashBookPage() {
       acc.payment += v.payment || 0;
       return acc;
     },
-    { receipt: 0, payment: 0 }
+    { receipt: 0, payment: 0 },
   );
 
   // Pagination logic
@@ -263,16 +261,18 @@ export default function CashBookPage() {
             mt={20}
             placeholder="Search by particulars or ref no..."
             value={q}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              { setQ(e.currentTarget.value); }
-            }
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              setQ(e.currentTarget.value);
+            }}
           />
           <TextInput
             type="date"
             label="From Date"
             w={220}
             value={fromDate}
-            onChange={(e) => { setFromDate(e.currentTarget.value); }}
+            onChange={(e) => {
+              setFromDate(e.currentTarget.value);
+            }}
             mx={4}
             style={{ minWidth: 140 }}
           />
@@ -281,7 +281,9 @@ export default function CashBookPage() {
             label="To Date"
             w={220}
             value={toDate}
-            onChange={(e) => { setToDate(e.currentTarget.value); }}
+            onChange={(e) => {
+              setToDate(e.currentTarget.value);
+            }}
             mx={4}
             style={{ minWidth: 140 }}
           />
@@ -303,7 +305,9 @@ export default function CashBookPage() {
               <NumberInput
                 label="Opening Balance"
                 value={tempOpening}
-                onChange={(val) => { setTempOpening(Number(val) || 0); }}
+                onChange={(val) => {
+                  setTempOpening(Number(val) || 0);
+                }}
                 hideControls
                 styles={{ input: { width: 120 } }}
               />
@@ -337,7 +341,9 @@ export default function CashBookPage() {
               <Button
                 size="xs"
                 variant="default"
-                onClick={() => { setEditingOpening(true); }}
+                onClick={() => {
+                  setEditingOpening(true);
+                }}
               >
                 Edit
               </Button>
@@ -347,7 +353,10 @@ export default function CashBookPage() {
       </Group>
       <Card>
         <Card.Section>
-          <div className="app-table-wrapper" style={{ maxHeight: '55vh', overflow: 'auto' }}>
+          <div
+            className="app-table-wrapper"
+            style={{ maxHeight: "55vh", overflow: "auto" }}
+          >
             <Table
               highlightOnHover
               withRowBorders
@@ -402,7 +411,9 @@ export default function CashBookPage() {
                 {/* Transaction Details Modal */}
                 <Modal
                   opened={modalOpen}
-                  onClose={() => { setModalOpen(false); }}
+                  onClose={() => {
+                    setModalOpen(false);
+                  }}
                   title="Transaction Details"
                   size="md"
                   centered

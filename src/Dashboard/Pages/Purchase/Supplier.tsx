@@ -24,7 +24,7 @@ import {
   createSupplier,
   updateSupplier,
   deleteSupplier,
-} from "../../../lib/api";
+} from "../../../api";
 import { showNotification } from "@mantine/notifications";
 
 function formatCurrency(n: number) {
@@ -46,7 +46,7 @@ export default function SuppliersPage() {
   const [openView, setOpenView] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(
-    null
+    null,
   );
   const [deleting, setDeleting] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -70,7 +70,9 @@ export default function SuppliersPage() {
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return suppliers.filter((s) =>
-      [s.name, s.city, s.phone].some((v) => (v || "").toLowerCase().includes(q))
+      [s.name, s.city, s.phone].some((v) =>
+        (v || "").toLowerCase().includes(q),
+      ),
     );
   }, [suppliers, search]);
 
@@ -94,7 +96,7 @@ export default function SuppliersPage() {
     try {
       await deleteSupplier(supplierToDelete._id);
       setSuppliers((prev) =>
-        prev.filter((x) => x._id !== supplierToDelete._id)
+        prev.filter((x) => x._id !== supplierToDelete._id),
       );
       showNotification({
         title: "Success",
@@ -122,7 +124,7 @@ export default function SuppliersPage() {
       if (exists) {
         saved = await updateSupplier(next._id, next);
         setSuppliers((prev) =>
-          prev.map((s) => (s._id === next._id ? saved : s))
+          prev.map((s) => (s._id === next._id ? saved : s)),
         );
         showNotification({
           title: "Updated",
@@ -159,7 +161,11 @@ export default function SuppliersPage() {
             <Text c="dimmed">Manage purchase suppliers</Text>
           </div>
           <div>
-            <Button onClick={() => { setOpenAdd(true); }}>
+            <Button
+              onClick={() => {
+                setOpenAdd(true);
+              }}
+            >
               <IconPlus size={16} style={{ marginRight: 8 }} />
               Add Supplier
             </Button>
@@ -182,7 +188,9 @@ export default function SuppliersPage() {
                 <Input
                   placeholder="Search suppliers..."
                   value={search}
-                  onChange={(e) => { setSearch(e.currentTarget.value); }}
+                  onChange={(e) => {
+                    setSearch(e.currentTarget.value);
+                  }}
                 />
               </Group>
             </div>
@@ -190,7 +198,10 @@ export default function SuppliersPage() {
         </Card.Section>
 
         <Card.Section>
-          <div className="app-table-wrapper" style={{ maxHeight: '60vh', overflow: 'auto' }}>
+          <div
+            className="app-table-wrapper"
+            style={{ maxHeight: "60vh", overflow: "auto" }}
+          >
             <Table verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>
@@ -211,7 +222,7 @@ export default function SuppliersPage() {
                       setSelected(s);
                       setOpenView(true);
                     }}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: "pointer" }}
                   >
                     <Table.Td style={{ fontWeight: 600 }}>{s.name}</Table.Td>
                     <Table.Td style={{ color: "#222" }}>{s.city}</Table.Td>
@@ -219,7 +230,8 @@ export default function SuppliersPage() {
                     <Table.Td>
                       <span
                         style={{
-                          color: (s.openingBalance ?? 0) < 0 ? "#c92a2a" : "#2b8a3e",
+                          color:
+                            (s.openingBalance ?? 0) < 0 ? "#c92a2a" : "#2b8a3e",
                           fontWeight: 600,
                         }}
                         aria-label={`Opening balance is ${(s.openingBalance ?? 0) < 0 ? "Debit" : "Credit"}`}
@@ -235,7 +247,10 @@ export default function SuppliersPage() {
                           size="xs"
                           aria-label={`View supplier ${s.name}`}
                           tabIndex={0}
-                          style={{ color: '#1864ab', backgroundColor: '#e7f5ff' }}
+                          style={{
+                            color: "#1864ab",
+                            backgroundColor: "#e7f5ff",
+                          }}
                           onClick={() => {
                             setSelected(s);
                             setOpenView(true);
@@ -248,7 +263,10 @@ export default function SuppliersPage() {
                           size="xs"
                           aria-label={`Edit supplier ${s.name}`}
                           tabIndex={0}
-                          style={{ color: '#5c940d', backgroundColor: '#f4fce3' }}
+                          style={{
+                            color: "#5c940d",
+                            backgroundColor: "#f4fce3",
+                          }}
                           onClick={() => {
                             setSelected(s);
                             setOpenEdit(true);
@@ -262,7 +280,10 @@ export default function SuppliersPage() {
                           size="xs"
                           aria-label={`Delete supplier ${s.name}`}
                           tabIndex={0}
-                          style={{ color: '#c92a2a', backgroundColor: '#fff5f5' }}
+                          style={{
+                            color: "#c92a2a",
+                            backgroundColor: "#fff5f5",
+                          }}
                           onClick={() => {
                             setSupplierToDelete(s);
                             setOpenDelete(true);
@@ -281,7 +302,13 @@ export default function SuppliersPage() {
       </Card>
 
       {/* View Supplier Modal */}
-      <Modal opened={openView} onClose={() => { setOpenView(false); }} size="lg">
+      <Modal
+        opened={openView}
+        onClose={() => {
+          setOpenView(false);
+        }}
+        size="lg"
+      >
         <Box p="md">
           {selected && (
             <div style={{ display: "grid", gap: 8 }}>
@@ -311,13 +338,21 @@ export default function SuppliersPage() {
       </Modal>
 
       {/* Edit Supplier Modal */}
-      <Modal opened={openEdit} onClose={() => { setOpenEdit(false); }} size="lg">
+      <Modal
+        opened={openEdit}
+        onClose={() => {
+          setOpenEdit(false);
+        }}
+        size="lg"
+      >
         <Box p="md">
           {selected && (
             <SupplierForm
               open={openEdit}
               initial={selected}
-              onClose={() => { setOpenEdit(false); }}
+              onClose={() => {
+                setOpenEdit(false);
+              }}
               onSave={handleSave}
             />
           )}
@@ -325,11 +360,19 @@ export default function SuppliersPage() {
       </Modal>
 
       {/* Add Supplier Modal */}
-      <Modal opened={openAdd} onClose={() => { setOpenAdd(false); }} size="lg">
+      <Modal
+        opened={openAdd}
+        onClose={() => {
+          setOpenAdd(false);
+        }}
+        size="lg"
+      >
         <Box p="md">
           <SupplierForm
             open={openAdd}
-            onClose={() => { setOpenAdd(false); }}
+            onClose={() => {
+              setOpenAdd(false);
+            }}
             onSave={handleSave}
           />
         </Box>

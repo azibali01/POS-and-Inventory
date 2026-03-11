@@ -5,7 +5,7 @@
  * quotations, sale returns, and customers.
  */
 
-import type { InventoryItemPayload } from "../../lib/api";
+import type { InventoryItemPayload, SaleRecordPayload } from "../../api";
 
 export interface Customer {
   _id: string;
@@ -91,17 +91,15 @@ export interface SalesContextType {
   createCustomer: (payload: CustomerInput) => Promise<Customer>;
   updateCustomer: (
     id: string | number,
-    payload: Partial<CustomerInput>
+    payload: Partial<CustomerInput>,
   ) => Promise<Customer>;
   deleteCustomer: (id: string | number) => Promise<void>;
 
   // Sales CRUD
-  createSale: (
-    payload: import("../../lib/api").SaleRecordPayload | SaleRecord
-  ) => Promise<SaleRecord>;
+  createSale: (payload: SaleRecordPayload | SaleRecord) => Promise<SaleRecord>;
   updateSale: (
     invoiceNumber: string | number,
-    payload: Partial<import("../../lib/api").SaleRecordPayload>
+    payload: Partial<SaleRecordPayload>,
   ) => Promise<SaleRecord>;
   deleteSale: (invoiceNumber: string | number) => Promise<void>;
 }

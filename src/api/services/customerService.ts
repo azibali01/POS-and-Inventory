@@ -1,4 +1,8 @@
-import { axiosClient } from "../client/axiosClient";
+import {
+  axiosClient,
+  unwrapPaginated,
+  type PaginatedResponse,
+} from "../client/axiosClient";
 import { ENDPOINTS } from "../client/apiConfig";
 import type { CustomerPayload } from "./salesService";
 
@@ -11,10 +15,12 @@ export const customerService = {
    * Get all customers
    */
   async getAll() {
-    const { data } = await axiosClient.get<CustomerPayload[]>(
-      ENDPOINTS.CUSTOMERS
-    );
-    return data;
+    const { data } = await axiosClient.get<
+      CustomerPayload[] | PaginatedResponse<CustomerPayload>
+    >(ENDPOINTS.CUSTOMERS, {
+      params: { limit: 10000 },
+    });
+    return unwrapPaginated(data);
   },
 
   /**
@@ -22,7 +28,7 @@ export const customerService = {
    */
   async getById(id: string | number) {
     const { data } = await axiosClient.get(
-      `${ENDPOINTS.CUSTOMERS}/${String(id)}`
+      `${ENDPOINTS.CUSTOMERS}/${String(id)}`,
     );
     return data;
   },
@@ -33,7 +39,7 @@ export const customerService = {
   async create(payload: CustomerPayload) {
     const { data } = await axiosClient.post<CustomerPayload>(
       ENDPOINTS.CUSTOMERS,
-      payload
+      payload,
     );
     return data;
   },
@@ -44,7 +50,7 @@ export const customerService = {
   async update(id: string | number, patch: Partial<CustomerPayload>) {
     const { data } = await axiosClient.put<CustomerPayload>(
       `${ENDPOINTS.CUSTOMERS}/${String(id)}`,
-      patch
+      patch,
     );
     return data;
   },
@@ -54,7 +60,7 @@ export const customerService = {
    */
   async delete(id: string | number) {
     const { data } = await axiosClient.delete(
-      `${ENDPOINTS.CUSTOMERS}/${String(id)}`
+      `${ENDPOINTS.CUSTOMERS}/${String(id)}`,
     );
     return data;
   },
@@ -63,12 +69,11 @@ export const customerService = {
    * Search customers by name
    */
   async search(query: string) {
-    const { data } = await axiosClient.get<CustomerPayload[]>(
-      ENDPOINTS.CUSTOMERS,
-      {
-        params: { search: query },
-      }
-    );
-    return data;
+    const { data } = await axiosClient.get<
+      CustomerPayload[] | PaginatedResponse<CustomerPayload>
+    >(ENDPOINTS.CUSTOMERS, {
+      params: { search: query, limit: 10000 },
+    });
+    return unwrapPaginated(data);
   },
 };
