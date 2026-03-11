@@ -3,7 +3,7 @@
  * Extracted from DataContext.tsx to reduce duplication and improve maintainability
  */
 
-import type { InventoryItemPayload } from "../api";
+import type { InventoryItemPayload } from "../api/services/salesService";
 import type { Supplier } from "../components/purchase/SupplierForm";
 export type {
   InventoryItem,

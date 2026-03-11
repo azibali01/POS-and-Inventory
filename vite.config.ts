@@ -18,12 +18,73 @@ export default defineConfig({
     },
   },
   build: {
+    minify: "esbuild",
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true,
+    },
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes("node_modules")) {
-            return id.split("node_modules/")[1].split("/")[0];
+          if (!id.includes("node_modules")) {
+            return undefined;
           }
+
+          if (
+            id.includes("react-router-dom") ||
+            id.includes("@remix-run/router") ||
+            id.includes("react-dom") ||
+            /node_modules\/react\//.test(id)
+          ) {
+            return "react-vendor";
+          }
+
+          if (
+            id.includes("@mantine/") ||
+            id.includes("@emotion/") ||
+            id.includes("tabbable")
+          ) {
+            return "mantine-vendor";
+          }
+
+          if (
+            id.includes("recharts") ||
+            id.includes("victory-vendor") ||
+            id.includes("d3-") ||
+            id.includes("prop-types")
+          ) {
+            return "charts-vendor";
+          }
+
+          if (id.includes("@tanstack/")) {
+            return "query-vendor";
+          }
+
+          if (id.includes("axios")) {
+            return "network-vendor";
+          }
+
+          if (
+            id.includes("jspdf") ||
+            id.includes("html2canvas") ||
+            id.includes("canvg") ||
+            id.includes("svg-pathdata") ||
+            id.includes("stackblur-canvas") ||
+            id.includes("fflate") ||
+            id.includes("rgbcolor")
+          ) {
+            return "print-vendor";
+          }
+
+          if (id.includes("core-js")) {
+            return "polyfills-vendor";
+          }
+
+          if (id.includes("lodash") || id.includes("dayjs")) {
+            return "utils-vendor";
+          }
+
+          return "vendor";
         },
       },
     },

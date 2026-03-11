@@ -1,5 +1,5 @@
 import React from "react";
-import { axiosClient } from "../../api";
+import { axiosClient } from "../../api/client/axiosClient";
 import {
   clearAuthSession,
   getAuthToken,
