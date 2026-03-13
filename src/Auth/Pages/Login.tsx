@@ -14,8 +14,8 @@ import { notifications } from "@mantine/notifications";
 import { useDisclosure } from "@mantine/hooks";
 import { useState } from "react";
 import { useAuth } from "../Context/AuthContext";
-import { useNavigate } from "react-router";
-import { axiosClient } from "../../api";
+import { useNavigate } from "react-router-dom";
+import { axiosClient } from "../../api/client/axiosClient";
 
 const Login = () => {
   const { login } = useAuth();

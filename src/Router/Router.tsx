@@ -1,7 +1,7 @@
 import {
   createBrowserRouter,
   RouterProvider as ReactRouterProvider,
-} from "react-router";
+} from "react-router-dom";
 import AuthRouter from "../Auth/router/AuthRouter";
 import DashboardRouter from "../Dashboard/DashboardRouter/DashboardRouter";
 import RootRedirect from "../components/RootRedirect";

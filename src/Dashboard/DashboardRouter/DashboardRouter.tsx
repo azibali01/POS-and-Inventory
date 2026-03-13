@@ -1,4 +1,4 @@
-import type { RouteObject } from "react-router";
+import type { RouteObject } from "react-router-dom";
 import DashboardLayout from "../DashboardLayout/DashboardLayout";
 import Dashboard from "../Pages/Dashboard";
 import SalesReturnPage from "../Pages/Sales/Salereturn";

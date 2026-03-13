@@ -47,15 +47,6 @@ export default defineConfig({
             return "mantine-vendor";
           }
 
-          if (
-            id.includes("recharts") ||
-            id.includes("victory-vendor") ||
-            id.includes("d3-") ||
-            id.includes("prop-types")
-          ) {
-            return "charts-vendor";
-          }
-
           if (id.includes("@tanstack/")) {
             return "query-vendor";
           }
