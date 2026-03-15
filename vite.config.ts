@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   resolve: {
+    dedupe: ["react", "react-dom"],
     alias: {
       "@": "/src",
       "@components": "/src/components",
@@ -19,66 +20,6 @@ export default defineConfig({
   },
   build: {
     minify: "esbuild",
-    commonjsOptions: {
-      include: [/node_modules/],
-      transformMixedEsModules: true,
-    },
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (!id.includes("node_modules")) {
-            return undefined;
-          }
-
-          if (
-            id.includes("react-router-dom") ||
-            id.includes("@remix-run/router") ||
-            id.includes("react-dom") ||
-            /node_modules\/react\//.test(id)
-          ) {
-            return "react-vendor";
-          }
-
-          if (
-            id.includes("@mantine/") ||
-            id.includes("@emotion/") ||
-            id.includes("tabbable")
-          ) {
-            return "mantine-vendor";
-          }
-
-          if (id.includes("@tanstack/")) {
-            return "query-vendor";
-          }
-
-          if (id.includes("axios")) {
-            return "network-vendor";
-          }
-
-          if (
-            id.includes("jspdf") ||
-            id.includes("html2canvas") ||
-            id.includes("canvg") ||
-            id.includes("svg-pathdata") ||
-            id.includes("stackblur-canvas") ||
-            id.includes("fflate") ||
-            id.includes("rgbcolor")
-          ) {
-            return "print-vendor";
-          }
-
-          if (id.includes("core-js")) {
-            return "polyfills-vendor";
-          }
-
-          if (id.includes("lodash") || id.includes("dayjs")) {
-            return "utils-vendor";
-          }
-
-          return "vendor";
-        },
-      },
-    },
-    chunkSizeWarningLimit: 1000, // Optional: increases warning limit to 1000KB
+    chunkSizeWarningLimit: 1000,
   },
 });
