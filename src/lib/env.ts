@@ -38,7 +38,7 @@ function validateEnv(): void {
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variables: ${missing.join(", ")}\n` +
-        "Please check your .env file."
+        "Please check your .env file.",
     );
   }
 }
@@ -52,11 +52,13 @@ function buildEnvConfig(): EnvConfig {
 
   // Default API URLs
   const API_URL_LOCAL = "http://localhost:3000";
-  const API_URL_PRODUCTION = "https://7star-traders-api.onrender.com";
+  const API_URL_PRODUCTION = "https://aluminium-backend-wgfj.onrender.com";
 
   return {
     // API Configuration
-    API_URL: import.meta.env.VITE_API_URL ?? (isDev ? API_URL_LOCAL : API_URL_PRODUCTION),
+    API_URL:
+      import.meta.env.VITE_API_URL ??
+      (isDev ? API_URL_LOCAL : API_URL_PRODUCTION),
 
     // Environment
     NODE_ENV: import.meta.env.MODE as "development" | "production" | "test",
