@@ -96,27 +96,7 @@ function Quotation() {
       return;
     }
     try {
-      // Find the correct unique identifier for deletion (prefer quotationNumber)
-      let qNum = String(id);
-      const toDelete = (quotations || []).find(
-        (q) =>
-          String(q.quotationNumber) === qNum ||
-          String((q as { _id?: string })._id) === qNum ||
-          String(
-            (q as Partial<QuotationRecordPayload> & { id?: string }).id,
-          ) === qNum ||
-          String(
-            (q as Partial<QuotationRecordPayload> & { docNo?: string }).docNo,
-          ) === qNum,
-      );
-
-      if (toDelete && toDelete.quotationNumber) {
-        qNum = String(toDelete.quotationNumber);
-      } else if (toDelete && (toDelete as any).quotationNumber) {
-        qNum = String((toDelete as any).quotationNumber);
-      }
-
-      await deleteQuotationAsync(qNum);
+      await deleteQuotationAsync(String(id));
 
       showNotification({
         title: "Deleted",
@@ -382,63 +362,167 @@ function Quotation() {
       else resolvedCustomerId = (q as { customerName?: string }).customerName;
     }
 
-    setInitialPayload({
-      docNo: existingNumber,
-      docDate: q.quotationDate ?? "",
-      customer:
-        Array.isArray(q.customer) && q.customer.length > 0
-          ? { name: q.customer[0]?.name ?? String(q.customer[0]) }
-          : typeof q.customer === "string" || typeof q.customer === "number"
-            ? { name: String(q.customer) }
-            : typeof resolvedCustomerId === "string" ||
-                typeof resolvedCustomerId === "number"
-              ? { name: String(resolvedCustomerId) }
-              : { name: "" },
-      remarks: q.remarks ?? "",
-      totals: {
-        subTotal: q.subTotal ?? q.totalGrossAmount ?? 0,
-        total: q.totalGrossAmount ?? q.subTotal ?? 0,
-        amount: q.subTotal ?? q.totalGrossAmount ?? 0,
-        totalGrossAmount: q.totalGrossAmount ?? 0,
-        totalDiscountAmount: q.totalDiscount ?? 0,
-        totalNetAmount: q.totalNetAmount ?? 0,
-      },
-      items: (q.products ?? []).map((item: InventoryItemPayload): LineItem => {
-        let unitVal = item.unit as any;
+    const mappedItems: LineItem[] = ((q.items ?? q.products) || []).map(
+      (item: InventoryItemPayload): LineItem => {
+        const productRef =
+          (
+            item as InventoryItemPayload & {
+              productId?: {
+                _id?: string | number;
+                itemName?: string;
+                thickness?: string | number;
+                color?: string;
+              };
+            }
+          ).productId &&
+          typeof (item as InventoryItemPayload & { productId?: unknown })
+            .productId === "object"
+            ? ((
+                item as InventoryItemPayload & {
+                  productId?: {
+                    _id?: string | number;
+                    itemName?: string;
+                    thickness?: string | number;
+                    color?: string;
+                  };
+                }
+              ).productId ?? null)
+            : null;
+
+        const quantity = Number(
+          (item as InventoryItemPayload & { qty?: number }).quantity ??
+            (item as InventoryItemPayload & { qty?: number }).qty ??
+            0,
+        );
+        const salesRate = Number(
+          (
+            item as InventoryItemPayload & {
+              rate?: number;
+              price?: number;
+              unitPrice?: number;
+            }
+          ).salesRate ??
+            (item as InventoryItemPayload & { rate?: number }).rate ??
+            (item as InventoryItemPayload & { price?: number }).price ??
+            (item as InventoryItemPayload & { unitPrice?: number }).unitPrice ??
+            0,
+        );
+        const length = Number(
+          (item as InventoryItemPayload & { sizeFt?: number | string })
+            .length ??
+            (item as InventoryItemPayload & { sizeFt?: number | string })
+              .sizeFt ??
+            0,
+        );
+        const discount = Number(
+          (item as InventoryItemPayload & { discountPercent?: number })
+            .discount ??
+            (item as InventoryItemPayload & { discountPercent?: number })
+              .discountPercent ??
+            0,
+        );
+        const subtotal = Number(
+          (item as InventoryItemPayload & { subtotal?: number }).subtotal ??
+            item.totalGrossAmount ??
+            item.amount ??
+            quantity * salesRate * (length || 1),
+        );
+        const discountAmount = Number(
+          item.discountAmount ?? (subtotal * discount) / 100,
+        );
+
+        let unitVal = item.unit as unknown;
         if (typeof unitVal === "number") unitVal = String(unitVal);
         if (typeof unitVal !== "string") unitVal = "";
-        const quantity = Number(item.quantity ?? 0);
-        const salesRate = Number(item.salesRate ?? 0);
-        const discount =
-          typeof (item as any).discount === "number"
-            ? Number((item as any).discount)
-            : 0;
-        const discountAmount =
-          typeof (item as any).discountAmount === "number"
-            ? Number((item as any).discountAmount)
-            : 0;
-        const length =
-          typeof (item as any).length === "number"
-            ? Number((item as any).length)
-            : 0;
-        const gross = quantity * salesRate;
+
         return {
-          _id: String(item._id ?? ""),
-          itemName: item.itemName ?? "",
+          _id: String(productRef?._id ?? item._id ?? ""),
+          itemName: String(productRef?.itemName ?? item.itemName ?? ""),
           unit: unitVal,
           discount,
           discountAmount,
           salesRate,
-          color: item.color ?? "",
+          color: String(productRef?.color ?? item.color ?? ""),
           openingStock: Number(item.openingStock ?? 0),
           quantity,
-          thickness: Number(item.thickness ?? 0),
-          amount: gross,
+          thickness: String(productRef?.thickness ?? item.thickness ?? ""),
+          amount: subtotal,
           length,
-          totalGrossAmount: gross,
-          totalNetAmount: gross - discountAmount,
+          totalGrossAmount: subtotal,
+          totalNetAmount: Number(
+            item.totalNetAmount ?? subtotal - discountAmount,
+          ),
         };
-      }),
+      },
+    );
+
+    const mappedGross = mappedItems.reduce(
+      (sum, item) => sum + Number(item.totalGrossAmount ?? 0),
+      0,
+    );
+    const mappedDiscount = mappedItems.reduce(
+      (sum, item) => sum + Number(item.discountAmount ?? 0),
+      0,
+    );
+    const mappedNet = mappedItems.reduce(
+      (sum, item) => sum + Number(item.totalNetAmount ?? 0),
+      0,
+    );
+
+    setInitialPayload({
+      docNo: existingNumber,
+      docDate: q.quotationDate ?? "",
+      customer: (() => {
+        if (Array.isArray(q.customer) && q.customer.length > 0) {
+          const first = q.customer[0] as CustomerPayload & {
+            _id?: string | number;
+            id?: string | number;
+          };
+          return {
+            id: first.id ?? first._id ?? resolvedCustomerId,
+            _id: first._id,
+            name: first.name ?? "",
+            phone: first.phone ?? "",
+            address: first.address ?? "",
+            city: first.city ?? "",
+          };
+        }
+
+        if (typeof q.customer === "string" || typeof q.customer === "number") {
+          return String(q.customer);
+        }
+
+        if (
+          typeof resolvedCustomerId === "string" ||
+          typeof resolvedCustomerId === "number"
+        ) {
+          const matched = customers.find(
+            (customer) => String(customer._id) === String(resolvedCustomerId),
+          );
+          if (matched) {
+            return {
+              id: matched._id,
+              _id: matched._id,
+              name: matched.name ?? "",
+              phone: matched.phone ?? "",
+              address: matched.address ?? "",
+              city: matched.city ?? "",
+            };
+          }
+        }
+
+        return { name: "" };
+      })(),
+      remarks: q.remarks ?? "",
+      totals: {
+        subTotal: q.subTotal ?? mappedGross,
+        total: q.totalNetAmount ?? mappedNet,
+        amount: q.totalNetAmount ?? mappedNet,
+        totalGrossAmount: q.totalGrossAmount ?? mappedGross,
+        totalDiscountAmount: q.totalDiscount ?? mappedDiscount,
+        totalNetAmount: q.totalNetAmount ?? mappedNet,
+      },
+      items: mappedItems,
     });
     setEditingId(existingNumber ?? "");
     setOpen(true);
@@ -666,8 +750,18 @@ function Quotation() {
                                 color="red"
                                 onClick={() => {
                                   const id =
-                                    q.quotationNumber ??
-                                    q.quotationNumber ??
+                                    (
+                                      q as QuotationRecordPayload & {
+                                        _id?: string;
+                                        id?: string;
+                                      }
+                                    )._id ??
+                                    (
+                                      q as QuotationRecordPayload & {
+                                        _id?: string;
+                                        id?: string;
+                                      }
+                                    ).id ??
                                     (
                                       q as QuotationRecordPayload & {
                                         docNo?: string;
@@ -678,10 +772,7 @@ function Quotation() {
                                   setDeleteTarget(id);
                                   setDeleteTargetDisplay(
                                     String(
-                                      q.quotationNumber ??
-                                        q.quotationNumber ??
-                                        displayNumber ??
-                                        id,
+                                      q.quotationNumber ?? displayNumber ?? id,
                                     ),
                                   );
                                   setDeleteModalOpen(true);

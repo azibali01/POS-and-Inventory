@@ -1,10 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { categoryService } from "../api";
+import { categoryService, type CategoryPayload } from "../api";
 
 /**
  * Custom hook for category management
  * Provides all category-related operations with React Query
- * Note: Categories are string-based entities
  */
 export function useCategory() {
   const queryClient = useQueryClient();
@@ -22,7 +21,8 @@ export function useCategory() {
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (name: string) => categoryService.create(name),
+    mutationFn: (payload: CategoryPayload) =>
+      categoryService.create({ name: payload.name }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
@@ -30,13 +30,8 @@ export function useCategory() {
 
   // Update/rename mutation
   const updateMutation = useMutation({
-    mutationFn: ({
-      oldName,
-      newName,
-    }: {
-      oldName: string;
-      newName: string;
-    }) => categoryService.update(oldName, newName),
+    mutationFn: ({ id, newName }: { id: string; newName: string }) =>
+      categoryService.update(id, { name: newName }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
@@ -44,7 +39,7 @@ export function useCategory() {
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: (name: string) => categoryService.delete(name),
+    mutationFn: (id: string) => categoryService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
     },

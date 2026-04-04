@@ -75,15 +75,26 @@ function mapIncomingLineItem(
   products: InventoryItem[],
   defaultBrand: string,
 ): LineItem {
-  const itemId = item.productId ?? item._id ?? item.id ?? "";
-  const itemName = item.productName ?? item.itemName ?? item.name ?? "";
+  const nestedProductRef =
+    item.productId && typeof item.productId === "object"
+      ? item.productId
+      : null;
+  const itemId =
+    nestedProductRef?._id ?? item.productId ?? item._id ?? item.id ?? "";
+  const itemName =
+    item.productName ??
+    item.itemName ??
+    item.name ??
+    nestedProductRef?.itemName ??
+    nestedProductRef?.name ??
+    "";
   const matchedProduct = findSelectedProduct(products, {
     productId: itemId,
     productName: itemName,
     itemName,
   });
-  const rawThickness = item.thickness;
-  const rawColor = item.color;
+  const rawThickness = item.thickness ?? nestedProductRef?.thickness;
+  const rawColor = item.color ?? nestedProductRef?.color;
   const thickness = String(rawThickness ?? "");
   const color = String(rawColor ?? "");
   const variant = findSelectedVariant(
@@ -94,15 +105,26 @@ function mapIncomingLineItem(
   );
   const resolvedThickness = String(rawThickness ?? variant?.thickness ?? "");
   const resolvedColor = String(rawColor ?? variant?.color ?? "");
-  const quantity = Number(item.quantity ?? 0);
+  const quantity = Number(item.quantity ?? item.qty ?? 0);
   const salesRate = Number(
-    item.salesRate ?? item.rate ?? variant?.salesRate ?? 0,
+    item.salesRate ??
+      item.rate ??
+      item.price ??
+      item.unitPrice ??
+      variant?.salesRate ??
+      0,
   );
-  const length = Number(item.length ?? 0);
+  const length = Number(item.length ?? item.sizeFt ?? 0);
+  const discount = Number(item.discount ?? item.discountPercent ?? 0);
   const subtotal = Number(
-    item.subtotal ?? item.amount ?? quantity * salesRate * (length || 1),
+    item.subtotal ??
+      item.totalGrossAmount ??
+      item.amount ??
+      quantity * salesRate * (length || 1),
   );
-  const discountAmount = Number(item.discountAmount ?? 0);
+  const discountAmount = Number(
+    item.discountAmount ?? (subtotal * discount) / 100,
+  );
 
   return {
     ...createEmptySalesLineItem(defaultBrand),
@@ -117,7 +139,7 @@ function mapIncomingLineItem(
     quantity,
     salesRate,
     rate: salesRate,
-    discount: Number(item.discount ?? 0),
+    discount,
     discountAmount,
     amount: subtotal,
     subtotal,
@@ -141,7 +163,7 @@ export interface SalesPayload {
   invoiceDate?: string;
   products?: InventoryItem[];
   items?: LineItem[];
-  customer?: CustomerPayload;
+  customer?: CustomerPayload | string;
   totals: {
     total: number;
     amount: number;
@@ -536,6 +558,17 @@ export default function SalesDocShell({
     );
 
     // Resolve customer ID from initial.customer (handles {id}, {_id}, or missing)
+    const rawCustomer = initial.customer as
+      | {
+          id?: string | number;
+          _id?: string | number;
+          name?: string;
+          phone?: string;
+          address?: string;
+        }
+      | string
+      | undefined;
+
     const resolvedCustomerId = (() => {
       if (!initial.customer) return "";
       const custId =
@@ -552,6 +585,19 @@ export default function SalesDocShell({
       );
       return foundByName ? String(foundByName._id) : "";
     })();
+
+    if (typeof rawCustomer === "string") {
+      setCustomerType("Walking");
+      setWalkingName(rawCustomer);
+      setWalkingPhone("");
+      setWalkingAddress("");
+    } else {
+      setCustomerType("Regular");
+      setWalkingName("");
+      setWalkingPhone("");
+      setWalkingAddress("");
+    }
+
     setCustomerId(resolvedCustomerId);
     setRemarks(typeof initial.remarks === "string" ? initial.remarks : "");
     setTerms(
@@ -608,18 +654,20 @@ export default function SalesDocShell({
     );
     setItems(normalizedItems);
 
-    const invalidRowIndex = normalizedItems.findIndex((item) =>
-      hasIncompleteVariantSelection(item),
-    );
-    if (invalidRowIndex >= 0) {
-      showNotification({
-        title: "Incomplete line item",
-        message: `Row ${invalidRowIndex + 1} is missing thickness or color for the selected product.`,
-        color: "red",
-      });
-      setSubmitting(false);
-      setSubmitLocked(false);
-      return;
+    if (mode !== "Quotation") {
+      const invalidRowIndex = normalizedItems.findIndex((item) =>
+        hasIncompleteVariantSelection(item),
+      );
+      if (invalidRowIndex >= 0) {
+        showNotification({
+          title: "Incomplete line item",
+          message: `Row ${invalidRowIndex + 1} is missing thickness or color for the selected product.`,
+          color: "red",
+        });
+        setSubmitting(false);
+        setSubmitLocked(false);
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -1030,6 +1078,7 @@ export default function SalesDocShell({
                 items={items}
                 onChange={setItems}
                 products={products}
+                mode={mode}
               />
             </div>
 
@@ -1278,8 +1327,12 @@ export default function SalesDocShell({
                     totalGrossAmount: totals.totalGrossAmount,
                     totalDiscount: totals.totalDiscountAmount,
                     totalNetAmount: totals.totalNetAmount,
+                    receivedAmount,
+                    balanceAmount: totals.pendingAmount,
                     total: totals.totalNetAmount,
                   },
+                  receivedAmount,
+                  balanceAmount: totals.pendingAmount,
                   footerNotes: [
                     "Extrusion & Powder Coating",
                     "Aluminum Window, Door, Profiles & All Kinds of Pipes",
@@ -1352,6 +1405,7 @@ export default function SalesDocShell({
           </Button>
           <Button
             type="submit"
+            loading={submitting}
             disabled={saveDisabled || submitting || shiftBlocked}
           >
             Save {mode}

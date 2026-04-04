@@ -98,6 +98,7 @@ export default function SaleReturnPage() {
             String(p._id) === String(it._id) ||
             String(p.itemName) === String(it.itemName),
         );
+        const normalizedLength = String(Number(it.length ?? 0));
         return {
           _id: inv?._id,
           itemName: inv?.itemName ?? it.itemName,
@@ -111,7 +112,7 @@ export default function SaleReturnPage() {
           unit: it.unit ?? inv?.unit ?? undefined,
           discount: Number(it.discount ?? 0),
           discountAmount: Number(it.discountAmount ?? 0),
-          length: it.length ?? undefined,
+          length: normalizedLength,
           metadata: {
             price: it.salesRate ?? undefined,
           },

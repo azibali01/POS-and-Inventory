@@ -1,6 +1,16 @@
 export type InvoiceItem = {
   sr?: number;
+  name?: string;
   itemName?: string;
+  productId?: {
+    name?: string;
+    itemName?: string;
+    color?: string;
+    thickness?: string | number;
+  };
+  variant?: {
+    color?: string;
+  };
   section?: string;
   color?: string;
   thickness?: string | number;
@@ -8,9 +18,12 @@ export type InvoiceItem = {
   sizeFt?: string | number;
   quantity?: number;
   qty?: number;
+  units?: number;
   lengths?: number;
   totalFeet?: number;
   rate?: number;
+  price?: number;
+  unitPrice?: number;
   gross?: number;
   discountPercent?: number;
   discount?: number;
@@ -42,8 +55,12 @@ export type InvoiceData = {
     totalGrossAmount?: number;
     totalDiscount?: number;
     totalNetAmount?: number;
+    receivedAmount?: number;
+    balanceAmount?: number;
     total?: number;
   };
+  receivedAmount?: number;
+  balanceAmount?: number;
   footerNotes?: string[];
 };
 
@@ -58,6 +75,74 @@ function escapeHtml(s: unknown) {
 }
 
 export function renderInvoiceHTML(data: InvoiceData) {
+  const formatCurrency = (value: unknown): string => {
+    const numeric = typeof value === "number" ? value : Number(value);
+    const safe = Number.isFinite(numeric) ? numeric : 0;
+    return Number(safe).toLocaleString("en-PK", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const getRowItemName = (item: InvoiceItem): string =>
+    item.itemName ||
+    item.name ||
+    item.productId?.name ||
+    item.productId?.itemName ||
+    item.description ||
+    item.section ||
+    "";
+
+  const getRowQty = (item: InvoiceItem): number =>
+    Number(item.qty ?? item.quantity ?? item.units ?? item.lengths ?? 0);
+
+  const getRowRate = (item: InvoiceItem): number =>
+    Number(item.rate ?? item.price ?? item.unitPrice ?? 0);
+
+  const getRowColor = (item: InvoiceItem): string =>
+    item.color || item.productId?.color || item.variant?.color || "";
+
+  const getRowThickness = (item: InvoiceItem): string | number =>
+    item.thickness ?? item.productId?.thickness ?? "";
+
+  const formatCellValue = (value: unknown, fallback = "-"): string => {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === "string" && value.trim() === "") return fallback;
+    return String(value);
+  };
+
+  const getRowLength = (item: InvoiceItem): string | number =>
+    item.length ?? item.sizeFt ?? "";
+
+  const renderInvoiceRow = (item: InvoiceItem, index: number): string => {
+    console.log("Printing Item:", item);
+
+    const qty = getRowQty(item);
+    const rate = getRowRate(item);
+    const gross = Number(item.gross ?? qty * rate);
+    const discountPercent = Number(item.discountPercent ?? 0);
+    const discount = Number(item.discount ?? (gross * discountPercent) / 100);
+    const net = Number(item.net ?? gross - discount);
+    const amount = Number(item.amount ?? net);
+
+    return `
+      <tr>
+        <td style="text-align:center;">${escapeHtml(item.sr ?? index + 1)}</td>
+        <td>${escapeHtml(formatCellValue(getRowItemName(item)))}</td>
+        <td style="text-align:center;">${escapeHtml(formatCellValue(getRowColor(item)))}</td>
+        <td style="text-align:center;">${escapeHtml(formatCellValue(getRowThickness(item)))}</td>
+        <td style="text-align:center;">${escapeHtml(formatCellValue(getRowLength(item)))}</td>
+        <td class="right">${qty ? escapeHtml(formatCellValue(qty)) : "-"}</td>
+        <td class="right">${rate ? Number(rate).toFixed(2) : "-"}</td>
+        <td class="right">${gross ? Number(gross).toFixed(2) : "-"}</td>
+        <td style="text-align:center;">${discountPercent ? `${Number(discountPercent).toFixed(0)}%` : "-"}</td>
+        <td class="right">${discount ? Number(discount).toFixed(2) : "-"}</td>
+        <td class="right">${net ? Number(net).toFixed(2) : "-"}</td>
+        <td class="right">${amount ? Number(amount).toFixed(2) : "-"}</td>
+      </tr>
+    `;
+  };
+
   const css = `
     * {margin:0; padding:0; box-sizing:border-box;}
     body{font-family: 'Segoe UI', Inter, Arial, Helvetica, sans-serif; color:#1a1a1a; margin:0; padding:0; background:#fff;}
@@ -113,12 +198,16 @@ export function renderInvoiceHTML(data: InvoiceData) {
     <div style="width:48%;">
       <div style="padding:8px 0;">
         <div style="font-size:13px;color:#6b7280;font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Invoice Details</div>
-        ${data.title ? `
+        ${
+          data.title
+            ? `
           <div style="margin-bottom:10px;">
             <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Document Type</div>
             <div style="font-weight:700;color:#1e3a8a;font-size:15px;background:#f0f4ff;padding:6px 10px;border-radius:4px;display:inline-block;">${escapeHtml(data.title)}</div>
           </div>
-        ` : ""}
+        `
+            : ""
+        }
         <div style="margin-bottom:10px;">
           <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Invoice #</div>
           <div style="font-weight:700;color:#1e3a8a;font-size:16px;">${escapeHtml(data.invoiceNo ?? "")}</div>
@@ -127,72 +216,112 @@ export function renderInvoiceHTML(data: InvoiceData) {
           <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Date</div>
           <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(data.date ?? "")}</div>
         </div>
-        ${data.gpNo ? `
+        ${
+          data.gpNo
+            ? `
           <div style="margin-bottom:10px;">
             <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">G.P No</div>
             <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(data.gpNo)}</div>
           </div>
-        ` : ""}
-        ${data.grn ? `
+        `
+            : ""
+        }
+        ${
+          data.grn
+            ? `
           <div>
             <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">GRN</div>
             <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(data.grn)}</div>
           </div>
-        ` : ""}
+        `
+            : ""
+        }
       </div>
     </div>
   `;
 
   const headerRight = `
     <div style="width:48%;">
-      ${data.customer || data.ms ? `
+      ${
+        data.customer || data.ms
+          ? `
         <div style="padding:8px 0;">
           <div style="font-size:13px;color:#6b7280;font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Customer Details</div>
           <div style="font-weight:700;color:#1e3a8a;font-size:16px;margin-bottom:10px;">${escapeHtml(data.customer || data.ms || "")}</div>
-          ${data.customerPhone ? `
+          ${
+            data.customerPhone
+              ? `
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Phone</div>
               <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(data.customerPhone)}</div>
             </div>
-          ` : ""}
-          ${data.customerAddress ? `
+          `
+              : ""
+          }
+          ${
+            data.customerAddress
+              ? `
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Address</div>
               <div style="font-weight:500;color:#111827;font-size:14px;">${escapeHtml(data.customerAddress)}</div>
             </div>
-          ` : ""}
-          ${data.customerCity ? `
+          `
+              : ""
+          }
+          ${
+            data.customerCity
+              ? `
             <div>
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">City</div>
               <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(data.customerCity)}</div>
             </div>
-          ` : ""}
+          `
+              : ""
+          }
         </div>
-      ` : ""}
-      ${data.supplierName ? `
+      `
+          : ""
+      }
+      ${
+        data.supplierName
+          ? `
         <div style="padding:8px 0;">
           <div style="font-size:13px;color:#6b7280;font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Supplier Details</div>
           <div style="font-weight:700;color:#1e3a8a;font-size:16px;margin-bottom:10px;">${escapeHtml(data.supplierName)}</div>
-          ${data.supplierPhone ? `
+          ${
+            data.supplierPhone
+              ? `
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Phone</div>
               <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(data.supplierPhone)}</div>
             </div>
-          ` : ""}
-          ${data.supplierAddress ? `
+          `
+              : ""
+          }
+          ${
+            data.supplierAddress
+              ? `
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Address</div>
               <div style="font-weight:500;color:#111827;font-size:14px;">${escapeHtml(data.supplierAddress)}</div>
             </div>
-          ` : ""}
-          ${data.supplierCity ? `
+          `
+              : ""
+          }
+          ${
+            data.supplierCity
+              ? `
             <div>
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">City</div>
               <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(data.supplierCity)}</div>
             </div>
-          ` : ""}
+          `
+              : ""
+          }
         </div>
-      ` : ""}
+      `
+          : ""
+      }
     </div>
   `;
 
@@ -213,51 +342,43 @@ export function renderInvoiceHTML(data: InvoiceData) {
 
   // Ensure minimum 8 rows
   const minRows = 8;
-  const itemRows = (data.items || []).map(
-    (it, idx) => {
-      const qty = it.quantity ?? it.qty ?? it.lengths ?? 0;
-      const rate = it.rate ?? 0;
-      const gross = it.gross ?? (qty * rate);
-      const discountPercent = it.discountPercent ?? 0;
-      const discount = it.discount ?? (gross * discountPercent / 100);
-      const net = it.net ?? (gross - discount);
-      const amount = it.amount ?? net;
-
-      return `
-      <tr>
-        <td style="text-align:center;">${escapeHtml(it.sr ?? idx + 1)}</td>
-        <td>${escapeHtml(it.itemName || it.section || it.description || "")}</td>
-        <td style="text-align:center;">${escapeHtml(it.color ?? "")}</td>
-        <td style="text-align:center;">${escapeHtml(it.thickness ?? "")}</td>
-        <td style="text-align:center;">${escapeHtml(it.length || it.sizeFt || "")}</td>
-        <td class="right">${escapeHtml(qty || "")}</td>
-        <td class="right">${rate ? Number(rate).toFixed(2) : ""}</td>
-        <td class="right">${gross ? Number(gross).toFixed(2) : ""}</td>
-        <td style="text-align:center;">${discountPercent ? Number(discountPercent).toFixed(0) + "%" : ""}</td>
-        <td class="right">${discount ? Number(discount).toFixed(2) : ""}</td>
-        <td class="right">${net ? Number(net).toFixed(2) : ""}</td>
-        <td class="right">${amount ? Number(amount).toFixed(2) : ""}</td>
-      </tr>
-      `;
-    }
-  ).join("");
+  const itemRows = (data.items || [])
+    .map((item, index) => renderInvoiceRow(item, index))
+    .join("");
 
   // Add empty rows to reach minimum
   const emptyRowsCount = Math.max(0, minRows - (data.items?.length || 0));
   const emptyRows = Array.from({ length: emptyRowsCount })
-    .map(() => `<tr>${cols.map(() => `<td style="height:28px;">&nbsp;</td>`).join("")}</tr>`)
+    .map(
+      () =>
+        `<tr>${cols.map(() => `<td style="height:28px;">&nbsp;</td>`).join("")}</tr>`,
+    )
     .join("");
 
   const rowsHtml = itemRows + emptyRows;
 
+  const resolvedReceivedAmount =
+    data.totals?.receivedAmount ?? data.receivedAmount ?? 0;
+  const resolvedTotalAmount =
+    data.totals?.total ??
+    data.totals?.totalNetAmount ??
+    data.totals?.subtotal ??
+    0;
+  const resolvedBalanceAmount =
+    data.totals?.balanceAmount ??
+    data.balanceAmount ??
+    resolvedTotalAmount - resolvedReceivedAmount;
+
   const totalsHtml = `
     <div class="totals">
       <div class="box">
-        ${data.totals?.subtotal ? `<div style="display:flex;justify-content:space-between"><div>Subtotal:</div><div style="font-weight:600;">Rs. ${Number(data.totals.subtotal).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div></div>` : ""}
-        ${data.totals?.totalGrossAmount ? `<div style="display:flex;justify-content:space-between"><div>Total Gross Amount:</div><div style="font-weight:600;">Rs. ${Number(data.totals.totalGrossAmount).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div></div>` : ""}
-        ${data.totals?.totalDiscount ? `<div style="display:flex;justify-content:space-between"><div>Total Discount:</div><div style="font-weight:600;">Rs. ${Number(data.totals.totalDiscount).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div></div>` : ""}
-        ${data.totals?.totalNetAmount ? `<div style="display:flex;justify-content:space-between"><div>Total Net Amount:</div><div style="font-weight:600;">Rs. ${Number(data.totals.totalNetAmount).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div></div>` : ""}
-        <div class="total-row" style="display:flex;justify-content:space-between;font-weight:700;color:#1e3a8a;"><div>Total Amount:</div><div>Rs. ${data.totals?.total ? Number(data.totals.total).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}</div></div>
+        ${data.totals?.subtotal ? `<div style="display:flex;justify-content:space-between"><div>Subtotal:</div><div style="font-weight:600;">Rs. ${formatCurrency(data.totals.subtotal)}</div></div>` : ""}
+        ${data.totals?.totalGrossAmount ? `<div style="display:flex;justify-content:space-between"><div>Total Gross Amount:</div><div style="font-weight:600;">Rs. ${formatCurrency(data.totals.totalGrossAmount)}</div></div>` : ""}
+        ${data.totals?.totalDiscount ? `<div style="display:flex;justify-content:space-between"><div>Total Discount:</div><div style="font-weight:600;">Rs. ${formatCurrency(data.totals.totalDiscount)}</div></div>` : ""}
+        ${data.totals?.totalNetAmount ? `<div style="display:flex;justify-content:space-between"><div>Total Net Amount:</div><div style="font-weight:600;">Rs. ${formatCurrency(data.totals.totalNetAmount)}</div></div>` : ""}
+        <div style="display:flex;justify-content:space-between"><div>Received Amount:</div><div style="font-weight:600;">Rs. ${formatCurrency(resolvedReceivedAmount)}</div></div>
+        <div style="display:flex;justify-content:space-between"><div>Balance Amount:</div><div style="font-weight:600;">Rs. ${formatCurrency(resolvedBalanceAmount)}</div></div>
+        <div class="total-row" style="display:flex;justify-content:space-between;font-weight:700;color:#1e3a8a;"><div>Total Amount:</div><div>Rs. ${formatCurrency(resolvedTotalAmount)}</div></div>
       </div>
     </div>
   `;
@@ -378,74 +499,99 @@ export function generateGatePassHTML(data: InvoiceData): string {
 
   const headerRight = `
     <div style="width:48%; display:flex; gap:12px;">
-      ${data.customer ? `
+      ${
+        data.customer
+          ? `
         <div style="flex:1; padding:8px 0;">
           <div style="font-size:13px;color:#6b7280;font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Party Details</div>
           <div style="font-weight:700;color:#1e3a8a;font-size:16px;margin-bottom:10px;">${escapeHtml(data.customer)}</div>
-          ${data.customerPhone ? `
+          ${
+            data.customerPhone
+              ? `
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Phone</div>
               <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(data.customerPhone)}</div>
             </div>
-          ` : ""}
-          ${data.customerAddress ? `
+          `
+              : ""
+          }
+          ${
+            data.customerAddress
+              ? `
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Address</div>
               <div style="font-weight:500;color:#111827;font-size:14px;">${escapeHtml(data.customerAddress)}</div>
             </div>
-          ` : ""}
-          ${data.customerCity ? `
+          `
+              : ""
+          }
+          ${
+            data.customerCity
+              ? `
             <div>
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">City</div>
               <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(data.customerCity)}</div>
             </div>
-          ` : ""}
+          `
+              : ""
+          }
         </div>
-      ` : ""}
+      `
+          : ""
+      }
       <div style="flex:1; padding:8px; background:#fef3c7; border-left:4px solid #f59e0b; border-radius:4px; height:fit-content;">
         <div style="font-size:11px;color:#92400e;text-transform:uppercase;margin-bottom:4px;font-weight:600;">Purpose</div>
         <div style="font-size:13px;color:#111827;font-weight:600;">Material Dispatch - ${escapeHtml(data.title || "Gate Pass")}</div>
       </div>
-      ${data.supplierName ? `
+      ${
+        data.supplierName
+          ? `
         <div style="padding:8px 0;">
           <div style="font-size:13px;color:#6b7280;font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;">Supplier Details</div>
           <div style="font-weight:700;color:#1e3a8a;font-size:16px;margin-bottom:10px;">${escapeHtml(data.supplierName)}</div>
-          ${data.supplierPhone ? `
+          ${
+            data.supplierPhone
+              ? `
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Phone</div>
               <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(data.supplierPhone)}</div>
             </div>
-          ` : ""}
-          ${data.supplierAddress ? `
+          `
+              : ""
+          }
+          ${
+            data.supplierAddress
+              ? `
             <div style="margin-bottom:10px;">
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">Address</div>
               <div style="font-weight:500;color:#111827;font-size:14px;">${escapeHtml(data.supplierAddress)}</div>
             </div>
-          ` : ""}
-          ${data.supplierCity ? `
+          `
+              : ""
+          }
+          ${
+            data.supplierCity
+              ? `
             <div>
               <div style="font-size:11px;color:#9ca3af;margin-bottom:2px;">City</div>
               <div style="font-weight:600;color:#111827;font-size:14px;">${escapeHtml(data.supplierCity)}</div>
             </div>
-          ` : ""}
+          `
+              : ""
+          }
         </div>
-      ` : ""}
+      `
+          : ""
+      }
     </div>
   `;
 
-  const cols = [
-    "Sr.#",
-    "Item",
-    "Color",
-    "Thickness",
-    "Length",
-    "Qty",
-  ];
+  const cols = ["Sr.#", "Item", "Color", "Thickness", "Length", "Qty"];
 
   // Ensure minimum 8 rows
   const minRows = 8;
-  const itemRows = (data.items || []).map(
-    (it, idx) => {
+  const itemRows = (data.items || [])
+    .map((it, idx) => {
       const qty = it.quantity ?? it.qty ?? it.lengths ?? 0;
 
       return `
@@ -458,13 +604,16 @@ export function generateGatePassHTML(data: InvoiceData): string {
         <td class="right">${escapeHtml(qty || "")}</td>
       </tr>
       `;
-    }
-  ).join("");
+    })
+    .join("");
 
   // Add empty rows to reach minimum
   const emptyRowsCount = Math.max(0, minRows - (data.items?.length || 0));
   const emptyRows = Array.from({ length: emptyRowsCount })
-    .map(() => `<tr>${cols.map(() => `<td style="height:28px;">&nbsp;</td>`).join("")}</tr>`)
+    .map(
+      () =>
+        `<tr>${cols.map(() => `<td style="height:28px;">&nbsp;</td>`).join("")}</tr>`,
+    )
     .join("");
 
   const rowsHtml = itemRows + emptyRows;

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Modal,
   Button,
@@ -300,6 +301,7 @@ function buildEditPayload(
 }
 
 export default function SaleInvoice() {
+  const navigate = useNavigate();
   const { sales, createSaleAsync, deleteSaleAsync } = useSales();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -435,29 +437,12 @@ export default function SaleInvoice() {
 
     try {
       await createSaleAsync(apiPayload);
-      showNotification({
-        title: "Sale Invoice Created",
-        message: `Invoice ${invoiceNumber} created successfully`,
-        color: "green",
-      });
+      // Reset local form state after successful persistence.
       setOpen(false);
       setInitialPayload(null);
+      navigate("/sales/invoices");
     } catch (err: unknown) {
-      const responseData =
-        typeof err === "object" && err !== null && "response" in err
-          ? (err as unknown as { response?: { data?: unknown } }).response?.data
-          : undefined;
-      const message =
-        (typeof responseData === "object" &&
-          responseData &&
-          "message" in responseData &&
-          (responseData as { message?: string }).message) ||
-        (typeof responseData === "string" ? responseData : undefined) ||
-        (typeof err === "object" && err !== null && "message" in err
-          ? (err as { message?: string }).message
-          : undefined) ||
-        String(err);
-      showNotification({ title: "Sale Persist Failed", message, color: "red" });
+      // Error toast is handled centrally in useSales onError.
     }
   }
 
@@ -481,27 +466,13 @@ export default function SaleInvoice() {
 
     try {
       await createSaleAsync(apiPayload);
-      showNotification({
-        title: "Sale Invoice Imported",
-        message: `Invoice ${invoiceNumber} imported from quotation`,
-        color: "green",
-      });
+      // Reset local form state after successful persistence.
+      setOpen(false);
+      setInitialPayload(null);
+      navigate("/sales/invoices");
     } catch (err: unknown) {
-      const responseData =
-        typeof err === "object" && err !== null && "response" in err
-          ? (err as unknown as { response?: { data?: unknown } }).response?.data
-          : undefined;
-      const message =
-        (typeof responseData === "object" &&
-          responseData &&
-          "message" in responseData &&
-          (responseData as { message?: string }).message) ||
-        (typeof responseData === "string" ? responseData : undefined) ||
-        (typeof err === "object" && err !== null && "message" in err
-          ? (err as { message?: string }).message
-          : undefined) ||
-        String(err);
-      showNotification({ title: "Sale Persist Failed", message, color: "red" });
+      // Error toast is handled centrally in useSales onError.
+      return;
     }
 
     // Update quotation status
@@ -769,14 +740,59 @@ export default function SaleInvoice() {
                             leftSection={<IconPrinter size={16} />}
                             onClick={() => {
                               // Print logic: build invoice data and open print window
-                              const items = (inv.products ?? []).map(
+                              const rawItemsSource =
+                                (
+                                  inv as SaleRecordPayload & {
+                                    items?: unknown;
+                                    products?: unknown;
+                                  }
+                                ).items ?? inv.products;
+
+                              const normalizedSourceItems: Array<
+                                SaleItem & {
+                                  rate?: number;
+                                  discountPercent?: number;
+                                }
+                              > = (() => {
+                                if (Array.isArray(rawItemsSource)) {
+                                  return rawItemsSource as Array<
+                                    SaleItem & {
+                                      rate?: number;
+                                      discountPercent?: number;
+                                    }
+                                  >;
+                                }
+
+                                if (typeof rawItemsSource === "string") {
+                                  try {
+                                    const parsed = JSON.parse(rawItemsSource);
+                                    return Array.isArray(parsed)
+                                      ? (parsed as Array<
+                                          SaleItem & {
+                                            rate?: number;
+                                            discountPercent?: number;
+                                          }
+                                        >)
+                                      : [];
+                                  } catch {
+                                    return [];
+                                  }
+                                }
+
+                                return [];
+                              })();
+
+                              const items = normalizedSourceItems.map(
                                 (it, idx) => {
                                   const quantity = it.quantity ?? 0;
-                                  const rate = it.salesRate ?? 0;
+                                  const rate =
+                                    it.salesRate ?? it.rate ?? it.price ?? 0;
                                   const length = (it as any).length ?? 0;
                                   const gross = length * quantity * rate;
                                   const discountPercent =
-                                    (it as any).discount ?? 0;
+                                    it.discountPercent ??
+                                    (it as any).discount ??
+                                    0;
                                   const discountAmount =
                                     (it as any).discountAmount ??
                                     (gross * discountPercent) / 100;
@@ -815,6 +831,15 @@ export default function SaleInvoice() {
                               const totalNetAmount =
                                 inv.totalNetAmount ??
                                 totalGrossAmount - totalDiscount;
+                              const receivedAmount = Number(
+                                (
+                                  inv as SaleRecordPayload & {
+                                    receivedAmount?: number;
+                                  }
+                                ).receivedAmount ?? 0,
+                              );
+                              const balanceAmount =
+                                totalNetAmount - receivedAmount;
 
                               openPrintWindow({
                                 title: "Sales Invoice",
@@ -868,8 +893,12 @@ export default function SaleInvoice() {
                                   totalGrossAmount: totalGrossAmount,
                                   totalDiscount: totalDiscount,
                                   totalNetAmount: totalNetAmount,
+                                  receivedAmount,
+                                  balanceAmount,
                                   total: totalNetAmount,
                                 },
+                                receivedAmount,
+                                balanceAmount,
                                 footerNotes: [
                                   "Extrusion & Powder Coating",
                                   "Aluminum Window, Door, Profiles & All Kinds of Pipes",

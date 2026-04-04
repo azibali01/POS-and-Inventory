@@ -25,7 +25,7 @@ export interface InventoryItemPayload {
   brand?: string;
   color?: string;
   discount?: number;
-  length?: number;
+  length?: string | number;
   amount?: number;
   openingStock?: number;
   quantity?: number;
@@ -68,7 +68,7 @@ export interface SaleRecordPayload {
   customer?: CustomerPayload | null;
   customerName?: string;
   paymentMethod?: PaymentMethod;
-  length?: number;
+  length?: string | number;
   remarks?: string;
   date?: string;
   amount?: number;
@@ -96,9 +96,11 @@ export interface QuotationRecordPayload {
   convertedInvoiceId?: string;
   convertedAt?: string;
   remarks?: string;
-  length?: number;
+  length?: string | number;
   metadata?: Record<string, unknown>;
 }
+
+export interface SaleReturnRecordPayload extends SaleRecordPayload {}
 
 /**
  * Sales Service
@@ -126,23 +128,26 @@ export const salesService = {
   /**
    * Get sale by invoice number
    */
-  async getByInvoiceNumber(invoiceNumber: string) {
+  async getByInvoiceNumber(
+    invoiceNumber: string,
+  ): Promise<SaleRecordPayload | undefined> {
     try {
-      const { data } = await axiosClient.get(
+      const response = await axiosClient.get<SaleRecordPayload>(
         `${ENDPOINTS.SALES}/${encodeURIComponent(invoiceNumber)}`,
       );
+      const data: SaleRecordPayload = response.data;
       return data;
     } catch (err: unknown) {
       const error = err as { response?: { status?: number } };
       const status = error.response?.status;
       if (status && status === 404) {
         // Fallback: fetch all and find
-        const { data } = await axiosClient.get<
+        const response = await axiosClient.get<
           SaleRecordPayload[] | PaginatedResponse<SaleRecordPayload>
         >(ENDPOINTS.SALES, {
           params: { limit: 10000 },
         });
-        const allSales = unwrapPaginated(data);
+        const allSales: SaleRecordPayload[] = unwrapPaginated(response.data);
         return (allSales || []).find(
           (s: SaleRecordPayload) =>
             String(s.invoiceNumber) === String(invoiceNumber),
@@ -253,17 +258,21 @@ export const saleReturnService = {
   /**
    * Get all sale returns
    */
-  async getAll() {
-    const { data } = await axiosClient.get(ENDPOINTS.SALE_RETURNS);
+  async getAll(): Promise<SaleReturnRecordPayload[]> {
+    const { data } = await axiosClient.get<SaleReturnRecordPayload[]>(
+      ENDPOINTS.SALE_RETURNS,
+    );
     return data;
   },
 
   /**
    * Get sale return by invoice number
    */
-  async getByInvoiceNumber(invoiceNumber: string) {
+  async getByInvoiceNumber(
+    invoiceNumber: string,
+  ): Promise<SaleReturnRecordPayload | undefined> {
     try {
-      const { data } = await axiosClient.get(
+      const { data } = await axiosClient.get<SaleReturnRecordPayload>(
         `${ENDPOINTS.SALE_RETURNS}/${encodeURIComponent(invoiceNumber)}`,
       );
       return data;
@@ -272,9 +281,11 @@ export const saleReturnService = {
       const status = error.response?.status;
       if (status && status === 404) {
         // Fallback: fetch all and find
-        const { data } = await axiosClient.get(ENDPOINTS.SALE_RETURNS);
+        const { data } = await axiosClient.get<SaleReturnRecordPayload[]>(
+          ENDPOINTS.SALE_RETURNS,
+        );
         return (data || []).find(
-          (r: { invoiceNumber?: string }) =>
+          (r: SaleReturnRecordPayload) =>
             String(r.invoiceNumber) === String(invoiceNumber),
         );
       }
@@ -285,16 +296,22 @@ export const saleReturnService = {
   /**
    * Create sale return
    */
-  async create(payload: unknown) {
-    const { data } = await axiosClient.post(ENDPOINTS.SALE_RETURNS, payload);
+  async create(payload: unknown): Promise<SaleReturnRecordPayload> {
+    const { data } = await axiosClient.post<SaleReturnRecordPayload>(
+      ENDPOINTS.SALE_RETURNS,
+      payload,
+    );
     return data;
   },
 
   /**
    * Update sale return by invoice number
    */
-  async updateByInvoiceNumber(invoiceNumber: string, patch: unknown) {
-    const { data } = await axiosClient.put(
+  async updateByInvoiceNumber(
+    invoiceNumber: string,
+    patch: unknown,
+  ): Promise<SaleReturnRecordPayload> {
+    const { data } = await axiosClient.put<SaleReturnRecordPayload>(
       `${ENDPOINTS.SALE_RETURNS}/${encodeURIComponent(invoiceNumber)}`,
       patch,
     );
@@ -304,7 +321,7 @@ export const saleReturnService = {
   /**
    * Delete sale return by invoice number
    */
-  async deleteByInvoiceNumber(invoiceNumber: string) {
+  async deleteByInvoiceNumber(invoiceNumber: string): Promise<unknown> {
     const { data } = await axiosClient.delete(
       `${ENDPOINTS.SALE_RETURNS}/${encodeURIComponent(invoiceNumber)}`,
     );

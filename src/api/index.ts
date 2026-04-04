@@ -15,7 +15,6 @@ import {
   saleReturnService,
   type CustomerPayload,
   type InventoryItemPayload,
-  type PaymentMethod,
   type QuotationRecordPayload,
   type SaleRecordPayload,
 } from "./services/salesService";
@@ -61,7 +60,6 @@ import {
   type DraftData,
   type DraftRecord,
 } from "./services/draftService";
-import { shiftService } from "./services/shiftService";
 
 // Sales & Quotations
 export { salesService, saleReturnService } from "./services/salesService";
@@ -162,8 +160,9 @@ export const createColor = (payload: ColorPayload) =>
 export const updateColor = (
   id: string | number,
   payload: Partial<ColorPayload>,
-) => colorService.update(id, payload);
-export const deleteColor = (id: string | number) => colorService.delete(id);
+) => colorService.update(id as string, payload);
+export const deleteColor = (id: string | number) =>
+  colorService.delete(id as string);
 
 export const getCategories = () => categoryService.getAll();
 export const createCategory = (payload: CategoryPayload) =>
@@ -259,6 +258,7 @@ export type {
   PaymentMethod,
   CustomerPayload,
   SaleRecordPayload,
+  SaleReturnRecordPayload,
   QuotationRecordPayload,
 } from "./services/salesService";
 
