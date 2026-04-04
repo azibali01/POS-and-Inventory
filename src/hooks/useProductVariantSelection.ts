@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { InventoryItem, ProductVariant } from "../../types/product";
+import type { InventoryItem, ProductVariant } from "../types/product";
 
 export interface VariantSelectionState {
   selectedProduct: InventoryItem | null;
@@ -41,12 +41,10 @@ export function useProductVariantSelection(products: InventoryItem[]) {
     // Thickness options based on selected product
     const thicknessOptions = selection.selectedProduct
       ? Array.from(
-          new Set(
-            selection.selectedProduct.variants?.map((v) => v.thickness) || [],
-          ),
+          new Set(selection.selectedProduct.variants.map((v) => v.thickness)),
         ).map((thickness) => ({
-          value: String(thickness),
-          label: String(thickness),
+          value: thickness,
+          label: thickness,
         }))
       : [];
 
@@ -56,8 +54,8 @@ export function useProductVariantSelection(products: InventoryItem[]) {
         ? Array.from(
             new Set(
               selection.selectedProduct.variants
-                ?.filter((v) => v.thickness === selection.selectedThickness)
-                .map((v) => v.color) || [],
+                .filter((v) => v.thickness === selection.selectedThickness)
+                .map((v) => v.color),
             ),
           ).map((color) => ({
             value: color,
@@ -79,7 +77,7 @@ export function useProductVariantSelection(products: InventoryItem[]) {
     color: string,
     sku?: string,
   ): ProductVariant | null => {
-    if (!product || !thickness || !color || !product.variants) {
+    if (!product || !thickness || !color) {
       return null;
     }
 
@@ -183,7 +181,8 @@ export function useProductVariantSelection(products: InventoryItem[]) {
   // Utility: Generate unique line item key for the selected variant
   const generateLineItemKey = (): string => {
     if (!isSelectionComplete()) return "";
-    return `${selection.selectedProduct!._id}-${selection.selectedThickness}-${selection.selectedColor}`;
+    if (!selection.selectedProduct) return "";
+    return `${selection.selectedProduct._id}-${selection.selectedThickness}-${selection.selectedColor}`;
   };
 
   return {
@@ -211,7 +210,7 @@ export function useProductVariantSelection(products: InventoryItem[]) {
  */
 export function convertLegacyProduct(product: InventoryItem): InventoryItem {
   // If product already has variants, return as-is
-  if (product.variants && product.variants.length > 0) {
+  if (product.variants.length > 0) {
     return product;
   }
 
@@ -245,7 +244,7 @@ export function getAllThicknesses(products: InventoryItem[]): string[] {
   const thicknesses = new Set<string>();
 
   products.forEach((product) => {
-    if (product.variants) {
+    if (product.variants.length > 0) {
       product.variants.forEach((variant) => {
         thicknesses.add(variant.thickness);
       });
@@ -265,7 +264,7 @@ export function getAllColors(products: InventoryItem[]): string[] {
   const colors = new Set<string>();
 
   products.forEach((product) => {
-    if (product.variants) {
+    if (product.variants.length > 0) {
       product.variants.forEach((variant) => {
         colors.add(variant.color);
       });

@@ -1,15 +1,42 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { notifications } from "@mantine/notifications";
 import {
   salesService,
   saleReturnService,
   quotationService,
   type ListQueryParams,
   type SaleRecordPayload,
+  type SaleReturnRecordPayload,
   type QuotationRecordPayload,
 } from "../api";
 
 type SalesListParams = Required<Pick<ListQueryParams, "page" | "limit">> &
   Pick<ListQueryParams, "search">;
+
+function extractApiErrorMessage(error: unknown): string {
+  if (typeof error !== "object" || error === null) {
+    return "Failed to record sale";
+  }
+
+  const response = (error as { response?: { data?: { message?: unknown } } })
+    .response;
+  const responseMessage = response?.data?.message;
+
+  if (Array.isArray(responseMessage)) {
+    return responseMessage.join("\n");
+  }
+
+  if (typeof responseMessage === "string" && responseMessage.trim()) {
+    return responseMessage;
+  }
+
+  const message = (error as { message?: unknown }).message;
+  if (typeof message === "string" && message.trim()) {
+    return message;
+  }
+
+  return "Failed to record sale";
+}
 
 /**
  * Custom hook for sales management
@@ -33,7 +60,20 @@ export function useSales() {
   const createMutation = useMutation({
     mutationFn: (sale: SaleRecordPayload) => salesService.create(sale),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales"] });
+      notifications.show({
+        title: "Sale Created",
+        message: "Sale invoice created successfully",
+        color: "green",
+      });
+    },
+    onError: (error: unknown) => {
+      const message = extractApiErrorMessage(error);
+      notifications.show({
+        title: "Sale Failed",
+        message,
+        color: "red",
+      });
     },
   });
 
@@ -47,7 +87,7 @@ export function useSales() {
       data: Partial<SaleRecordPayload>;
     }) => salesService.updateByInvoiceNumber(invoiceNumber, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales"] });
     },
   });
 
@@ -56,14 +96,15 @@ export function useSales() {
     mutationFn: (invoiceNumber: string) =>
       salesService.deleteByInvoiceNumber(invoiceNumber),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales"] });
     },
   });
 
   // Get sale by invoice number
-  const getSaleByInvoiceNumber = async (invoiceNumber: string) => {
-    return salesService.getByInvoiceNumber(invoiceNumber);
-  };
+  const getSaleByInvoiceNumber: (
+    invoiceNumber: string,
+  ) => Promise<SaleRecordPayload | undefined> = (invoiceNumber) =>
+    salesService.getByInvoiceNumber(invoiceNumber);
 
   return {
     // Data
@@ -125,7 +166,7 @@ export function useSaleReturns() {
     isLoading,
     error,
     refetch,
-  } = useQuery({
+  } = useQuery<SaleReturnRecordPayload[]>({
     queryKey: ["sale-returns"],
     queryFn: () => saleReturnService.getAll(),
   });
@@ -135,7 +176,7 @@ export function useSaleReturns() {
     mutationFn: (saleReturn: Record<string, unknown>) =>
       saleReturnService.create(saleReturn),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
+      void queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
     },
   });
 
@@ -149,7 +190,7 @@ export function useSaleReturns() {
       data: Record<string, unknown>;
     }) => saleReturnService.updateByInvoiceNumber(invoiceNumber, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
+      void queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
     },
   });
 
@@ -158,7 +199,7 @@ export function useSaleReturns() {
     mutationFn: (invoiceNumber: string) =>
       saleReturnService.deleteByInvoiceNumber(invoiceNumber),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
+      void queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
     },
   });
 
@@ -208,7 +249,7 @@ export function useQuotations() {
     mutationFn: (quotation: QuotationRecordPayload) =>
       quotationService.create(quotation),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["quotations"] });
+      void queryClient.invalidateQueries({ queryKey: ["quotations"] });
     },
   });
 
@@ -222,16 +263,16 @@ export function useQuotations() {
       data: Partial<QuotationRecordPayload>;
     }) => quotationService.updateByQuotationNumber(quotationNumber, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["quotations"] });
+      void queryClient.invalidateQueries({ queryKey: ["quotations"] });
     },
   });
 
   // Delete quotation mutation
   const deleteMutation = useMutation({
-    mutationFn: (quotationNumber: string) =>
-      quotationService.deleteByQuotationNumber(quotationNumber),
+    mutationFn: (quotationId: string) =>
+      quotationService.deleteById(quotationId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["quotations"] });
+      void queryClient.invalidateQueries({ queryKey: ["quotations"] });
     },
   });
 

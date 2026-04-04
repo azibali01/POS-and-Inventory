@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, type FormEvent } from "react";
 import {
   TextInput,
   Group,
@@ -17,7 +17,6 @@ import {
   Center,
   Alert,
 } from "@mantine/core";
-import { IconPlus, IconTrash, IconInfoCircle } from "@tabler/icons-react";
 import SafeSelect from "../../lib/SafeSelect";
 import { showNotification } from "@mantine/notifications";
 import {
@@ -51,17 +50,17 @@ export function ProductFormNew({ product, onClose }: Props) {
   const { suppliers } = useSupplier();
   const { colors } = useColors();
 
-  const categoriesForSelect = (categories || []).map((c) => ({
+  const categoriesForSelect = categories.map((c) => ({
     value: c.name,
     label: c.name,
   }));
 
-  const suppliersForSelect = (suppliers || []).map((s) => ({
+  const suppliersForSelect = suppliers.map((s) => ({
     value: s.name,
     label: s.name,
   }));
 
-  const colorsForSelect = (colors || []).map((c) => ({
+  const colorsForSelect = colors.map((c) => ({
     value: c.name,
     label: c.name,
   }));
@@ -157,7 +156,7 @@ export function ProductFormNew({ product, onClose }: Props) {
       if (!variant.thickness.trim()) {
         showNotification({
           title: "Validation Error",
-          message: `Thickness is required for variant ${i + 1}`,
+          message: `Thickness is required for variant ${String(i + 1)}`,
           color: "red",
         });
         return false;
@@ -165,7 +164,7 @@ export function ProductFormNew({ product, onClose }: Props) {
       if (!variant.color.trim()) {
         showNotification({
           title: "Validation Error",
-          message: `Color is required for variant ${i + 1}`,
+          message: `Color is required for variant ${String(i + 1)}`,
           color: "red",
         });
         return false;
@@ -173,7 +172,7 @@ export function ProductFormNew({ product, onClose }: Props) {
       if (!variant.salesRate || Number(variant.salesRate) <= 0) {
         showNotification({
           title: "Validation Error",
-          message: `Valid sales rate is required for variant ${i + 1}`,
+          message: `Valid sales rate is required for variant ${String(i + 1)}`,
           color: "red",
         });
         return false;
@@ -196,7 +195,7 @@ export function ProductFormNew({ product, onClose }: Props) {
     return true;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     console.log("Submit button clicked!");
 
@@ -259,9 +258,16 @@ export function ProductFormNew({ product, onClose }: Props) {
       onClose();
     } catch (error) {
       console.error("Form submission error:", error);
+      const message =
+        typeof error === "object" &&
+        error !== null &&
+        "message" in error &&
+        typeof (error as { message?: unknown }).message === "string"
+          ? (error as { message: string }).message
+          : "Failed to save product";
       showNotification({
         title: "Error",
-        message: error?.message || "Failed to save product",
+        message,
         color: "red",
       });
     } finally {
@@ -271,7 +277,12 @@ export function ProductFormNew({ product, onClose }: Props) {
   };
 
   return (
-    <Box component="form" onSubmit={handleSubmit}>
+    <Box
+      component="form"
+      onSubmit={(e) => {
+        void handleSubmit(e);
+      }}
+    >
       <Title order={3} mb="md">
         {product ? "Edit Product" : "Create Product"}
       </Title>
@@ -286,15 +297,17 @@ export function ProductFormNew({ product, onClose }: Props) {
           label="Item Name"
           required
           value={masterForm.itemName}
-          onChange={(e) =>
-            setMasterForm({ ...masterForm, itemName: e.currentTarget.value })
-          }
+          onChange={(e) => {
+            setMasterForm({ ...masterForm, itemName: e.currentTarget.value });
+          }}
         />
         <SafeSelect
           label="Category"
-          data={categoriesForSelect || []}
+          data={categoriesForSelect}
           value={masterForm.category}
-          onChange={(v) => setMasterForm({ ...masterForm, category: v || "" })}
+          onChange={(v) => {
+            setMasterForm({ ...masterForm, category: v || "" });
+          }}
           searchable
           clearable
         />
@@ -308,16 +321,20 @@ export function ProductFormNew({ product, onClose }: Props) {
             { value: "sqft", label: "Square Feet" },
           ]}
           value={masterForm.unit}
-          onChange={(v) => setMasterForm({ ...masterForm, unit: v || "ft" })}
+          onChange={(v) => {
+            setMasterForm({ ...masterForm, unit: v || "ft" });
+          }}
         />
       </Group>
 
       <Group grow mb="md">
         <SafeSelect
           label="Brand/Supplier"
-          data={suppliersForSelect || []}
+          data={suppliersForSelect}
           value={masterForm.brand}
-          onChange={(v) => setMasterForm({ ...masterForm, brand: v || "" })}
+          onChange={(v) => {
+            setMasterForm({ ...masterForm, brand: v || "" });
+          }}
           searchable
           clearable
           placeholder="Select brand or supplier"
@@ -325,9 +342,12 @@ export function ProductFormNew({ product, onClose }: Props) {
         <Textarea
           label="Description"
           value={masterForm.description}
-          onChange={(e) =>
-            setMasterForm({ ...masterForm, description: e.currentTarget.value })
-          }
+          onChange={(e) => {
+            setMasterForm({
+              ...masterForm,
+              description: e.currentTarget.value,
+            });
+          }}
           rows={3}
         />
       </Group>
@@ -335,12 +355,12 @@ export function ProductFormNew({ product, onClose }: Props) {
       <Divider my="xl" />
 
       {/* Product Variants Section */}
-      <Stack spacing="md">
+      <Stack gap="md">
         <div>
           <Title order={4} size="md" mb="xs">
             Product Variants
           </Title>
-          <Text size="sm" color="dimmed" mb="md">
+          <Text size="sm" c="dimmed" mb="md">
             Define different combinations of thickness, color, and pricing for
             this product. Each variant will get a unique SKU (e.g.,
             D10-1.6-SIL).
@@ -349,12 +369,7 @@ export function ProductFormNew({ product, onClose }: Props) {
 
         {/* Prominent Variants Table */}
         <Paper withBorder p="md" style={{ backgroundColor: "#fafafa" }}>
-          <Alert
-            icon={<IconInfoCircle size={16} />}
-            color="blue"
-            mb="md"
-            variant="light"
-          >
+          <Alert color="blue" mb="md" variant="light">
             <Text size="sm">
               <strong>Required:</strong> At least one variant must be added.
               Each thickness-color combination must be unique.
@@ -364,7 +379,7 @@ export function ProductFormNew({ product, onClose }: Props) {
           <Table
             striped
             highlightOnHover
-            withBorder
+            withTableBorder
             withColumnBorders
             style={{
               backgroundColor: "white",
@@ -437,7 +452,7 @@ export function ProductFormNew({ product, onClose }: Props) {
                 <tr>
                   <td colSpan={6}>
                     <Center py="xl">
-                      <Text color="dimmed" size="sm">
+                      <Text c="dimmed" size="sm">
                         No variants added yet. Click "Add Variant" below to get
                         started.
                       </Text>
@@ -463,13 +478,13 @@ export function ProductFormNew({ product, onClose }: Props) {
                     <td>
                       <TextInput
                         value={variant.thickness}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           updateVariant(
                             index,
                             "thickness",
                             e.currentTarget.value,
-                          )
-                        }
+                          );
+                        }}
                         placeholder="e.g., 1.6mm, 2.0mm"
                         required
                         style={{ minWidth: "140px" }}
@@ -482,7 +497,9 @@ export function ProductFormNew({ product, onClose }: Props) {
                       <SafeSelect
                         data={colorsForSelect}
                         value={variant.color}
-                        onChange={(v) => updateVariant(index, "color", v || "")}
+                        onChange={(v) => {
+                          updateVariant(index, "color", v || "");
+                        }}
                         searchable
                         clearable
                         placeholder="Select color"
@@ -500,16 +517,12 @@ export function ProductFormNew({ product, onClose }: Props) {
                             ? ""
                             : Number(variant.salesRate)
                         }
-                        onChange={(value) =>
-                          updateVariant(
-                            index,
-                            "salesRate",
-                            value?.toString() || "",
-                          )
-                        }
+                        onChange={(value) => {
+                          updateVariant(index, "salesRate", String(value));
+                        }}
                         placeholder="0.00"
                         min={0}
-                        precision={2}
+                        decimalScale={2}
                         hideControls
                         required
                         style={{ minWidth: "120px" }}
@@ -529,13 +542,9 @@ export function ProductFormNew({ product, onClose }: Props) {
                             ? 0
                             : Number(variant.openingStock)
                         }
-                        onChange={(value) =>
-                          updateVariant(
-                            index,
-                            "openingStock",
-                            value?.toString() || "0",
-                          )
-                        }
+                        onChange={(value) => {
+                          updateVariant(index, "openingStock", String(value));
+                        }}
                         placeholder="0"
                         min={0}
                         hideControls
@@ -550,14 +559,16 @@ export function ProductFormNew({ product, onClose }: Props) {
                         variant="light"
                         size="lg"
                         disabled={variants.length === 1}
-                        onClick={() => removeVariant(index)}
+                        onClick={() => {
+                          removeVariant(index);
+                        }}
                         title={
                           variants.length === 1
                             ? "At least one variant required"
                             : "Delete variant"
                         }
                       >
-                        <IconTrash size={16} />
+                        X
                       </ActionIcon>
                     </td>
                   </tr>
@@ -569,7 +580,7 @@ export function ProductFormNew({ product, onClose }: Props) {
           {/* Prominent Add Variant Button */}
           <Center mt="md">
             <Button
-              leftIcon={<IconPlus size={18} />}
+              leftSection="+"
               size="md"
               variant="gradient"
               gradient={{ from: "blue", to: "cyan" }}
@@ -586,12 +597,7 @@ export function ProductFormNew({ product, onClose }: Props) {
           </Center>
 
           {/* Helpful Information */}
-          <Text
-            size="xs"
-            color="dimmed"
-            mt="sm"
-            style={{ textAlign: "center" }}
-          >
+          <Text size="xs" c="dimmed" mt="sm" style={{ textAlign: "center" }}>
             💡 SKUs will be auto-generated as: [Item Name]-[Thickness]-[Color]
             (e.g., D10-1.6-SIL)
           </Text>
@@ -601,7 +607,7 @@ export function ProductFormNew({ product, onClose }: Props) {
       {/* Action Buttons */}
       <Divider my="xl" />
 
-      <Group position="apart" mt="xl">
+      <Group justify="space-between" mt="xl">
         <Button variant="outline" onClick={onClose} size="md" color="gray">
           Cancel
         </Button>
@@ -616,11 +622,7 @@ export function ProductFormNew({ product, onClose }: Props) {
             padding: "12px 32px",
             backgroundColor: loading ? undefined : "#228be6",
           }}
-          leftIcon={loading ? undefined : <IconPlus size={18} />}
-          onClick={(e) => {
-            console.log("Button clicked, calling handleSubmit");
-            handleSubmit(e);
-          }}
+          leftSection={loading ? undefined : "+"}
         >
           {loading
             ? product

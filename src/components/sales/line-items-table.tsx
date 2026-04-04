@@ -141,10 +141,12 @@ export function LineItemsTable({
   items,
   onChange,
   products,
+  mode,
 }: {
   items: LineItem[];
   onChange: (items: LineItem[]) => void;
   products?: InventoryItem[];
+  mode?: "Quotation" | "Invoice";
 }) {
   const inventory = products ?? [];
   const productOptions = useMemo(
@@ -229,6 +231,16 @@ export function LineItemsTable({
             const quantity = item.quantity ?? 0;
             const oversoldBy = Math.max(0, quantity - availableStock);
             const hasVariantError = hasIncompleteVariantSelection(item);
+            const hasAnyVariantSelection =
+              !!String(item.thickness ?? "").trim() ||
+              !!String(item.color ?? "").trim() ||
+              !!String(item.sku ?? "").trim();
+            const quantityError =
+              mode === "Quotation"
+                ? undefined
+                : hasVariantError && !hasAnyVariantSelection
+                  ? "Complete variant selection first"
+                  : undefined;
 
             return (
               <Table.Tr key={`line-${idx}`}>
@@ -243,20 +255,30 @@ export function LineItemsTable({
                         inventory.find(
                           (entry) => toProductId(entry._id) === (value ?? ""),
                         ) || null;
+
+                      const singleVariant =
+                        product && product.variants?.length === 1
+                          ? product.variants[0]
+                          : null;
+                      const resolvedStock = getVariantStock(singleVariant);
+                      const resolvedRate = Number(
+                        singleVariant?.salesRate ?? 0,
+                      );
+
                       updateRow(idx, {
                         _id: value || "",
                         productId: value || "",
                         productName: product?.itemName || "",
                         itemName: product?.itemName || "",
                         unit: product?.unit || "",
-                        sku: "",
-                        thickness: "",
-                        color: "",
+                        sku: singleVariant?.sku || "",
+                        thickness: singleVariant?.thickness || "",
+                        color: singleVariant?.color || "",
                         quantity: 0,
-                        salesRate: 0,
-                        rate: 0,
-                        availableStock: 0,
-                        openingStock: 0,
+                        salesRate: resolvedRate,
+                        rate: resolvedRate,
+                        availableStock: resolvedStock,
+                        openingStock: resolvedStock,
                         subtotal: 0,
                         amount: 0,
                         totalGrossAmount: 0,
@@ -372,11 +394,7 @@ export function LineItemsTable({
                     }}
                     min={0}
                     hideControls
-                    error={
-                      hasVariantError
-                        ? "Complete variant selection first"
-                        : undefined
-                    }
+                    error={quantityError}
                   />
                   {item.sku || selectedVariant ? (
                     <Group gap={6} mt={4}>

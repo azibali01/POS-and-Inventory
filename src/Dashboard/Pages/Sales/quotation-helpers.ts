@@ -40,6 +40,12 @@ export function mapQuotationProducts(
 ): InventoryItemPayload[] {
   if (!items) return [];
 
+  const normalizeLengthString = (value: unknown): string => {
+    if (value === null || value === undefined || value === "") return "0";
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? String(numeric) : "0";
+  };
+
   return items.map((it) => ({
     _id: it._id ?? "",
     itemName: it.itemName ?? "",
@@ -61,10 +67,7 @@ export function mapQuotationProducts(
       typeof (it as { amount?: unknown }).amount === "number"
         ? Math.floor(Number((it as { amount?: number }).amount))
         : 0,
-    length:
-      typeof (it as { length?: unknown }).length === "number"
-        ? Math.floor(Number((it as { length?: number }).length))
-        : 0,
+    length: normalizeLengthString((it as { length?: unknown }).length),
     totalGrossAmount:
       typeof (it as { totalGrossAmount?: unknown }).totalGrossAmount ===
       "number"
@@ -139,7 +142,7 @@ export function buildQuotationPayload(
         }
       ).totalDiscountAmount ??
       0,
-    length: payload.products?.length ?? 0,
+    length: String(payload.products?.length ?? 0),
   };
 }
 
@@ -183,6 +186,6 @@ export function buildTempQuotationRow(
         }
       ).totalDiscountAmount ??
       0,
-    length: payload.products?.length ?? 0,
+    length: String(payload.products?.length ?? 0),
   };
 }
