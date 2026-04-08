@@ -12,6 +12,34 @@ export interface InventoryListQueryParams extends ListQueryParams {
   category?: string;
 }
 
+export interface StockValuationRow {
+  productId: string;
+  productName: string;
+  category: string;
+  brand: string;
+  sku: string;
+  thickness: string;
+  color: string;
+  length: string;
+  availableStock: number;
+  totalFeet: number;
+  salesRate: number;
+  inventoryValue: number;
+}
+
+export interface StockValuationSummary {
+  totalItems: number;
+  totalRunningFeet: number;
+  totalInventoryValue: number;
+}
+
+export interface StockValuationReport {
+  summary: StockValuationSummary;
+  groupedByCategory: Record<string, StockValuationSummary>;
+  groupedByBrand: Record<string, StockValuationSummary>;
+  rows: StockValuationRow[];
+}
+
 /**
  * Color Payload
  */
@@ -77,6 +105,16 @@ export const inventoryService = {
   async getById(id: string | number) {
     const { data } = await axiosClient.get(
       `${ENDPOINTS.PRODUCTS}/${String(id)}`,
+    );
+    return data;
+  },
+
+  /**
+   * Get stock valuation report
+   */
+  async getValuationReport() {
+    const { data } = await axiosClient.get<StockValuationReport>(
+      `${ENDPOINTS.PRODUCTS}/reports/valuation`,
     );
     return data;
   },

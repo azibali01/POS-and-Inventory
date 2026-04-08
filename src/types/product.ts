@@ -3,7 +3,9 @@ export interface ProductVariant {
   sku: string;
   thickness: string;
   color: string;
+  length: string;
   salesRate: number;
+  purchasePrice?: number;
   openingStock?: number;
   availableStock?: number;
   minimumStockLevel?: number;

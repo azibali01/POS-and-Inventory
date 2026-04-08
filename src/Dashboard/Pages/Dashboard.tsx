@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { Card, Group, Text, Title, SimpleGrid, Box } from "@mantine/core";
+import { LineChart } from "@mantine/charts";
 import {
   IconShoppingCart,
   IconPackage,
@@ -8,13 +9,19 @@ import {
   IconUsers,
   IconFileInvoice,
   IconReportAnalytics,
+  IconTrendingUp,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useInventory } from "../../contexts/InventoryContext/InventoryContext";
 import { useSales } from "../../contexts/SalesContext/SalesContext";
 import { usePurchase } from "../../contexts/PurchaseContext/PurchaseContext";
 import { useExpenses } from "../../contexts/ExpensesContext/ExpensesContext";
 import type { SaleRecord } from "../../contexts/SalesContext/types";
+import {
+  salesService,
+  type ProfitStatsResponse,
+} from "../../api/services/salesService";
 import { formatCurrency } from "../../lib/format-utils";
 import { logger } from "../../lib/logger";
 import dayjs from "dayjs";
@@ -26,6 +33,12 @@ export default function Dashboard() {
   const { sales, customers } = useSales();
   const { purchaseInvoices } = usePurchase();
   const { expenses } = useExpenses();
+
+  const profitStatsQuery = useQuery<ProfitStatsResponse>({
+    queryKey: ["dashboard", "profit-stats", 30],
+    queryFn: async () => await salesService.getProfitStats(30),
+    staleTime: 60_000,
+  });
 
   const salesArray: SaleRecord[] = useMemo(() => {
     if (Array.isArray(sales)) return sales;
@@ -121,6 +134,30 @@ export default function Dashboard() {
       }, 0);
   }, [salesArray]);
 
+  const todayProfitMetrics = useMemo(() => {
+    const todayKey = dayjs().format("YYYY-MM-DD");
+    const today = profitStatsQuery.data?.daily.find((d) => d.date === todayKey);
+    const revenue = today?.revenue ?? todayRevenue;
+    const profit = today?.profit ?? 0;
+    const marginPercent =
+      revenue > 0 ? (profit / revenue) * 100 : (today?.marginPercent ?? 0);
+
+    return {
+      revenue,
+      profit,
+      marginPercent,
+    };
+  }, [profitStatsQuery.data, todayRevenue]);
+
+  const sevenDayProfitTrend = useMemo(() => {
+    const source = profitStatsQuery.data?.daily ?? [];
+    return source.slice(-7).map((point) => ({
+      date: dayjs(point.date).format("DD MMM"),
+      sales: Number(point.revenue.toFixed(2)),
+      profit: Number(point.profit.toFixed(2)),
+    }));
+  }, [profitStatsQuery.data]);
+
   const monthlyRevenue = useMemo(() => {
     const byMonth: Record<string, number> = {};
 
@@ -154,7 +191,7 @@ export default function Dashboard() {
     const months = Array.from({ length: 7 }).map((_, i) =>
       dayjs()
         .subtract(6 - i, "month")
-        .format("MMM YYYY")
+        .format("MMM YYYY"),
     );
 
     return months.map((m) => ({
@@ -222,7 +259,7 @@ export default function Dashboard() {
       renderExtra: () => {
         // Find unique categories with low stock
         const lowStockCategories = Array.from(
-          new Set(lowStock.map((item) => item.category))
+          new Set(lowStock.map((item) => item.category)),
         );
         return (
           <Box mt={6}>
@@ -265,7 +302,7 @@ export default function Dashboard() {
       path: "/purchase/invoices",
       icon: <IconFileInvoice size={18} />,
       meta: `${purchaseInvoices.length} · ${formatCurrency(
-        purchaseInvoicesTotal
+        purchaseInvoicesTotal,
       )}`,
     },
     {
@@ -338,6 +375,83 @@ export default function Dashboard() {
           </Card>
         ))}
       </SimpleGrid>
+
+      <SimpleGrid cols={{ base: 1, md: 3, lg: 3 }} spacing="lg" mb="xl">
+        <Card shadow="sm" padding="lg" radius="md" withBorder>
+          <Group justify="space-between" mb="xs">
+            <Text size="sm" fw={500}>
+              Sales Today
+            </Text>
+            <IconShoppingCart size={20} color="#228be6" />
+          </Group>
+          <Text size="xl" fw={700}>
+            {formatCurrency(todayProfitMetrics.revenue)}
+          </Text>
+        </Card>
+
+        <Card shadow="sm" padding="lg" radius="md" withBorder>
+          <Group justify="space-between" mb="xs">
+            <Text size="sm" fw={500}>
+              Profit Today
+            </Text>
+            <IconTrendingUp size={20} color="#2f9e44" />
+          </Group>
+          <Text
+            size="xl"
+            fw={700}
+            c={todayProfitMetrics.profit >= 0 ? "green" : "red"}
+          >
+            {formatCurrency(todayProfitMetrics.profit)}
+          </Text>
+        </Card>
+
+        <Card shadow="sm" padding="lg" radius="md" withBorder>
+          <Group justify="space-between" mb="xs">
+            <Text size="sm" fw={500}>
+              Margin %
+            </Text>
+            <IconReportAnalytics size={20} color="#0b7285" />
+          </Group>
+          <Text size="xl" fw={700}>
+            {todayProfitMetrics.marginPercent.toFixed(2)}%
+          </Text>
+        </Card>
+      </SimpleGrid>
+
+      <Card shadow="sm" padding="lg" radius="md" withBorder mb="xl">
+        <Group justify="space-between" mb="sm">
+          <Text size="sm" fw={500}>
+            Daily Profit Trend (Last 7 Days)
+          </Text>
+          <IconChartBar size={18} color="#495057" />
+        </Group>
+
+        {profitStatsQuery.isLoading ? (
+          <Text size="sm" c="dimmed">
+            Loading trend...
+          </Text>
+        ) : profitStatsQuery.isError ? (
+          <Text size="sm" c="red">
+            Could not load daily profit analytics.
+          </Text>
+        ) : sevenDayProfitTrend.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            No sales data available for the selected period.
+          </Text>
+        ) : (
+          <LineChart
+            h={260}
+            data={sevenDayProfitTrend}
+            dataKey="date"
+            withLegend
+            curveType="linear"
+            series={[
+              { name: "sales", color: "blue.6", label: "Sales" },
+              { name: "profit", color: "green.6", label: "Profit" },
+            ]}
+          />
+        )}
+      </Card>
 
       {/* Monthly/Today's Revenue Section */}
       <Box mb="xl">

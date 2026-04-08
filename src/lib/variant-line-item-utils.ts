@@ -2,6 +2,7 @@ type VariantLike = {
   sku?: string;
   thickness?: string;
   color?: string;
+  length?: string;
   salesRate?: number;
   availableStock?: number;
   openingStock?: number;
@@ -113,16 +114,46 @@ export function getColorOptions(
     .map((color) => ({ value: color, label: color }));
 }
 
+export function getLengthOptions(
+  product: ProductLike | null,
+  thickness: string,
+  color: string,
+) {
+  if (!product?.variants?.length || !thickness || !color) return [];
+
+  const normalizedThickness = normalizeVariantValue(thickness);
+  const normalizedColor = normalizeVariantValue(color);
+
+  return Array.from(
+    new Set(
+      product.variants
+        .filter(
+          (variant) =>
+            normalizeVariantValue(variant.thickness) === normalizedThickness &&
+            normalizeVariantValue(variant.color) === normalizedColor,
+        )
+        .map((variant) => (variant.length || "").trim())
+        .filter(Boolean),
+    ),
+  )
+    .sort((left, right) =>
+      left.localeCompare(right, undefined, { numeric: true }),
+    )
+    .map((length) => ({ value: length, label: length }));
+}
+
 export function findSelectedVariant(
   product: ProductLike | null,
   thickness: string,
   color: string,
+  length?: string,
   sku?: string,
 ) {
   if (!product?.variants?.length) return null;
 
   const normalizedThickness = normalizeVariantValue(thickness);
   const normalizedColor = normalizeVariantValue(color);
+  const normalizedLength = normalizeVariantValue(length);
 
   if (sku) {
     const directMatch = product.variants.find((variant) => variant.sku === sku);
@@ -133,7 +164,8 @@ export function findSelectedVariant(
     product.variants.find(
       (variant) =>
         normalizeVariantValue(variant.thickness) === normalizedThickness &&
-        normalizeVariantValue(variant.color) === normalizedColor,
+        normalizeVariantValue(variant.color) === normalizedColor &&
+        normalizeVariantValue(variant.length) === normalizedLength,
     ) || null
   );
 }
@@ -170,5 +202,9 @@ export function hasIncompleteVariantSelection(item: LineItemLike): boolean {
     !!toProductId(item.productId) || !!getLineItemName(item).trim();
   if (!hasProduct) return false;
 
-  return !String(item.thickness || "").trim() || !(item.color || "").trim();
+  return (
+    !String(item.thickness || "").trim() ||
+    !(item.color || "").trim() ||
+    !String(item.length || "").trim()
+  );
 }

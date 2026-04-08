@@ -63,6 +63,7 @@ function mapPurchaseReturnItem(
     matchedProduct,
     thickness,
     color,
+    String(item.length ?? ""),
     item.sku,
   );
   const rate = Number(

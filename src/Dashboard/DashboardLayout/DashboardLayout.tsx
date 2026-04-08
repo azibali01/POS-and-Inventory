@@ -173,6 +173,11 @@ const navigation: MenuItem[] = [
         icon: <FileBarChart size={14} />,
         path: "/reports/journal-ledger",
       },
+      {
+        label: "Stock Valuation",
+        icon: <FileBarChart size={14} />,
+        path: "/reports/stock-valuation",
+      },
     ],
   },
 ];
@@ -308,7 +313,9 @@ export default function DashboardLayout() {
           <TextInput
             placeholder="Search pages..."
             value={search}
-            onChange={(e) => { setSearch(e.currentTarget.value); }}
+            onChange={(e) => {
+              setSearch(e.currentTarget.value);
+            }}
             mb="md"
             size="sm"
             styles={{ input: { borderRadius: 8 } }}

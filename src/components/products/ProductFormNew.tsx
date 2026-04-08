@@ -40,8 +40,36 @@ interface Props {
 interface VariantForm {
   thickness: string;
   color: string;
+  length: string;
   salesRate: string;
+  purchasePrice: string;
   openingStock: string;
+}
+
+const LENGTH_OPTIONS = ["14", "16", "18"] as const;
+
+function buildSkuPreview(
+  itemName: string,
+  thickness: string,
+  color: string,
+  length: string,
+): string {
+  const cleanItemName = itemName
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toUpperCase()
+    .substring(0, 10);
+  const cleanThickness = thickness.replace(/[^0-9.]/g, "").substring(0, 6);
+  const cleanColor = color
+    .replace(/[^a-zA-Z]/g, "")
+    .toUpperCase()
+    .substring(0, 3);
+  const resolvedLength = LENGTH_OPTIONS.includes(
+    length as (typeof LENGTH_OPTIONS)[number],
+  )
+    ? length
+    : "14";
+
+  return `${cleanItemName || "ITEM"}-${cleanThickness || "THK"}-${cleanColor || "CLR"}-${resolvedLength}`;
 }
 
 export function ProductFormNew({ product, onClose }: Props) {
@@ -81,7 +109,13 @@ export function ProductFormNew({ product, onClose }: Props) {
       return product.variants.map((variant) => ({
         thickness: variant.thickness,
         color: variant.color,
+        length: LENGTH_OPTIONS.includes(
+          variant.length as (typeof LENGTH_OPTIONS)[number],
+        )
+          ? variant.length
+          : "14",
         salesRate: variant.salesRate.toString(),
+        purchasePrice: (variant.purchasePrice ?? 0).toString(),
         openingStock: variant.openingStock?.toString() || "0",
       }));
     } else if (product?.thickness || product?.color) {
@@ -90,7 +124,9 @@ export function ProductFormNew({ product, onClose }: Props) {
         {
           thickness: product.thickness?.toString() || "",
           color: product.color || "",
+          length: "14",
           salesRate: product.salesRate?.toString() || "",
+          purchasePrice: (product.costPrice ?? 0).toString(),
           openingStock: product.openingStock?.toString() || "0",
         },
       ];
@@ -100,7 +136,9 @@ export function ProductFormNew({ product, onClose }: Props) {
         {
           thickness: "",
           color: "",
+          length: "14",
           salesRate: "",
+          purchasePrice: "0",
           openingStock: "0",
         },
       ];
@@ -115,7 +153,9 @@ export function ProductFormNew({ product, onClose }: Props) {
       {
         thickness: "",
         color: "",
+        length: "14",
         salesRate: "",
+        purchasePrice: "0",
         openingStock: "0",
       },
     ]);
@@ -169,6 +209,26 @@ export function ProductFormNew({ product, onClose }: Props) {
         });
         return false;
       }
+      if (!variant.length.trim()) {
+        showNotification({
+          title: "Validation Error",
+          message: `Length is required for variant ${String(i + 1)}`,
+          color: "red",
+        });
+        return false;
+      }
+      if (
+        !LENGTH_OPTIONS.includes(
+          variant.length as (typeof LENGTH_OPTIONS)[number],
+        )
+      ) {
+        showNotification({
+          title: "Validation Error",
+          message: `Length must be one of: ${LENGTH_OPTIONS.join(", ")} for variant ${String(i + 1)}`,
+          color: "red",
+        });
+        return false;
+      }
       if (!variant.salesRate || Number(variant.salesRate) <= 0) {
         showNotification({
           title: "Validation Error",
@@ -177,16 +237,25 @@ export function ProductFormNew({ product, onClose }: Props) {
         });
         return false;
       }
+      if (!variant.purchasePrice || Number(variant.purchasePrice) < 0) {
+        showNotification({
+          title: "Validation Error",
+          message: `Valid purchase price is required for variant ${String(i + 1)}`,
+          color: "red",
+        });
+        return false;
+      }
     }
 
     // Check for duplicate variants
     const uniqueVariants = new Set(
-      variants.map((v) => `${v.thickness}-${v.color}`),
+      variants.map((v) => `${v.thickness}-${v.color}-${v.length}`),
     );
     if (uniqueVariants.size !== variants.length) {
       showNotification({
         title: "Validation Error",
-        message: "Duplicate thickness-color combinations are not allowed",
+        message:
+          "Duplicate thickness-color-length combinations are not allowed",
         color: "red",
       });
       return false;
@@ -211,7 +280,9 @@ export function ProductFormNew({ product, onClose }: Props) {
     const variantsPayload: ProductVariantInput[] = variants.map((variant) => ({
       thickness: variant.thickness.trim(),
       color: variant.color.trim(),
+      length: variant.length.trim(),
       salesRate: Number(variant.salesRate),
+      purchasePrice: Number(variant.purchasePrice) || 0,
       openingStock: Number(variant.openingStock) || 0,
       availableStock: Number(variant.openingStock) || 0,
       minimumStockLevel: 0, // Default value since we simplified the UI
@@ -361,9 +432,9 @@ export function ProductFormNew({ product, onClose }: Props) {
             Product Variants
           </Title>
           <Text size="sm" c="dimmed" mb="md">
-            Define different combinations of thickness, color, and pricing for
-            this product. Each variant will get a unique SKU (e.g.,
-            D10-1.6-SIL).
+            Define different combinations of thickness, color, length, and
+            pricing for this product. Each variant will get a unique SKU (e.g.,
+            D10-1.6-SIL-14).
           </Text>
         </div>
 
@@ -372,7 +443,7 @@ export function ProductFormNew({ product, onClose }: Props) {
           <Alert color="blue" mb="md" variant="light">
             <Text size="sm">
               <strong>Required:</strong> At least one variant must be added.
-              Each thickness-color combination must be unique.
+              Each thickness-color-length combination must be unique.
             </Text>
           </Alert>
 
@@ -421,10 +492,37 @@ export function ProductFormNew({ product, onClose }: Props) {
                   style={{
                     color: "white",
                     fontWeight: "bold",
+                    minWidth: "130px",
+                  }}
+                >
+                  Length (ft) *
+                </th>
+                <th
+                  style={{
+                    color: "white",
+                    fontWeight: "bold",
+                    minWidth: "190px",
+                  }}
+                >
+                  SKU Preview
+                </th>
+                <th
+                  style={{
+                    color: "white",
+                    fontWeight: "bold",
                     minWidth: "120px",
                   }}
                 >
                   Sales Rate *
+                </th>
+                <th
+                  style={{
+                    color: "white",
+                    fontWeight: "bold",
+                    minWidth: "130px",
+                  }}
+                >
+                  Purchase Price *
                 </th>
                 <th
                   style={{
@@ -450,7 +548,7 @@ export function ProductFormNew({ product, onClose }: Props) {
             <tbody>
               {variants.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={9}>
                     <Center py="xl">
                       <Text c="dimmed" size="sm">
                         No variants added yet. Click "Add Variant" below to get
@@ -509,6 +607,49 @@ export function ProductFormNew({ product, onClose }: Props) {
                       />
                     </td>
 
+                    {/* Length */}
+                    <td>
+                      <SafeSelect
+                        data={LENGTH_OPTIONS.map((value) => ({
+                          value,
+                          label: value,
+                        }))}
+                        value={variant.length}
+                        onChange={(value) => {
+                          updateVariant(index, "length", value || "14");
+                        }}
+                        placeholder="Select length"
+                        required
+                        style={{ minWidth: "130px" }}
+                        error={
+                          !variant.length.trim() ||
+                          !LENGTH_OPTIONS.includes(
+                            variant.length as (typeof LENGTH_OPTIONS)[number],
+                          )
+                            ? "Required"
+                            : null
+                        }
+                        allowDeselect={false}
+                      />
+                    </td>
+
+                    {/* SKU Preview */}
+                    <td>
+                      <Text
+                        size="sm"
+                        fw={600}
+                        c="dimmed"
+                        style={{ minWidth: "190px" }}
+                      >
+                        {buildSkuPreview(
+                          masterForm.itemName,
+                          variant.thickness,
+                          variant.color,
+                          variant.length,
+                        )}
+                      </Text>
+                    </td>
+
                     {/* Sales Rate */}
                     <td>
                       <NumberInput
@@ -528,6 +669,32 @@ export function ProductFormNew({ product, onClose }: Props) {
                         style={{ minWidth: "120px" }}
                         error={
                           !variant.salesRate || Number(variant.salesRate) <= 0
+                            ? "Required"
+                            : null
+                        }
+                      />
+                    </td>
+
+                    {/* Opening Stock */}
+                    <td>
+                      <NumberInput
+                        value={
+                          variant.purchasePrice === ""
+                            ? ""
+                            : Number(variant.purchasePrice)
+                        }
+                        onChange={(value) => {
+                          updateVariant(index, "purchasePrice", String(value));
+                        }}
+                        placeholder="0.00"
+                        min={0}
+                        decimalScale={2}
+                        hideControls
+                        required
+                        style={{ minWidth: "130px" }}
+                        error={
+                          !variant.purchasePrice ||
+                          Number(variant.purchasePrice) < 0
                             ? "Required"
                             : null
                         }
@@ -598,8 +765,8 @@ export function ProductFormNew({ product, onClose }: Props) {
 
           {/* Helpful Information */}
           <Text size="xs" c="dimmed" mt="sm" style={{ textAlign: "center" }}>
-            💡 SKUs will be auto-generated as: [Item Name]-[Thickness]-[Color]
-            (e.g., D10-1.6-SIL)
+            💡 SKUs will be auto-generated as: [Item
+            Name]-[Thickness]-[Color]-[Length] (e.g., D10-1.6-SIL-14)
           </Text>
         </Paper>
       </Stack>

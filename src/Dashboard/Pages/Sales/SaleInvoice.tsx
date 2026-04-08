@@ -199,6 +199,7 @@ function mapInvoiceItemForEdit(item: SaleItem, inventory: any[]) {
     selectedProduct,
     String(item.thickness ?? ""),
     String(item.color ?? ""),
+    String(item.length ?? ""),
     item.sku,
   );
   const resolvedProductId =
@@ -244,7 +245,7 @@ function mapInvoiceItemForEdit(item: SaleItem, inventory: any[]) {
       variant?.availableStock ?? variant?.openingStock ?? 0,
     ),
     openingStock: Number(variant?.openingStock ?? variant?.availableStock ?? 0),
-    brand: String(item.brand ?? (selectedProduct as any)?.brand ?? ""),
+    brand: String((selectedProduct as any)?.brand ?? item.brand ?? ""),
   };
 }
 

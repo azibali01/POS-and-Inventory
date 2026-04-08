@@ -19,6 +19,7 @@ import {
   findSelectedProduct,
   findSelectedVariant,
   getColorOptions,
+  getLengthOptions,
   getProductOptions,
   getThicknessOptions,
   getVariantStock,
@@ -56,7 +57,7 @@ export type LineItem = {
   thickness?: string;
   amount: number;
   subtotal?: number;
-  length?: number;
+  length?: number | string;
   totalGrossAmount: number;
   totalNetAmount: number;
   brand?: string;
@@ -81,7 +82,7 @@ export function createEmptySalesLineItem(defaultBrand = ""): LineItem {
     availableStock: 0,
     openingStock: 0,
     thickness: "",
-    length: 0,
+    length: "",
     totalGrossAmount: 0,
     totalNetAmount: 0,
     brand: defaultBrand,
@@ -221,10 +222,19 @@ export function LineItemsTable({
               getColorOptions(selectedProduct, item.thickness ?? ""),
               item.color ?? "",
             );
+            const lengthOptions = ensureCurrentOption(
+              getLengthOptions(
+                selectedProduct,
+                item.thickness ?? "",
+                item.color ?? "",
+              ),
+              String(item.length ?? ""),
+            );
             const selectedVariant = findSelectedVariant(
               selectedProduct,
               item.thickness ?? "",
               item.color ?? "",
+              String(item.length ?? ""),
               item.sku,
             );
             const availableStock = getVariantStock(selectedVariant);
@@ -234,6 +244,7 @@ export function LineItemsTable({
             const hasAnyVariantSelection =
               !!String(item.thickness ?? "").trim() ||
               !!String(item.color ?? "").trim() ||
+              !!String(item.length ?? "").trim() ||
               !!String(item.sku ?? "").trim();
             const quantityError =
               mode === "Quotation"
@@ -270,10 +281,12 @@ export function LineItemsTable({
                         productId: value || "",
                         productName: product?.itemName || "",
                         itemName: product?.itemName || "",
+                        brand: String(product?.brand || ""),
                         unit: product?.unit || "",
                         sku: singleVariant?.sku || "",
                         thickness: singleVariant?.thickness || "",
                         color: singleVariant?.color || "",
+                        length: singleVariant?.length || "",
                         quantity: 0,
                         salesRate: resolvedRate,
                         rate: resolvedRate,
@@ -299,6 +312,7 @@ export function LineItemsTable({
                       updateRow(idx, {
                         thickness: value || "",
                         color: "",
+                        length: "",
                         sku: "",
                         quantity: 0,
                         salesRate: 0,
@@ -333,10 +347,12 @@ export function LineItemsTable({
                         selectedProduct,
                         item.thickness || "",
                         color,
+                        "",
                       );
 
                       updateRow(idx, {
                         color,
+                        length: "",
                         sku: variant?.sku || "",
                         salesRate: Number(
                           variant?.salesRate ?? item.salesRate ?? 0,
@@ -364,25 +380,47 @@ export function LineItemsTable({
                 </Table.Td>
 
                 <Table.Td>
-                  <NumberInput
-                    value={item.length ?? 0}
+                  <Select
+                    value={String(item.length ?? "")}
                     placeholder="Length"
                     onChange={(value) => {
-                      updateRow(idx, { length: Number(value ?? 0) });
+                      const selectedLength = value || "";
+                      const variant = findSelectedVariant(
+                        selectedProduct,
+                        item.thickness || "",
+                        item.color || "",
+                        selectedLength,
+                      );
+
+                      updateRow(idx, {
+                        length: selectedLength,
+                        sku: variant?.sku || "",
+                        salesRate: Number(
+                          variant?.salesRate ?? item.salesRate ?? 0,
+                        ),
+                        rate: Number(variant?.salesRate ?? item.salesRate ?? 0),
+                        availableStock: getVariantStock(variant),
+                        openingStock: getVariantStock(variant),
+                      });
                     }}
-                    min={0}
-                    decimalScale={2}
-                    hideControls
+                    data={lengthOptions}
+                    disabled={!item.productId || !(item.color ?? "").trim()}
+                    searchable
+                    clearable
+                    error={
+                      selectedProduct && !String(item.length ?? "").trim()
+                        ? "Required"
+                        : undefined
+                    }
                   />
                 </Table.Td>
 
                 <Table.Td>
                   <TextInput
-                    value={item.brand ?? ""}
+                    value={String(item.brand ?? selectedProduct?.brand ?? "")}
                     placeholder="Brand"
-                    onChange={(event) => {
-                      updateRow(idx, { brand: event.currentTarget.value });
-                    }}
+                    readOnly
+                    disabled
                   />
                 </Table.Td>
 

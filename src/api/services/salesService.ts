@@ -18,6 +18,7 @@ export interface InventoryItemPayload {
   category?: string;
   thickness?: number | string;
   costPrice?: number;
+  purchasePrice?: number;
   salesRate?: number;
   discountAmount?: number;
   totalGrossAmount?: number;
@@ -32,6 +33,19 @@ export interface InventoryItemPayload {
   minimumStockLevel?: number;
   minStock?: number;
   unit?: number | string;
+  variants?: Array<{
+    _id?: string | number;
+    sku?: string;
+    thickness?: string;
+    color?: string;
+    length?: string | number;
+    purchasePrice?: number;
+    costPrice?: number;
+    salesRate?: number;
+    openingStock?: number;
+    availableStock?: number;
+    minimumStockLevel?: number;
+  }>;
   metadata?: Record<string, unknown>;
 }
 
@@ -101,6 +115,25 @@ export interface QuotationRecordPayload {
 }
 
 export interface SaleReturnRecordPayload extends SaleRecordPayload {}
+
+export interface ProfitStatsPoint {
+  date: string;
+  revenue: number;
+  cost: number;
+  profit: number;
+  marginPercent: number;
+}
+
+export interface ProfitStatsResponse {
+  periodDays: number;
+  summary: {
+    revenue: number;
+    cost: number;
+    profit: number;
+    marginPercent: number;
+  };
+  daily: ProfitStatsPoint[];
+}
 
 /**
  * Sales Service
@@ -246,6 +279,16 @@ export const salesService = {
   async deleteById(id: string | number) {
     const { data } = await axiosClient.delete(
       `${ENDPOINTS.SALES}/${String(id)}`,
+    );
+    return data;
+  },
+
+  async getProfitStats(days = 30): Promise<ProfitStatsResponse> {
+    const { data } = await axiosClient.get<ProfitStatsResponse>(
+      "/sales/analytics/profit-stats",
+      {
+        params: { days },
+      },
     );
     return data;
   },

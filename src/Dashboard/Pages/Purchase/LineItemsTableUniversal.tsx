@@ -1,13 +1,5 @@
 import { useMemo } from "react";
-import {
-  Badge,
-  Button,
-  NumberInput,
-  TextInput,
-  Select,
-  Group,
-  Text,
-} from "@mantine/core";
+import { Badge, Button, NumberInput, Select, Group, Text } from "@mantine/core";
 import Table from "../../../lib/AppTable";
 import { Trash2 } from "lucide-react";
 import type { PurchaseLineItem } from "./types";
@@ -19,6 +11,7 @@ import {
   findSelectedProduct,
   findSelectedVariant,
   getColorOptions,
+  getLengthOptions,
   getProductOptions,
   getThicknessOptions,
   getVariantStock,
@@ -189,10 +182,16 @@ export function LineItemsTableUniversal({
                 selectedProduct,
                 String(row.thickness || ""),
               );
+              const lengthOptions = getLengthOptions(
+                selectedProduct,
+                String(row.thickness || ""),
+                String(row.color || ""),
+              );
               const selectedVariant = findSelectedVariant(
                 selectedProduct,
                 String(row.thickness || ""),
                 String(row.color || ""),
+                String(row.length || ""),
                 row.sku,
               );
               const availableStock = getVariantStock(selectedVariant);
@@ -225,6 +224,7 @@ export function LineItemsTableUniversal({
                           sku: "",
                           thickness: "",
                           color: "",
+                          length: "",
                           quantity: 0,
                           rate: 0,
                           salesRate: 0,
@@ -242,6 +242,7 @@ export function LineItemsTableUniversal({
                         updateRow(row.id, {
                           thickness: v ?? "",
                           color: "",
+                          length: "",
                           sku: "",
                           quantity: 0,
                           rate: 0,
@@ -268,9 +269,11 @@ export function LineItemsTableUniversal({
                           selectedProduct,
                           String(row.thickness || ""),
                           color,
+                          "",
                         );
                         updateRow(row.id, {
                           color,
+                          length: "",
                           sku: variant?.sku || "",
                           rate: Number(variant?.salesRate ?? 0),
                           salesRate: Number(variant?.salesRate ?? 0),
@@ -293,12 +296,42 @@ export function LineItemsTableUniversal({
                     ) : null}
                   </Table.Td>
                   <Table.Td style={{ padding: 8 }}>
-                    <TextInput
+                    <Select
                       value={String(row.length ?? "")}
-                      onChange={(e) => {
-                        updateRow(row.id, { length: e.target.value });
+                      onChange={(v: string | null) => {
+                        const selectedLength = v ?? "";
+                        const variant = findSelectedVariant(
+                          selectedProduct,
+                          String(row.thickness || ""),
+                          String(row.color || ""),
+                          selectedLength,
+                        );
+
+                        updateRow(row.id, {
+                          length: selectedLength,
+                          sku: variant?.sku || "",
+                          rate: Number(variant?.salesRate ?? row.rate ?? 0),
+                          salesRate: Number(
+                            variant?.salesRate ??
+                              row.salesRate ??
+                              row.rate ??
+                              0,
+                          ),
+                          availableStock: getVariantStock(variant),
+                        });
                       }}
                       placeholder="Length"
+                      data={lengthOptions}
+                      searchable
+                      clearable
+                      disabled={
+                        !selectedProduct || !String(row.color || "").trim()
+                      }
+                      error={
+                        selectedProduct && !String(row.length || "").trim()
+                          ? "Required"
+                          : undefined
+                      }
                     />
                   </Table.Td>
                   <Table.Td style={{ padding: 8, textAlign: "right" }}>

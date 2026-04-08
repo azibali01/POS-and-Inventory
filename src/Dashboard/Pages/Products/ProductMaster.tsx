@@ -31,6 +31,7 @@ import {
   useInventoryList,
   useCategories,
 } from "../../../lib/hooks/useInventory";
+import { getInventoryById } from "../../../api";
 import type { InventoryItemPayload } from "../../../api";
 
 import { ProductFormNew } from "../../../components/products/ProductFormNew";
@@ -102,6 +103,7 @@ export default function ProductMaster() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isViewOpen, setIsViewOpen] = useState(false);
+  const [isViewLoading, setIsViewLoading] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [, setUploadFile] = useState<File | null>(null);
   const [uploadPreview, setUploadPreview] = useState<UploadPreviewRow[] | null>(
@@ -168,6 +170,32 @@ export default function ProductMaster() {
       setDeleteLoading(false);
       setConfirmDeleteOpen(false);
       setConfirmDeleteId(null);
+    }
+  }
+
+  async function handleViewProduct(product: InventoryItemPayload) {
+    const productId = product._id;
+    if (!productId) {
+      setSelectedProduct(product);
+      setIsViewOpen(true);
+      return;
+    }
+
+    try {
+      setIsViewLoading(true);
+      const fullProduct = await getInventoryById(productId);
+      setSelectedProduct((fullProduct as InventoryItemPayload) || product);
+      setIsViewOpen(true);
+    } catch {
+      setSelectedProduct(product);
+      setIsViewOpen(true);
+      showNotification({
+        title: "Partial Product Data",
+        message: "Could not load full variant details. Showing available data.",
+        color: "yellow",
+      });
+    } finally {
+      setIsViewLoading(false);
     }
   }
 
@@ -346,8 +374,7 @@ export default function ProductMaster() {
                           variant="subtle"
                           leftSection={<IconEye size={16} />}
                           onClick={() => {
-                            setSelectedProduct(p);
-                            setIsViewOpen(true);
+                            void handleViewProduct(p);
                           }}
                         />
 
@@ -396,7 +423,9 @@ export default function ProductMaster() {
         title="Product Details"
         size={"70%"}
       >
-        {selectedProduct ? (
+        {isViewLoading ? (
+          <Text c="dimmed">Loading product details...</Text>
+        ) : selectedProduct ? (
           <ProductDetails product={selectedProduct as any} />
         ) : (
           <Text c="dimmed">No product selected</Text>

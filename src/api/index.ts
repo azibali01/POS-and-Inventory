@@ -16,6 +16,7 @@ import {
   type CustomerPayload,
   type InventoryItemPayload,
   type QuotationRecordPayload,
+  type ProfitStatsResponse,
   type SaleRecordPayload,
 } from "./services/salesService";
 import { quotationService } from "./services/quotationService";
@@ -101,6 +102,8 @@ export const updateSaleByNumber = (
 ) => salesService.updateByInvoiceNumber(invoiceNumber, payload);
 export const deleteSaleByNumber = (invoiceNumber: string) =>
   salesService.deleteByInvoiceNumber(invoiceNumber);
+export const getSalesProfitStats = (days = 30): Promise<ProfitStatsResponse> =>
+  salesService.getProfitStats(days);
 
 export const getSaleReturns = () => saleReturnService.getAll();
 export const createSaleReturn = (payload: Record<string, unknown>) =>
@@ -145,6 +148,10 @@ export const deleteSupplier = (id: string | number) =>
 export const getInventoryPage = (params: InventoryListQueryParams = {}) =>
   inventoryService.list(params);
 export const getInventory = () => inventoryService.getAll();
+export const getInventoryById = (id: string | number) =>
+  inventoryService.getById(id);
+export const getStockValuationReport = () =>
+  inventoryService.getValuationReport();
 export const createInventory = (payload: InventoryItemPayload) =>
   inventoryService.create(payload);
 export const updateInventory = (

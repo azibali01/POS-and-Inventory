@@ -73,7 +73,6 @@ function formatDateForInput(value: unknown): string {
 function mapIncomingLineItem(
   item: Record<string, any>,
   products: InventoryItem[],
-  defaultBrand: string,
 ): LineItem {
   const nestedProductRef =
     item.productId && typeof item.productId === "object"
@@ -95,12 +94,15 @@ function mapIncomingLineItem(
   });
   const rawThickness = item.thickness ?? nestedProductRef?.thickness;
   const rawColor = item.color ?? nestedProductRef?.color;
+  const rawLength = item.length ?? nestedProductRef?.length;
   const thickness = String(rawThickness ?? "");
   const color = String(rawColor ?? "");
+  const lengthValue = String(rawLength ?? "");
   const variant = findSelectedVariant(
     matchedProduct,
     thickness,
     color,
+    lengthValue,
     item.sku,
   );
   const resolvedThickness = String(rawThickness ?? variant?.thickness ?? "");
@@ -114,7 +116,7 @@ function mapIncomingLineItem(
       variant?.salesRate ??
       0,
   );
-  const length = Number(item.length ?? item.sizeFt ?? 0);
+  const length = Number(rawLength ?? item.sizeFt ?? 0);
   const discount = Number(item.discount ?? item.discountPercent ?? 0);
   const subtotal = Number(
     item.subtotal ??
@@ -127,7 +129,7 @@ function mapIncomingLineItem(
   );
 
   return {
-    ...createEmptySalesLineItem(defaultBrand),
+    ...createEmptySalesLineItem(),
     _id: matchedProduct?._id ? String(matchedProduct._id) : "",
     productId: matchedProduct?._id
       ? String(matchedProduct._id)
@@ -152,7 +154,7 @@ function mapIncomingLineItem(
     totalNetAmount: Number(
       item.totalNetAmount ?? Math.max(0, subtotal - discountAmount),
     ),
-    brand: String(item.brand ?? defaultBrand),
+    brand: String(matchedProduct?.brand ?? item.brand ?? ""),
   };
 }
 
@@ -218,28 +220,11 @@ export default function SalesDocShell({
       : "Prices valid for 15 days.\nPayment terms: Due on receipt.",
   );
 
-  // Brand State
-  const [globalBrand, setGlobalBrand] = useState<string>("Haq Interior");
-  const brandOptions = [
-    "Haq Interior",
-    "Haq Aluminium",
-    "Seven Star",
-    "Al-Fazal",
-    "Local",
-  ];
-
   const [receivedAmount, setReceivedAmount] = useState<number>(
     initial?.receivedAmount ?? 0,
   );
   // Always start with at least one empty item row
-  const [items, setItems] = useState<LineItem[]>([
-    createEmptySalesLineItem("Haq Interior"),
-  ]);
-
-  // Update items when global brand changes
-  useEffect(() => {
-    setItems(items.map((i) => ({ ...i, brand: i.brand || globalBrand })));
-  }, [globalBrand]);
+  const [items, setItems] = useState<LineItem[]>([createEmptySalesLineItem()]);
 
   // Autosave / draft support
   const DRAFT_NAMESPACE = "sales-draft";
@@ -303,9 +288,7 @@ export default function SalesDocShell({
       initial.items.length > 0
     ) {
       setItems(
-        initial.items.map((it) =>
-          mapIncomingLineItem(it as any, products, globalBrand),
-        ),
+        initial.items.map((it) => mapIncomingLineItem(it as any, products)),
       );
     } else if (
       initial?.products &&
@@ -314,13 +297,13 @@ export default function SalesDocShell({
     ) {
       setItems(
         (initial.products as LineItem[]).map((it) =>
-          mapIncomingLineItem(it as any, products, globalBrand),
+          mapIncomingLineItem(it as any, products),
         ),
       );
     } else {
-      setItems([createEmptySalesLineItem(globalBrand)]);
+      setItems([createEmptySalesLineItem()]);
     }
-  }, [initial, customers, products, globalBrand]);
+  }, [initial, customers, products]);
 
   // On mount, attempt to load a saved draft for this mode
   useEffect(() => {
@@ -611,7 +594,7 @@ export default function SalesDocShell({
       initial.items.length > 0
     ) {
       const mappedItems = initial.items.map((it) =>
-        mapIncomingLineItem(it as any, products, globalBrand),
+        mapIncomingLineItem(it as any, products),
       );
       setItems(mappedItems);
     } else if (
@@ -620,13 +603,13 @@ export default function SalesDocShell({
       initial.products.length > 0
     ) {
       const mappedItems = (initial.products as LineItem[]).map((it) =>
-        mapIncomingLineItem(it as any, products, globalBrand),
+        mapIncomingLineItem(it as any, products),
       );
       setItems(mappedItems);
     } else {
-      setItems([createEmptySalesLineItem(globalBrand)]);
+      setItems([createEmptySalesLineItem()]);
     }
-  }, [initial, customers, products, globalBrand]);
+  }, [initial, customers, products]);
 
   const [submitLocked, setSubmitLocked] = useState(false);
   const requiresOpenShift = mode === "Invoice";
@@ -646,11 +629,7 @@ export default function SalesDocShell({
     }
 
     const normalizedItems = items.map((item) =>
-      mapIncomingLineItem(
-        item as Record<string, any>,
-        products,
-        item.brand || globalBrand,
-      ),
+      mapIncomingLineItem(item as Record<string, any>, products),
     );
     setItems(normalizedItems);
 
@@ -872,20 +851,6 @@ export default function SalesDocShell({
                   <Select data={["Cash", "Card"]} defaultValue="Cash" />
                 </div>
               )}
-              <div>
-                <Text
-                  style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}
-                >
-                  Brand
-                </Text>
-                <Select
-                  data={brandOptions}
-                  value={globalBrand}
-                  onChange={(v) => setGlobalBrand(v || "Haq Interior")}
-                  searchable
-                  allowDeselect={false}
-                />
-              </div>
             </div>
 
             <div
@@ -1061,10 +1026,7 @@ export default function SalesDocShell({
                 size="xs"
                 variant="outline"
                 onClick={() => {
-                  setItems((prev) => [
-                    ...prev,
-                    createEmptySalesLineItem(globalBrand),
-                  ]);
+                  setItems((prev) => [...prev, createEmptySalesLineItem()]);
                 }}
               >
                 Add item

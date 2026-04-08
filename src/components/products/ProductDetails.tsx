@@ -1,4 +1,4 @@
-import { Card, Text, Divider, Badge, Grid } from "@mantine/core";
+import { Card, Text, Badge, Grid, Title, Table } from "@mantine/core";
 import type { InventoryItem } from "../../Dashboard/Context/DataContext";
 import { formatCurrency } from "../../lib/format-utils";
 
@@ -7,6 +7,11 @@ interface Props {
 }
 
 export function ProductDetails({ product }: Props) {
+  const variants = Array.isArray((product as { variants?: unknown[] }).variants)
+    ? ((product as { variants?: Array<Record<string, unknown>> }).variants ??
+      [])
+    : [];
+
   return (
     <div>
       <Card>
@@ -36,52 +41,11 @@ export function ProductDetails({ product }: Props) {
             <Text fw={600}>{product.brand || "-"}</Text>
           </Grid.Col>
 
-          <Grid.Col span={4}>
-            <Text size="xs" c="dimmed">
-              Thickness
-            </Text>
-            <Text fw={600}>{product.thickness ?? "-"}</Text>
-          </Grid.Col>
-
-          <Grid.Col span={4}>
+          <Grid.Col span={6}>
             <Text size="xs" c="dimmed">
               Unit
             </Text>
             <Text fw={600}>{product.unit || "-"}</Text>
-          </Grid.Col>
-
-          <Grid.Col span={4}>
-            <Text size="xs" c="dimmed">
-              Color
-            </Text>
-            <Text fw={600}>{product.color ?? "-"}</Text>
-          </Grid.Col>
-
-          <Divider />
-
-          <Grid.Col span={6}>
-            <Text size="xs" c="dimmed">
-              Sales Rate
-            </Text>
-            <Text fw={600} size="lg">
-              {product.salesRate ? formatCurrency(product.salesRate) : "-"}
-            </Text>
-          </Grid.Col>
-
-          <Grid.Col span={6}>
-            <Text size="xs" c="dimmed">
-              Opening Stock
-            </Text>
-            <Text fw={600} size="lg">
-              {product.openingStock ?? product.stock ?? "-"}
-            </Text>
-          </Grid.Col>
-
-          <Grid.Col span={6}>
-            <Text size="xs" c="dimmed">
-              Minimum Stock Level
-            </Text>
-            <Text fw={600}>{product.minimumStockLevel ?? "-"}</Text>
           </Grid.Col>
 
           <Grid.Col span={12}>
@@ -91,6 +55,51 @@ export function ProductDetails({ product }: Props) {
             <Text fw={400}>
               {product.description || "No description provided"}
             </Text>
+          </Grid.Col>
+
+          <Grid.Col span={12} mt="md">
+            <Title order={5} mb="sm">
+              Product Variants
+            </Title>
+
+            {variants.length === 0 ? (
+              <Text c="dimmed">No variants found</Text>
+            ) : (
+              <Table striped highlightOnHover withTableBorder withColumnBorders>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>SKU</Table.Th>
+                    <Table.Th>Thickness</Table.Th>
+                    <Table.Th>Color</Table.Th>
+                    <Table.Th>Length (ft)</Table.Th>
+                    <Table.Th>Sales Rate</Table.Th>
+                    <Table.Th>Available Stock</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {variants.map((variant, index) => (
+                    <Table.Tr key={String(variant._id ?? variant.sku ?? index)}>
+                      <Table.Td>{String(variant.sku ?? "-")}</Table.Td>
+                      <Table.Td>{String(variant.thickness ?? "-")}</Table.Td>
+                      <Table.Td>{String(variant.color ?? "-")}</Table.Td>
+                      <Table.Td>{String(variant.length ?? "-")}</Table.Td>
+                      <Table.Td>
+                        {typeof variant.salesRate === "number"
+                          ? formatCurrency(variant.salesRate)
+                          : "-"}
+                      </Table.Td>
+                      <Table.Td>
+                        {typeof variant.availableStock === "number"
+                          ? String(variant.availableStock)
+                          : typeof variant.openingStock === "number"
+                            ? String(variant.openingStock)
+                            : "-"}
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            )}
           </Grid.Col>
         </Grid>
       </Card>

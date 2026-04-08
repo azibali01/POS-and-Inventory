@@ -19,6 +19,7 @@ import BankBookPage from "../Pages/Accounts/BankBook";
 
 import ProfitLoss from "../Pages/Reports/Profit&Loss";
 import JournalLedger from "../Pages/Reports/JournalLedger";
+import StockValuation from "../Pages/Reports/StockValuation";
 
 import CategoryPage from "../Pages/Products/Category";
 import ColorPage from "../Pages/Products/ColorPage";
@@ -134,6 +135,10 @@ const routes: RouteObject[] = [
       {
         path: "/reports/journal-ledger",
         element: <JournalLedger />,
+      },
+      {
+        path: "/reports/stock-valuation",
+        element: <StockValuation />,
       },
       {},
     ],
