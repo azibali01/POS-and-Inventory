@@ -11,6 +11,7 @@ type VariantLike = {
 type ProductLike = {
   _id?: string | number;
   itemName?: string;
+  brand?: string;
   unit?: string;
   variants?: VariantLike[];
 };

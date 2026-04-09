@@ -24,6 +24,7 @@ import {
   useCategories,
   useColors,
 } from "../../lib/hooks/useInventory";
+import { useEnterKeyNext } from "../../hooks/useEnterKeyNext";
 import { useSupplier } from "../../hooks/useSupplier";
 import type {
   InventoryItem,
@@ -77,6 +78,7 @@ export function ProductFormNew({ product, onClose }: Props) {
   const { categories } = useCategories();
   const { suppliers } = useSupplier();
   const { colors } = useColors();
+  const handleEnterKeyNext = useEnterKeyNext();
 
   const categoriesForSelect = categories.map((c) => ({
     value: c.name,
@@ -353,6 +355,7 @@ export function ProductFormNew({ product, onClose }: Props) {
       onSubmit={(e) => {
         void handleSubmit(e);
       }}
+      onKeyDown={handleEnterKeyNext}
     >
       <Title order={3} mb="md">
         {product ? "Edit Product" : "Create Product"}
@@ -675,8 +678,8 @@ export function ProductFormNew({ product, onClose }: Props) {
                       />
                     </td>
 
-                    {/* Opening Stock */}
-                    <td>
+                    {/* Purchase Price */}
+                    <td style={{ verticalAlign: "top" }}>
                       <NumberInput
                         value={
                           variant.purchasePrice === ""
@@ -699,6 +702,17 @@ export function ProductFormNew({ product, onClose }: Props) {
                             : null
                         }
                       />
+                      {Number(variant.purchasePrice) >
+                        Number(variant.salesRate) && (
+                        <Text
+                          c="yellow.8"
+                          size="xs"
+                          mt={4}
+                          style={{ maxWidth: 130, lineHeight: 1.2 }}
+                        >
+                          ⚠️ Buying price exceeds selling price!
+                        </Text>
+                      )}
                     </td>
 
                     {/* Opening Stock */}

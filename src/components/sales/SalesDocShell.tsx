@@ -24,6 +24,7 @@ import type { LineItem } from "./line-items-table";
 import type { Customer, CustomerInput, InventoryItem } from "../../types";
 import { useCustomers } from "../../hooks";
 import { useShift } from "../../hooks/useShift";
+import { useEnterKeyNext } from "../../hooks/useEnterKeyNext";
 import openPrintWindow from "../print/printWindow";
 import { generateGatePassHTML } from "../print/printTemplate";
 import type { InvoiceData } from "../print/printTemplate";
@@ -230,9 +231,15 @@ export default function SalesDocShell({
   const DRAFT_NAMESPACE = "sales-draft";
   const draftKey = `${DRAFT_NAMESPACE}:${mode}`;
   const [serverDraftId, setServerDraftId] = useState<string | null>(null);
+  const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [draftToResume, setDraftToResume] = useState<any>(null);
   const saveTimer = useRef<number | null>(null);
   const lastSavedRef = useRef<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const handleEnterKeyNext = useEnterKeyNext();
   const { createCustomerAsync } = useCustomers();
   const { hasActiveSession } = useShift();
   const [shiftManagerOpened, setShiftManagerOpened] = useState(false);
@@ -311,20 +318,11 @@ export default function SalesDocShell({
       const raw = localStorage.getItem(draftKey);
       if (raw) {
         const d = JSON.parse(raw);
-        // If there is a provided `initial` payload and it's non-empty, skip restoring.
-        // If it is empty, auto-restore without annoying the user.
         const initialEmpty = !initial || Object.keys(initial).length === 0;
-        const shouldRestore = initialEmpty;
 
-        if (shouldRestore && d) {
-          setDocNo(d.docNo ?? initial?.docNo ?? docNo);
-          setDocDate(
-            formatDateForInput(d.docDate ?? initial?.docDate ?? docDate),
-          );
-          setCustomerId(d.customerId ?? "");
-          if (Array.isArray(d.items) && d.items.length > 0) setItems(d.items);
-          setRemarks(d.remarks ?? initial?.remarks ?? "");
-          setTerms(d.terms ?? initial?.terms ?? terms);
+        if (initialEmpty && d) {
+          setDraftToResume(d);
+          setShowResumeModal(true);
         }
       }
     } catch (err) {
@@ -352,16 +350,9 @@ export default function SalesDocShell({
         const initialEmpty = !initial || Object.keys(initial).length === 0;
 
         if (!rawLocal && initialEmpty && sd?.data) {
-          const d = sd.data;
-          setDocNo(String(d.docNo ?? initial?.docNo ?? docNo));
-          setDocDate(
-            formatDateForInput(d.docDate ?? initial?.docDate ?? docDate),
-          );
-          setCustomerId(String(d.customerId ?? ""));
-          if (Array.isArray(d.items) && d.items.length > 0) setItems(d.items);
-          setRemarks(String(d.remarks ?? initial?.remarks ?? ""));
-          setTerms(String(d.terms ?? initial?.terms ?? terms));
           setServerDraftId(sd._id ?? null);
+          setDraftToResume(sd.data);
+          setShowResumeModal(true);
         } else if (sd && sd._id) {
           // just keep the ID for future updates
           setServerDraftId(sd._id);
@@ -374,37 +365,59 @@ export default function SalesDocShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function applyDraft(d: any) {
+    if (!d) return;
+    setDocNo(String(d.docNo ?? docNo));
+    if (d.docDate) setDocDate(formatDateForInput(d.docDate));
+    setCustomerId(String(d.customerId ?? ""));
+    if (Array.isArray(d.items) && d.items.length > 0) setItems(d.items);
+    setRemarks(String(d.remarks ?? ""));
+    setTerms(String(d.terms ?? terms));
+
+    // Prevent immediate save loop by syncing lastSavedRef
+    const snapshotObj = {
+      docNo: String(d.docNo ?? docNo),
+      docDate: formatDateForInput(d.docDate ?? docDate),
+      customerId: String(d.customerId ?? ""),
+      items: Array.isArray(d.items) && d.items.length > 0 ? d.items : items,
+      remarks: String(d.remarks ?? ""),
+      terms: String(d.terms ?? terms),
+    };
+    lastSavedRef.current = JSON.stringify(snapshotObj);
+  }
+
   // Debounced save of draft on key state changes
   useEffect(() => {
     // Build a lightweight snapshot for persistence
-    const snapshot = {
+    const snapshotObj = {
       docNo,
       docDate,
       customerId,
       items,
       remarks,
       terms,
-      savedAt: Date.now(),
     };
-    let serialized: string;
+    let serializedObj: string;
     try {
-      serialized = JSON.stringify(snapshot);
+      serializedObj = JSON.stringify(snapshotObj);
     } catch (err) {
       return;
     }
     // If identical to last saved, skip
-    if (lastSavedRef.current === serialized) return;
+    if (lastSavedRef.current === serializedObj) return;
     setIsDirty(true);
+    setDraftStatus("saving");
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
       try {
-        localStorage.setItem(draftKey, serialized);
-        lastSavedRef.current = serialized;
+        const payloadToSave = { ...snapshotObj, savedAt: Date.now() };
+        localStorage.setItem(draftKey, JSON.stringify(payloadToSave));
+        lastSavedRef.current = serializedObj;
         setIsDirty(false);
         // also attempt to save to server (best-effort). Don't block UI.
         (async () => {
           try {
-            const payload = { key: draftKey, data: JSON.parse(serialized) };
+            const payload = { key: draftKey, data: payloadToSave };
             if (serverDraftId) {
               const updated = await updateDraft(serverDraftId, {
                 data: payload.data,
@@ -420,14 +433,17 @@ export default function SalesDocShell({
               const created = await createDraft(payload);
               if (created && created._id) setServerDraftId(created._id);
             }
+            setDraftStatus("saved");
           } catch (err) {
             // network/save failed — ignore, local draft still exists
+            setDraftStatus("saved");
           }
         })();
       } catch (err) {
         // ignore storage errors
+        setDraftStatus("saved");
       }
-    }, 1000) as unknown as number;
+    }, 3000) as unknown as number;
 
     return () => {
       if (saveTimer.current) window.clearTimeout(saveTimer.current);
@@ -778,7 +794,7 @@ export default function SalesDocShell({
           <Button onClick={handleCreateCustomer}>Save Customer</Button>
         </Stack>
       </Modal>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} onKeyDown={handleEnterKeyNext}>
         <Card w={"100%"}>
           <Card.Section
             style={{
@@ -1365,13 +1381,25 @@ export default function SalesDocShell({
           >
             Print as Gate Pass
           </Button>
-          <Button
-            type="submit"
-            loading={submitting}
-            disabled={saveDisabled || submitting || shiftBlocked}
-          >
-            Save {mode}
-          </Button>
+          <Group gap="xs" align="center">
+            {draftStatus === "saving" && (
+              <Badge color="blue" variant="dot">
+                Saving...
+              </Badge>
+            )}
+            {draftStatus === "saved" && (
+              <Badge color="green" variant="dot">
+                Draft Saved
+              </Badge>
+            )}
+            <Button
+              type="submit"
+              loading={submitting}
+              disabled={saveDisabled || submitting || shiftBlocked}
+            >
+              Save {mode}
+            </Button>
+          </Group>
         </div>
       </form>
       <ShiftManager
@@ -1380,6 +1408,32 @@ export default function SalesDocShell({
           setShiftManagerOpened(false);
         }}
       />
+      <Modal
+        opened={showResumeModal}
+        onClose={() => setShowResumeModal(false)}
+        title="Resume Draft"
+      >
+        <Text mb="md">Resume your previous work?</Text>
+        <Group justify="flex-end">
+          <Button
+            variant="outline"
+            onClick={() => {
+              clearDraft();
+              setShowResumeModal(false);
+            }}
+          >
+            Discard
+          </Button>
+          <Button
+            onClick={() => {
+              applyDraft(draftToResume);
+              setShowResumeModal(false);
+            }}
+          >
+            Resume
+          </Button>
+        </Group>
+      </Modal>
     </>
   );
 }
