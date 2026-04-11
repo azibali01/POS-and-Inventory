@@ -23,7 +23,7 @@ export interface StockValuationRow {
   length: string;
   availableStock: number;
   totalFeet: number;
-  salesRate: number;
+  purchasePrice: number;
   inventoryValue: number;
 }
 

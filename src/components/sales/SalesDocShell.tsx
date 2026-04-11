@@ -114,7 +114,6 @@ function mapIncomingLineItem(
       item.rate ??
       item.price ??
       item.unitPrice ??
-      variant?.salesRate ??
       0,
   );
   const length = Number(rawLength ?? item.sizeFt ?? 0);
@@ -648,6 +647,21 @@ export default function SalesDocShell({
       mapIncomingLineItem(item as Record<string, any>, products),
     );
     setItems(normalizedItems);
+
+    const invalidRateRowIndex = normalizedItems.findIndex(
+      (item) =>
+        item.productId && Number(item.salesRate || item.rate || 0) <= 0,
+    );
+    if (invalidRateRowIndex >= 0) {
+      showNotification({
+        title: "Missing Rate",
+        message: `Row ${invalidRateRowIndex + 1} requires a valid manual rate > 0.`,
+        color: "red",
+      });
+      setSubmitting(false);
+      setSubmitLocked(false);
+      return;
+    }
 
     if (mode !== "Quotation") {
       const invalidRowIndex = normalizedItems.findIndex((item) =>

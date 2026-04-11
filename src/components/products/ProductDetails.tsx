@@ -72,7 +72,6 @@ export function ProductDetails({ product }: Props) {
                     <Table.Th>Thickness</Table.Th>
                     <Table.Th>Color</Table.Th>
                     <Table.Th>Length (ft)</Table.Th>
-                    <Table.Th>Sales Rate</Table.Th>
                     <Table.Th>Available Stock</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
@@ -83,11 +82,6 @@ export function ProductDetails({ product }: Props) {
                       <Table.Td>{String(variant.thickness ?? "-")}</Table.Td>
                       <Table.Td>{String(variant.color ?? "-")}</Table.Td>
                       <Table.Td>{String(variant.length ?? "-")}</Table.Td>
-                      <Table.Td>
-                        {typeof variant.salesRate === "number"
-                          ? formatCurrency(variant.salesRate)
-                          : "-"}
-                      </Table.Td>
                       <Table.Td>
                         {typeof variant.availableStock === "number"
                           ? String(variant.availableStock)

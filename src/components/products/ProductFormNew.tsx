@@ -42,7 +42,6 @@ interface VariantForm {
   thickness: string;
   color: string;
   length: string;
-  salesRate: string;
   purchasePrice: string;
   openingStock: string;
 }
@@ -116,7 +115,6 @@ export function ProductFormNew({ product, onClose }: Props) {
         )
           ? variant.length
           : "14",
-        salesRate: variant.salesRate.toString(),
         purchasePrice: (variant.purchasePrice ?? 0).toString(),
         openingStock: variant.openingStock?.toString() || "0",
       }));
@@ -127,7 +125,6 @@ export function ProductFormNew({ product, onClose }: Props) {
           thickness: product.thickness?.toString() || "",
           color: product.color || "",
           length: "14",
-          salesRate: product.salesRate?.toString() || "",
           purchasePrice: (product.costPrice ?? 0).toString(),
           openingStock: product.openingStock?.toString() || "0",
         },
@@ -139,7 +136,6 @@ export function ProductFormNew({ product, onClose }: Props) {
           thickness: "",
           color: "",
           length: "14",
-          salesRate: "",
           purchasePrice: "0",
           openingStock: "0",
         },
@@ -156,7 +152,6 @@ export function ProductFormNew({ product, onClose }: Props) {
         thickness: "",
         color: "",
         length: "14",
-        salesRate: "",
         purchasePrice: "0",
         openingStock: "0",
       },
@@ -231,14 +226,6 @@ export function ProductFormNew({ product, onClose }: Props) {
         });
         return false;
       }
-      if (!variant.salesRate || Number(variant.salesRate) <= 0) {
-        showNotification({
-          title: "Validation Error",
-          message: `Valid sales rate is required for variant ${String(i + 1)}`,
-          color: "red",
-        });
-        return false;
-      }
       if (!variant.purchasePrice || Number(variant.purchasePrice) < 0) {
         showNotification({
           title: "Validation Error",
@@ -283,7 +270,6 @@ export function ProductFormNew({ product, onClose }: Props) {
       thickness: variant.thickness.trim(),
       color: variant.color.trim(),
       length: variant.length.trim(),
-      salesRate: Number(variant.salesRate),
       purchasePrice: Number(variant.purchasePrice) || 0,
       openingStock: Number(variant.openingStock) || 0,
       availableStock: Number(variant.openingStock) || 0,
@@ -513,15 +499,6 @@ export function ProductFormNew({ product, onClose }: Props) {
                   style={{
                     color: "white",
                     fontWeight: "bold",
-                    minWidth: "120px",
-                  }}
-                >
-                  Sales Rate *
-                </th>
-                <th
-                  style={{
-                    color: "white",
-                    fontWeight: "bold",
                     minWidth: "130px",
                   }}
                 >
@@ -653,31 +630,6 @@ export function ProductFormNew({ product, onClose }: Props) {
                       </Text>
                     </td>
 
-                    {/* Sales Rate */}
-                    <td>
-                      <NumberInput
-                        value={
-                          variant.salesRate === ""
-                            ? ""
-                            : Number(variant.salesRate)
-                        }
-                        onChange={(value) => {
-                          updateVariant(index, "salesRate", String(value));
-                        }}
-                        placeholder="0.00"
-                        min={0}
-                        decimalScale={2}
-                        hideControls
-                        required
-                        style={{ minWidth: "120px" }}
-                        error={
-                          !variant.salesRate || Number(variant.salesRate) <= 0
-                            ? "Required"
-                            : null
-                        }
-                      />
-                    </td>
-
                     {/* Purchase Price */}
                     <td style={{ verticalAlign: "top" }}>
                       <NumberInput
@@ -702,17 +654,6 @@ export function ProductFormNew({ product, onClose }: Props) {
                             : null
                         }
                       />
-                      {Number(variant.purchasePrice) >
-                        Number(variant.salesRate) && (
-                        <Text
-                          c="yellow.8"
-                          size="xs"
-                          mt={4}
-                          style={{ maxWidth: 130, lineHeight: 1.2 }}
-                        >
-                          ⚠️ Buying price exceeds selling price!
-                        </Text>
-                      )}
                     </td>
 
                     {/* Opening Stock */}

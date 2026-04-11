@@ -283,9 +283,7 @@ export function LineItemsTable({
                             ? product.variants[0]
                             : null;
                         const resolvedStock = getVariantStock(singleVariant);
-                        const resolvedRate = Number(
-                          singleVariant?.salesRate ?? 0,
-                        );
+                        const resolvedRate = 0;
 
                         updateRow(idx, {
                           _id: value || "",
