@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Button,
@@ -17,6 +18,7 @@ import {
   IconPrinter,
   IconTrash,
   IconEdit,
+  IconArrowRight,
 } from "@tabler/icons-react";
 import { generateNextDocumentNumber } from "../../../utils/document-utils";
 import {
@@ -64,6 +66,7 @@ import openPrintWindow from "../../../components/print/printWindow";
 import { generateGatePassHTML } from "../../../components/print/printTemplate";
 
 function Quotation() {
+  const navigate = useNavigate();
   const {
     quotations,
     createQuotationAsync,
@@ -331,15 +334,12 @@ function Quotation() {
     }
   }
 
-  // Open a quotation in the full SalesDocShell editor (used by Edit menu and row double-click)
-  function openQuotationInEditor(q: QuotationLike) {
-    // Determine existingNumber and resolved customer similar to inline edit handler
+  function buildEditorPayload(q: QuotationLike): SalesPayload {
     const existingNumber =
       q.quotationNumber ??
       (q as QuotationRecordPayload & { docNo?: string }).docNo ??
       q.quotationNumber;
 
-    // Resolve customer id or name robustly
     let resolvedCustomerId: string | number | undefined = undefined;
     if (q && q.customer) {
       if (Array.isArray(q.customer) && q.customer[0]) {
@@ -469,7 +469,8 @@ function Quotation() {
       0,
     );
 
-    setInitialPayload({
+    return {
+      mode: "Quotation",
       docNo: existingNumber,
       docDate: q.quotationDate ?? "",
       customer: (() => {
@@ -516,15 +517,21 @@ function Quotation() {
       remarks: q.remarks ?? "",
       totals: {
         subTotal: q.subTotal ?? mappedGross,
-        total: q.totalNetAmount ?? mappedNet,
         amount: q.totalNetAmount ?? mappedNet,
+        total: q.totalNetAmount ?? mappedNet,
         totalGrossAmount: q.totalGrossAmount ?? mappedGross,
         totalDiscountAmount: q.totalDiscount ?? mappedDiscount,
         totalNetAmount: q.totalNetAmount ?? mappedNet,
       },
       items: mappedItems,
-    });
-    setEditingId(existingNumber ?? "");
+    };
+  }
+
+  // Open a quotation in the full SalesDocShell editor (used by Edit menu and row double-click)
+  function openQuotationInEditor(q: QuotationLike) {
+    const payload = buildEditorPayload(q);
+    setInitialPayload(payload);
+    setEditingId(payload.docNo ?? "");
     setOpen(true);
   }
 
@@ -745,6 +752,34 @@ function Quotation() {
                                 leftSection={<IconEdit size={14} />}
                               >
                                 Edit
+                              </Menu.Item>
+                              <Menu.Item
+                                onClick={() => {
+                                  const payload = buildEditorPayload(q);
+                                  navigate("/sales/invoices", {
+                                    state: {
+                                      importQuotation: {
+                                        ...payload,
+                                        sourceQuotationId:
+                                          q.quotationNumber ??
+                                          (
+                                            q as QuotationRecordPayload & {
+                                              docNo?: string;
+                                            }
+                                          ).docNo ??
+                                          (
+                                            q as QuotationRecordPayload & {
+                                              id?: string;
+                                            }
+                                          ).id,
+                                      },
+                                    },
+                                  });
+                                }}
+                                leftSection={<IconArrowRight size={14} />}
+                                color="blue"
+                              >
+                                Convert to Sale
                               </Menu.Item>
                               <Menu.Item
                                 color="red"

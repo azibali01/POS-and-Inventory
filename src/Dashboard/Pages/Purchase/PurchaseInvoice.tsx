@@ -33,6 +33,7 @@ import { useInventory } from "../../../hooks/useInventory";
 import { formatDate, formatCurrency } from "../../../lib/format-utils";
 import openPrintWindow from "../../../components/print/printWindow";
 import { useDebounce } from "../../../hooks/useDebounce";
+import { useEnterKeyNext } from "../../../hooks/useEnterKeyNext";
 // Helper to format invoice data for printing
 
 function getInvoicePrintData(inv: PurchaseInvoiceTableRow) {
@@ -105,6 +106,7 @@ export default function PurchaseInvoicesPage() {
   const { purchases } = usePurchase();
   const { suppliers } = useSupplier();
   const { inventory, loadInventory } = useInventory();
+  const handleEnterKeyNext = useEnterKeyNext();
 
   // Inventory is auto-loaded by useInventory hook
   const [data, setData] = useState<PurchaseInvoiceTableRow[]>([]);
@@ -326,11 +328,13 @@ export default function PurchaseInvoicesPage() {
         }}
         size="90%"
       >
-        <PurchaseInvoiceForm
-          onSubmit={handleCreate}
-          initialValues={initialValues}
-          defaultInvoiceNumber={defaultInvoiceNumber}
-        />
+        <div onKeyDown={handleEnterKeyNext}>
+          <PurchaseInvoiceForm
+            onSubmit={handleCreate}
+            initialValues={initialValues}
+            defaultInvoiceNumber={defaultInvoiceNumber}
+          />
+        </div>
       </Modal>
 
       {/* Import from PO Modal */}
@@ -497,24 +501,26 @@ export default function PurchaseInvoicesPage() {
           title={`Create Invoice from PO: ${initialPayload.purchaseInvoiceNumber}`}
           size="90%"
         >
-          <PurchaseInvoiceForm
-            onSubmit={handleCreate}
-            initialValues={{
-              ...initialPayload,
-              invoiceDate:
-                initialPayload.invoiceDate instanceof Date
-                  ? initialPayload.invoiceDate
-                  : initialPayload.invoiceDate
-                    ? new Date(initialPayload.invoiceDate)
-                    : undefined,
-              expectedDelivery: !initialPayload.expectedDelivery
-                ? undefined
-                : initialPayload.expectedDelivery instanceof Date
-                  ? initialPayload.expectedDelivery
-                  : new Date(initialPayload.expectedDelivery),
-            }}
-            defaultInvoiceNumber={initialPayload.purchaseInvoiceNumber}
-          />
+          <div onKeyDown={handleEnterKeyNext}>
+            <PurchaseInvoiceForm
+              onSubmit={handleCreate}
+              initialValues={{
+                ...initialPayload,
+                invoiceDate:
+                  initialPayload.invoiceDate instanceof Date
+                    ? initialPayload.invoiceDate
+                    : initialPayload.invoiceDate
+                      ? new Date(initialPayload.invoiceDate)
+                      : undefined,
+                expectedDelivery: !initialPayload.expectedDelivery
+                  ? undefined
+                  : initialPayload.expectedDelivery instanceof Date
+                    ? initialPayload.expectedDelivery
+                    : new Date(initialPayload.expectedDelivery),
+              }}
+              defaultInvoiceNumber={initialPayload.purchaseInvoiceNumber}
+            />
+          </div>
         </Modal>
       )}
 

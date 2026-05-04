@@ -17,6 +17,7 @@ import { formatCurrency, formatDate } from "../../../lib/format-utils";
 import { useColor } from "../../../hooks/useColor";
 import { useInventory } from "../../../hooks/useInventory";
 import { useSupplier } from "../../../hooks/useSupplier";
+import { useGridNavigation } from "../../../hooks/useGridNavigation";
 import { Trash2 } from "lucide-react";
 import { Group } from "@mantine/core";
 import type { Supplier as BaseSupplier } from "../../../components/purchase/SupplierForm";
@@ -136,6 +137,8 @@ export function PurchaseInvoiceForm({
     }, 0);
   }, [products]);
   const total = subTotal;
+
+  const { onKeyDown } = useGridNavigation({ tableId: "purchase-line-items" });
 
   const selectedSupplier = suppliers.find(
     (s: Supplier) => String(s._id) === String(supplierId),
@@ -394,6 +397,8 @@ export function PurchaseInvoiceForm({
             <div
               className="app-table-wrapper"
               style={{ maxHeight: "50vh", overflow: "auto" }}
+              onKeyDown={onKeyDown}
+              data-table-id="purchase-line-items"
             >
               <Table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <Table.Thead>
@@ -439,14 +444,35 @@ export function PurchaseInvoiceForm({
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {products.map((it) => {
+                  {products.map((it, idx) => {
                     const length = Number(it.length) || 1;
                     const rate = Number(it.rate) || 0;
                     const qty = Number(it.quantity) || 0;
                     const lineTotal = length * rate * qty;
+
+                    const currentProduct = inventory.find(
+                      (p: any) => p.itemName === it.productName,
+                    );
+                    let currentSalesRate = currentProduct?.salesRate || 0;
+                    if (currentProduct?.variants?.length) {
+                      const matched = currentProduct.variants.find(
+                        (v: any) =>
+                          (v.color || "") === (it.color || "") &&
+                          String(v.thickness || "") ===
+                            String(it.thickness || ""),
+                      );
+                      if (matched && matched.salesRate) {
+                        currentSalesRate = matched.salesRate;
+                      }
+                    }
+
                     return (
                       <Table.Tr key={it.id}>
-                        <Table.Td style={{ padding: 8 }}>
+                        <Table.Td
+                          style={{ padding: 8, verticalAlign: "top" }}
+                          data-row-index={idx}
+                          data-field-name="productName"
+                        >
                           <Select
                             searchable
                             data={inventory.map((p: InventoryItem) => ({
@@ -493,7 +519,11 @@ export function PurchaseInvoiceForm({
                             placeholder="Select product"
                           />
                         </Table.Td>
-                        <Table.Td style={{ padding: 8 }}>
+                        <Table.Td
+                          style={{ padding: 8, verticalAlign: "top" }}
+                          data-row-index={idx}
+                          data-field-name="color"
+                        >
                           <Select
                             placeholder="Color"
                             data={colors.map((c) => ({
@@ -512,7 +542,11 @@ export function PurchaseInvoiceForm({
                             }}
                           />
                         </Table.Td>
-                        <Table.Td style={{ padding: 8 }}>
+                        <Table.Td
+                          style={{ padding: 8, verticalAlign: "top" }}
+                          data-row-index={idx}
+                          data-field-name="thickness"
+                        >
                           <TextInput
                             value={it.thickness ?? ""}
                             onChange={(e) => {
@@ -527,7 +561,11 @@ export function PurchaseInvoiceForm({
                             placeholder="Thickness"
                           />
                         </Table.Td>
-                        <Table.Td style={{ padding: 8 }}>
+                        <Table.Td
+                          style={{ padding: 8, verticalAlign: "top" }}
+                          data-row-index={idx}
+                          data-field-name="length"
+                        >
                           <TextInput
                             value={String(it.length ?? "")}
                             onChange={(e) => {
@@ -542,7 +580,15 @@ export function PurchaseInvoiceForm({
                             placeholder="Length"
                           />
                         </Table.Td>
-                        <Table.Td style={{ padding: 8, textAlign: "right" }}>
+                        <Table.Td
+                          style={{
+                            padding: 8,
+                            textAlign: "right",
+                            verticalAlign: "top",
+                          }}
+                          data-row-index={idx}
+                          data-field-name="quantity"
+                        >
                           <NumberInput
                             value={it.quantity === 0 ? "" : it.quantity}
                             onChange={(v) => {
@@ -561,7 +607,11 @@ export function PurchaseInvoiceForm({
                             hideControls
                           />
                         </Table.Td>
-                        <Table.Td style={{ padding: 8 }}>
+                        <Table.Td
+                          style={{ padding: 8, verticalAlign: "top" }}
+                          data-row-index={idx}
+                          data-field-name="rate"
+                        >
                           <NumberInput
                             value={it.rate === 0 ? "" : it.rate}
                             onChange={(v) => {
@@ -579,11 +629,34 @@ export function PurchaseInvoiceForm({
                             min={0}
                             hideControls
                           />
+                          {it.rate > currentSalesRate &&
+                            currentSalesRate > 0 && (
+                              <Text
+                                c="yellow.8"
+                                size="xs"
+                                mt={4}
+                                style={{ maxWidth: 120, lineHeight: 1.2 }}
+                              >
+                                ⚠️ Buying price exceeds selling price!
+                              </Text>
+                            )}
                         </Table.Td>
-                        <Table.Td style={{ padding: 8, textAlign: "right" }}>
+                        <Table.Td
+                          style={{
+                            padding: 8,
+                            textAlign: "right",
+                            verticalAlign: "top",
+                          }}
+                        >
                           {formatCurrency(lineTotal)}
                         </Table.Td>
-                        <Table.Td style={{ padding: 8, textAlign: "right" }}>
+                        <Table.Td
+                          style={{
+                            padding: 8,
+                            textAlign: "right",
+                            verticalAlign: "top",
+                          }}
+                        >
                           <Button
                             variant="subtle"
                             onClick={() => {
