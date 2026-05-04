@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
+import { useGridNavigation } from "../../hooks/useGridNavigation";
 
 import Table from "../../lib/AppTable";
 import type { InventoryItem } from "../../Dashboard/Context/DataContext";
@@ -155,6 +156,7 @@ export function LineItemsTable({
     [inventory],
   );
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
+  const { onKeyDown } = useGridNavigation({ tableId: "sales-line-items" });
 
   const updateRow = useCallback(
     (rowIdx: number, nextRow: LineItem | Partial<LineItem>) => {
@@ -194,330 +196,359 @@ export function LineItemsTable({
         </Group>
       </Modal>
 
-      <Table withColumnBorders>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th style={{ width: 240 }}>Product</Table.Th>
-            <Table.Th style={{ width: 140 }}>Thickness</Table.Th>
-            <Table.Th style={{ width: 160 }}>Color</Table.Th>
-            <Table.Th style={{ width: 100 }}>Length</Table.Th>
-            <Table.Th style={{ width: 120 }}>Brand</Table.Th>
-            <Table.Th style={{ width: 140 }}>Qty</Table.Th>
-            <Table.Th style={{ width: 120 }}>Rate</Table.Th>
-            <Table.Th style={{ width: 90 }}>%</Table.Th>
-            <Table.Th style={{ width: 120 }}>Discount</Table.Th>
-            <Table.Th style={{ width: 140 }}>Subtotal / Net</Table.Th>
-            <Table.Th style={{ textAlign: "left" }}>Remove</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {items.map((rawItem, idx) => {
-            const item = normalizeLineItem(rawItem);
-            const selectedProduct = findSelectedProduct(inventory, item);
-            const thicknessOptions = ensureCurrentOption(
-              getThicknessOptions(selectedProduct),
-              item.thickness ?? "",
-            );
-            const colorOptions = ensureCurrentOption(
-              getColorOptions(selectedProduct, item.thickness ?? ""),
-              item.color ?? "",
-            );
-            const lengthOptions = ensureCurrentOption(
-              getLengthOptions(
+      <div onKeyDown={onKeyDown} data-table-id="sales-line-items">
+        <Table withColumnBorders>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th style={{ width: 240 }}>Product</Table.Th>
+              <Table.Th style={{ width: 140 }}>Thickness</Table.Th>
+              <Table.Th style={{ width: 160 }}>Color</Table.Th>
+              <Table.Th style={{ width: 100 }}>Length</Table.Th>
+              <Table.Th style={{ width: 120 }}>Brand</Table.Th>
+              <Table.Th style={{ width: 140 }}>Qty</Table.Th>
+              <Table.Th style={{ width: 120 }}>Rate</Table.Th>
+              <Table.Th style={{ width: 90 }}>%</Table.Th>
+              <Table.Th style={{ width: 120 }}>Discount</Table.Th>
+              <Table.Th style={{ width: 140 }}>Subtotal / Net</Table.Th>
+              <Table.Th style={{ textAlign: "left" }}>Remove</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {items.map((rawItem, idx) => {
+              const item = normalizeLineItem(rawItem);
+              const selectedProduct = findSelectedProduct(inventory, item);
+              const thicknessOptions = ensureCurrentOption(
+                getThicknessOptions(selectedProduct),
+                item.thickness ?? "",
+              );
+              const colorOptions = ensureCurrentOption(
+                getColorOptions(selectedProduct, item.thickness ?? ""),
+                item.color ?? "",
+              );
+              const lengthOptions = ensureCurrentOption(
+                getLengthOptions(
+                  selectedProduct,
+                  item.thickness ?? "",
+                  item.color ?? "",
+                ),
+                String(item.length ?? ""),
+              );
+              const selectedVariant = findSelectedVariant(
                 selectedProduct,
                 item.thickness ?? "",
                 item.color ?? "",
-              ),
-              String(item.length ?? ""),
-            );
-            const selectedVariant = findSelectedVariant(
-              selectedProduct,
-              item.thickness ?? "",
-              item.color ?? "",
-              String(item.length ?? ""),
-              item.sku,
-            );
-            const availableStock = getVariantStock(selectedVariant);
-            const quantity = item.quantity ?? 0;
-            const oversoldBy = Math.max(0, quantity - availableStock);
-            const hasVariantError = hasIncompleteVariantSelection(item);
-            const hasAnyVariantSelection =
-              !!String(item.thickness ?? "").trim() ||
-              !!String(item.color ?? "").trim() ||
-              !!String(item.length ?? "").trim() ||
-              !!String(item.sku ?? "").trim();
-            const quantityError =
-              mode === "Quotation"
-                ? undefined
-                : hasVariantError && !hasAnyVariantSelection
-                  ? "Complete variant selection first"
-                  : undefined;
+                String(item.length ?? ""),
+                item.sku,
+              );
+              const availableStock = getVariantStock(selectedVariant);
+              const quantity = item.quantity ?? 0;
+              const oversoldBy = Math.max(0, quantity - availableStock);
+              const hasVariantError = hasIncompleteVariantSelection(item);
+              const hasAnyVariantSelection =
+                !!String(item.thickness ?? "").trim() ||
+                !!String(item.color ?? "").trim() ||
+                !!String(item.length ?? "").trim() ||
+                !!String(item.sku ?? "").trim();
+              const quantityError =
+                mode === "Quotation"
+                  ? undefined
+                  : oversoldBy > 0
+                    ? "Insufficient Stock"
+                    : hasVariantError && !hasAnyVariantSelection
+                      ? "Complete variant selection first"
+                      : undefined;
 
-            return (
-              <Table.Tr key={`line-${idx}`}>
-                <Table.Td style={{ minWidth: 200, verticalAlign: "top" }}>
-                  <Select
-                    value={
-                      item.productId || toProductId(selectedProduct?._id) || ""
-                    }
-                    data={productOptions}
-                    onChange={(value) => {
-                      const product =
-                        inventory.find(
-                          (entry) => toProductId(entry._id) === (value ?? ""),
-                        ) || null;
-
-                      const singleVariant =
-                        product && product.variants?.length === 1
-                          ? product.variants[0]
-                          : null;
-                      const resolvedStock = getVariantStock(singleVariant);
-                      const resolvedRate = Number(
-                        singleVariant?.salesRate ?? 0,
-                      );
-
-                      updateRow(idx, {
-                        _id: value || "",
-                        productId: value || "",
-                        productName: product?.itemName || "",
-                        itemName: product?.itemName || "",
-                        brand: String(product?.brand || ""),
-                        unit: product?.unit || "",
-                        sku: singleVariant?.sku || "",
-                        thickness: singleVariant?.thickness || "",
-                        color: singleVariant?.color || "",
-                        length: singleVariant?.length || "",
-                        quantity: 0,
-                        salesRate: resolvedRate,
-                        rate: resolvedRate,
-                        availableStock: resolvedStock,
-                        openingStock: resolvedStock,
-                        subtotal: 0,
-                        amount: 0,
-                        totalGrossAmount: 0,
-                        totalNetAmount: 0,
-                      });
-                    }}
-                    searchable
-                    clearable
-                    placeholder="Select product"
-                  />
-                </Table.Td>
-
-                <Table.Td style={{ verticalAlign: "top" }}>
-                  <Select
-                    value={item.thickness || ""}
-                    data={thicknessOptions}
-                    onChange={(value) => {
-                      updateRow(idx, {
-                        thickness: value || "",
-                        color: "",
-                        length: "",
-                        sku: "",
-                        quantity: 0,
-                        salesRate: 0,
-                        rate: 0,
-                        availableStock: 0,
-                        openingStock: 0,
-                        subtotal: 0,
-                        amount: 0,
-                        totalGrossAmount: 0,
-                        totalNetAmount: 0,
-                      });
-                    }}
-                    disabled={!item.productId}
-                    searchable
-                    clearable
-                    placeholder="Thickness"
-                    error={
-                      selectedProduct && !(item.thickness ?? "").trim()
-                        ? "Required"
-                        : undefined
-                    }
-                  />
-                </Table.Td>
-
-                <Table.Td style={{ verticalAlign: "top" }}>
-                  <Select
-                    value={item.color || ""}
-                    data={colorOptions}
-                    onChange={(value) => {
-                      const color = value || "";
-                      const variant = findSelectedVariant(
-                        selectedProduct,
-                        item.thickness || "",
-                        color,
-                        "",
-                      );
-
-                      updateRow(idx, {
-                        color,
-                        length: "",
-                        sku: variant?.sku || "",
-                        salesRate: Number(
-                          variant?.salesRate ?? item.salesRate ?? 0,
-                        ),
-                        rate: Number(variant?.salesRate ?? item.salesRate ?? 0),
-                        availableStock: getVariantStock(variant),
-                        openingStock: getVariantStock(variant),
-                      });
-                    }}
-                    disabled={!item.productId || !(item.thickness ?? "").trim()}
-                    searchable
-                    clearable
-                    placeholder="Color"
-                    error={
-                      selectedProduct && !(item.color ?? "").trim()
-                        ? "Required"
-                        : undefined
-                    }
-                  />
-                  {item.sku || selectedVariant?.sku ? (
-                    <Text size="xs" c="dimmed" mt={4}>
-                      SKU: {item.sku || selectedVariant?.sku}
-                    </Text>
-                  ) : null}
-                </Table.Td>
-
-                <Table.Td>
-                  <Select
-                    value={String(item.length ?? "")}
-                    placeholder="Length"
-                    onChange={(value) => {
-                      const selectedLength = value || "";
-                      const variant = findSelectedVariant(
-                        selectedProduct,
-                        item.thickness || "",
-                        item.color || "",
-                        selectedLength,
-                      );
-
-                      updateRow(idx, {
-                        length: selectedLength,
-                        sku: variant?.sku || "",
-                        salesRate: Number(
-                          variant?.salesRate ?? item.salesRate ?? 0,
-                        ),
-                        rate: Number(variant?.salesRate ?? item.salesRate ?? 0),
-                        availableStock: getVariantStock(variant),
-                        openingStock: getVariantStock(variant),
-                      });
-                    }}
-                    data={lengthOptions}
-                    disabled={!item.productId || !(item.color ?? "").trim()}
-                    searchable
-                    clearable
-                    error={
-                      selectedProduct && !String(item.length ?? "").trim()
-                        ? "Required"
-                        : undefined
-                    }
-                  />
-                </Table.Td>
-
-                <Table.Td>
-                  <TextInput
-                    value={String(item.brand ?? selectedProduct?.brand ?? "")}
-                    placeholder="Brand"
-                    readOnly
-                    disabled
-                  />
-                </Table.Td>
-
-                <Table.Td style={{ verticalAlign: "top" }}>
-                  <NumberInput
-                    value={item.quantity ?? 0}
-                    onChange={(value) => {
-                      updateRow(idx, { quantity: Number(value ?? 0) });
-                    }}
-                    min={0}
-                    hideControls
-                    error={quantityError}
-                  />
-                  {item.sku || selectedVariant ? (
-                    <Group gap={6} mt={4}>
-                      <Badge
-                        color={availableStock > 0 ? "green" : "red"}
-                        variant="light"
-                      >
-                        Available Stock: {availableStock}
-                      </Badge>
-                      {oversoldBy > 0 ? (
-                        <Badge color="red" variant="filled">
-                          Over by {oversoldBy}
-                        </Badge>
-                      ) : null}
-                    </Group>
-                  ) : null}
-                </Table.Td>
-
-                <Table.Td>
-                  <NumberInput
-                    value={item.salesRate ?? 0}
-                    onChange={(value) => {
-                      updateRow(idx, {
-                        salesRate: Number(value ?? 0),
-                        rate: Number(value ?? 0),
-                      });
-                    }}
-                    hideControls
-                    min={0}
-                    decimalScale={2}
-                  />
-                </Table.Td>
-
-                <Table.Td>
-                  <NumberInput
-                    value={item.discount ?? 0}
-                    onChange={(value) => {
-                      updateRow(idx, { discount: Number(value ?? 0) });
-                    }}
-                    hideControls
-                    min={0}
-                    max={100}
-                    decimalScale={2}
-                  />
-                </Table.Td>
-
-                <Table.Td>
-                  <NumberInput
-                    value={item.discountAmount ?? 0}
-                    onChange={(value) => {
-                      updateRow(idx, { discountAmount: Number(value ?? 0) });
-                    }}
-                    hideControls
-                    min={0}
-                    decimalScale={2}
-                  />
-                </Table.Td>
-
-                <Table.Td>
-                  <Text fw={600}>{(item.subtotal ?? 0).toFixed(2)}</Text>
-                  <Text size="xs" c="dimmed">
-                    Net: {(item.totalNetAmount ?? 0).toFixed(2)}
-                  </Text>
-                </Table.Td>
-
-                <Table.Td>
-                  <div
-                    style={{ display: "flex", justifyContent: "flex-start" }}
+              return (
+                <Table.Tr key={`line-item-${idx}`}>
+                  <Table.Td
+                    style={{ minWidth: 200, verticalAlign: "top" }}
+                    data-row-index={idx}
+                    data-field-name="productId"
                   >
-                    <Button
-                      variant="subtle"
-                      color="red"
-                      tabIndex={-1}
-                      onClick={() => {
-                        setDeleteIndex(idx);
+                    <Select
+                      value={
+                        item.productId ||
+                        toProductId(selectedProduct?._id) ||
+                        ""
+                      }
+                      data={productOptions}
+                      onChange={(value) => {
+                        const product =
+                          inventory.find(
+                            (entry) => toProductId(entry._id) === (value ?? ""),
+                          ) || null;
+
+                        const singleVariant =
+                          product && product.variants?.length === 1
+                            ? product.variants[0]
+                            : null;
+                        const resolvedStock = getVariantStock(singleVariant);
+                        const resolvedRate = 0;
+
+                        updateRow(idx, {
+                          _id: value || "",
+                          productId: value || "",
+                          productName: product?.itemName || "",
+                          itemName: product?.itemName || "",
+                          brand: String(product?.brand || ""),
+                          unit: product?.unit || "",
+                          sku: singleVariant?.sku || "",
+                          thickness: singleVariant?.thickness || "",
+                          color: singleVariant?.color || "",
+                          length: singleVariant?.length || "",
+                          quantity: 0,
+                          salesRate: resolvedRate,
+                          rate: resolvedRate,
+                          availableStock: resolvedStock,
+                          openingStock: resolvedStock,
+                          subtotal: 0,
+                          amount: 0,
+                          totalGrossAmount: 0,
+                          totalNetAmount: 0,
+                        });
                       }}
-                      leftSection={<IconTrash size={18} />}
+                      searchable
+                      clearable
+                      placeholder="Select product"
                     />
-                  </div>
-                </Table.Td>
-              </Table.Tr>
-            );
-          })}
-        </Table.Tbody>
-      </Table>
+                  </Table.Td>
+
+                  <Table.Td
+                    style={{ verticalAlign: "top" }}
+                    data-row-index={idx}
+                    data-field-name="thickness"
+                  >
+                    <Select
+                      value={item.thickness || ""}
+                      data={thicknessOptions}
+                      onChange={(value) => {
+                        updateRow(idx, {
+                          thickness: value || "",
+                          color: "",
+                          length: "",
+                          sku: "",
+                          quantity: 0,
+                          salesRate: 0,
+                          rate: 0,
+                          availableStock: 0,
+                          openingStock: 0,
+                          subtotal: 0,
+                          amount: 0,
+                          totalGrossAmount: 0,
+                          totalNetAmount: 0,
+                        });
+                      }}
+                      disabled={!item.productId}
+                      searchable
+                      clearable
+                      placeholder="Thickness"
+                      error={
+                        selectedProduct && !(item.thickness ?? "").trim()
+                          ? "Required"
+                          : undefined
+                      }
+                    />
+                  </Table.Td>
+
+                  <Table.Td
+                    style={{ verticalAlign: "top" }}
+                    data-row-index={idx}
+                    data-field-name="color"
+                  >
+                    <Select
+                      value={item.color || ""}
+                      data={colorOptions}
+                      onChange={(value) => {
+                        const color = value || "";
+                        const variant = findSelectedVariant(
+                          selectedProduct,
+                          item.thickness || "",
+                          color,
+                          "",
+                        );
+
+                        updateRow(idx, {
+                          color,
+                          length: "",
+                          sku: variant?.sku || "",
+                          salesRate: Number(
+                            variant?.salesRate ?? item.salesRate ?? 0,
+                          ),
+                          rate: Number(
+                            variant?.salesRate ?? item.salesRate ?? 0,
+                          ),
+                          availableStock: getVariantStock(variant),
+                          openingStock: getVariantStock(variant),
+                        });
+                      }}
+                      disabled={
+                        !item.productId || !(item.thickness ?? "").trim()
+                      }
+                      searchable
+                      clearable
+                      placeholder="Color"
+                      error={
+                        selectedProduct && !(item.color ?? "").trim()
+                          ? "Required"
+                          : undefined
+                      }
+                    />
+                    {item.sku || selectedVariant?.sku ? (
+                      <Text size="xs" c="dimmed" mt={4}>
+                        SKU: {item.sku || selectedVariant?.sku}
+                      </Text>
+                    ) : null}
+                  </Table.Td>
+
+                  <Table.Td data-row-index={idx} data-field-name="length">
+                    <Select
+                      value={String(item.length ?? "")}
+                      placeholder="Length"
+                      onChange={(value) => {
+                        const selectedLength = value || "";
+                        const variant = findSelectedVariant(
+                          selectedProduct,
+                          item.thickness || "",
+                          item.color || "",
+                          selectedLength,
+                        );
+
+                        updateRow(idx, {
+                          length: selectedLength,
+                          sku: variant?.sku || "",
+                          salesRate: Number(
+                            variant?.salesRate ?? item.salesRate ?? 0,
+                          ),
+                          rate: Number(
+                            variant?.salesRate ?? item.salesRate ?? 0,
+                          ),
+                          availableStock: getVariantStock(variant),
+                          openingStock: getVariantStock(variant),
+                        });
+                      }}
+                      data={lengthOptions}
+                      disabled={!item.productId || !(item.color ?? "").trim()}
+                      searchable
+                      clearable
+                      error={
+                        selectedProduct && !String(item.length ?? "").trim()
+                          ? "Required"
+                          : undefined
+                      }
+                    />
+                  </Table.Td>
+
+                  <Table.Td data-row-index={idx} data-field-name="brand">
+                    <TextInput
+                      value={String(item.brand ?? selectedProduct?.brand ?? "")}
+                      placeholder="Brand"
+                      readOnly
+                      disabled
+                    />
+                  </Table.Td>
+
+                  <Table.Td
+                    style={{ verticalAlign: "top" }}
+                    data-row-index={idx}
+                    data-field-name="quantity"
+                  >
+                    <NumberInput
+                      value={item.quantity ?? 0}
+                      onChange={(value) => {
+                        updateRow(idx, { quantity: Number(value ?? 0) });
+                      }}
+                      min={0}
+                      hideControls
+                      error={quantityError}
+                    />
+                    {item.sku || selectedVariant ? (
+                      <Group gap={6} mt={4}>
+                        <Badge
+                          color={availableStock > 0 ? "green" : "red"}
+                          variant="light"
+                        >
+                          Available Stock: {availableStock}
+                        </Badge>
+                        {oversoldBy > 0 ? (
+                          <Badge color="red" variant="filled">
+                            Over by {oversoldBy}
+                          </Badge>
+                        ) : null}
+                      </Group>
+                    ) : null}
+                  </Table.Td>
+
+                  <Table.Td data-row-index={idx} data-field-name="salesRate">
+                    <NumberInput
+                      value={item.salesRate ?? 0}
+                      onChange={(value) => {
+                        updateRow(idx, {
+                          salesRate: Number(value ?? 0),
+                          rate: Number(value ?? 0),
+                        });
+                      }}
+                      hideControls
+                      min={0}
+                      decimalScale={2}
+                    />
+                  </Table.Td>
+
+                  <Table.Td data-row-index={idx} data-field-name="discount">
+                    <NumberInput
+                      value={item.discount ?? 0}
+                      onChange={(value) => {
+                        updateRow(idx, { discount: Number(value ?? 0) });
+                      }}
+                      hideControls
+                      min={0}
+                      max={100}
+                      decimalScale={2}
+                    />
+                  </Table.Td>
+
+                  <Table.Td
+                    data-row-index={idx}
+                    data-field-name="discountAmount"
+                  >
+                    <NumberInput
+                      value={item.discountAmount ?? 0}
+                      onChange={(value) => {
+                        updateRow(idx, { discountAmount: Number(value ?? 0) });
+                      }}
+                      hideControls
+                      min={0}
+                      decimalScale={2}
+                    />
+                  </Table.Td>
+
+                  <Table.Td>
+                    <Text fw={600}>{(item.subtotal ?? 0).toFixed(2)}</Text>
+                    <Text size="xs" c="dimmed">
+                      Net: {(item.totalNetAmount ?? 0).toFixed(2)}
+                    </Text>
+                  </Table.Td>
+
+                  <Table.Td>
+                    <div
+                      style={{ display: "flex", justifyContent: "flex-start" }}
+                    >
+                      <Button
+                        variant="subtle"
+                        color="red"
+                        tabIndex={-1}
+                        onClick={() => {
+                          setDeleteIndex(idx);
+                        }}
+                        leftSection={<IconTrash size={18} />}
+                      />
+                    </div>
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
+          </Table.Tbody>
+        </Table>
+      </div>
     </>
   );
 }

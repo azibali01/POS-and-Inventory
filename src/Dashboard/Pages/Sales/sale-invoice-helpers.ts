@@ -107,7 +107,7 @@ export function mapSaleItems(
       supplier:
         (inv as any)?.supplier ?? (inv as any)?.supplierName ?? undefined,
       brand: inv?.brand ?? undefined,
-      salesRate: Number(inv?.salesRate ?? it.salesRate ?? 0),
+        salesRate: Number(it.salesRate ?? 0),
       color: it.color ?? inv?.color ?? "",
       thickness: it.thickness ?? inv?.thickness ?? undefined,
       openingStock: Number(inv?.openingStock ?? 0),
