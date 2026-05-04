@@ -34,9 +34,7 @@ createRoot(rootElement).render(
       <ErrorBoundary>
         <AuthProvider>
           <QueryClientProvider client={queryClient}>
-            {/* OLD DataProvider - for components not yet migrated */}
             <DataProvider>
-              {/* NEW domain-specific providers - for migrated components */}
               <InventoryProvider>
                 <SalesProvider>
                   <PurchaseProvider>
@@ -53,5 +51,5 @@ createRoot(rootElement).render(
         </AuthProvider>
       </ErrorBoundary>
     </ThemeProvider>
-  </StrictMode>
+  </StrictMode>,
 );

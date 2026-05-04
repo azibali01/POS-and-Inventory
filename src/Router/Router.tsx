@@ -1,21 +1,7 @@
-import {
-  createBrowserRouter,
-  RouterProvider as ReactRouterProvider,
-} from "react-router-dom";
-import AuthRouter from "../Auth/router/AuthRouter";
-import DashboardRouter from "../Dashboard/DashboardRouter/DashboardRouter";
-import RootRedirect from "../components/RootRedirect";
-
-const router = createBrowserRouter([
-  {
-    path: "/",
-    element: <RootRedirect />,
-  },
-  ...AuthRouter,
-  ...DashboardRouter,
-]);
+import DemoShowcaseShell from "../components/DemoShowcaseShell";
 
 const RouterProvider = () => {
-  return <ReactRouterProvider router={router}></ReactRouterProvider>;
+  return <DemoShowcaseShell />;
 };
+
 export default RouterProvider;

@@ -140,7 +140,6 @@ const routes: RouteObject[] = [
         path: "/reports/stock-valuation",
         element: <StockValuation />,
       },
-      {},
     ],
   },
 ];
