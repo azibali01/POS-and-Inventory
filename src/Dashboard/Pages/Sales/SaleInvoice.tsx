@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Modal,
   Button,
@@ -303,6 +303,7 @@ function buildEditPayload(
 
 export default function SaleInvoice() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { sales, createSaleAsync, deleteSaleAsync } = useSales();
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -396,6 +397,17 @@ export default function SaleInvoice() {
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch]);
+
+  // Handle incoming route state for quotation conversion
+  useEffect(() => {
+    if (location.state && location.state.importQuotation) {
+      const q = location.state.importQuotation;
+      setInitialPayload(q);
+      setOpen(true);
+      // Clean up state so refreshing won't re-trigger it
+      navigate("/sales/invoices", { replace: true, state: {} });
+    }
+  }, [location.state, navigate]);
 
   async function confirmDelete() {
     if (!deleteTarget) return;

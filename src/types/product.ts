@@ -4,7 +4,7 @@ export interface ProductVariant {
   thickness: string;
   color: string;
   length: string;
-  salesRate: number;
+  salesRate?: number;
   purchasePrice?: number;
   openingStock?: number;
   availableStock?: number;

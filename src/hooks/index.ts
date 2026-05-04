@@ -32,6 +32,7 @@ export { useShift } from "./useShift";
 export { useDataLoader } from "./useDataLoader";
 export { useDebounce } from "./useDebounce";
 export { useFormValidation } from "./useFormValidation";
+export { useGridNavigation } from "./useGridNavigation";
 export { useKeyboardNav } from "./useKeyboardNav";
 export { useLineItems } from "./useLineItems";
 export { useModal } from "./useModal";
