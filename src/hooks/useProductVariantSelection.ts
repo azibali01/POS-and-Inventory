@@ -156,7 +156,7 @@ export function useProductVariantSelection(products: InventoryItem[]) {
       unit: selection.selectedProduct.unit,
       thickness: selection.selectedVariant.thickness,
       color: selection.selectedVariant.color,
-      salesRate: selection.selectedVariant.salesRate,
+      salesRate: 0,
       availableStock:
         selection.selectedVariant.availableStock ??
         selection.selectedVariant.openingStock ??
